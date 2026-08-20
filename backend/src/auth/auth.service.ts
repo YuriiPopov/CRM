@@ -72,13 +72,14 @@ export class AuthService {
   }
 
   private signToken(
-    user: Pick<User, 'id' | 'email' | 'role' | 'salonId'>,
+    user: Pick<User, 'id' | 'email' | 'role' | 'salonId' | 'masterId'>,
   ): string {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       salonId: user.salonId,
+      masterId: user.masterId,
     };
 
     return this.jwtService.sign(payload);

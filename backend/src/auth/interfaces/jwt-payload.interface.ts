@@ -5,4 +5,5 @@ export interface JwtPayload {
   email: string;
   role: Role;
   salonId: string;
+  masterId: string | null;
 }

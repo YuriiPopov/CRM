@@ -73,6 +73,15 @@ npm run prisma:seed
 
 Создаёт (или обновляет, если уже существует) салон и admin-пользователя с данными из `SEED_SALON_NAME` / `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (см. `.env.example`).
 
+## Clients
+
+CRUD карточек клиентов, все операции скоуплены по `salonId` текущего пользователя.
+
+- `POST /clients` — только `ADMIN`; требует `consentGiven: true` (GDPR — явное согласие на обработку данных, см. архитектуру, п.6), фиксирует `consentGivenAt`.
+- `GET /clients`, `GET /clients/:id` — `ADMIN` видит всех клиентов своего салона; `MASTER` — только клиентов по своим записям (через `Booking.masterId`).
+- `PATCH /clients/:id` — только `ADMIN`; `consentWithdrawn: true` фиксирует отзыв согласия (`consentWithdrawnAt`).
+- `DELETE /clients/:id` — только `ADMIN`; при наличии у клиента записей (bookings) удаление отклоняется (409).
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

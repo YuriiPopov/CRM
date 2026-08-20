@@ -61,6 +61,7 @@ describe('AuthService', () => {
         email: existingUser.email,
         role: existingUser.role,
         salonId: existingUser.salonId,
+        masterId: existingUser.masterId,
       });
     });
 
@@ -104,6 +105,7 @@ describe('AuthService', () => {
       email: existingUser.email,
       role: Role.ADMIN,
       salonId: 'salon-1',
+      masterId: null,
     };
 
     it('creates a user scoped to the creating admin salon and strips the password hash', async () => {
