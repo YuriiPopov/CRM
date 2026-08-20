@@ -99,6 +99,15 @@ CRUD справочника услуг, скоуплен по `salonId`; в от
 - `POST /services`, `PATCH /services/:id`, `DELETE /services/:id` — только `ADMIN`. Удаление отклоняется (409), если услуга ещё используется мастерами, материалами или записями.
 - `GET /services`, `GET /services/:id` — `ADMIN` и `MASTER`.
 
+## Bookings
+
+Календарь записей, скоуплен по `salonId`; `endTime` всегда вычисляется сервером из `Service.durationMin`, клиент передаёт только `startTime`.
+
+- `POST /bookings` — `ADMIN` указывает `masterId` явно; `MASTER` бронирует только на себя (передавать чужой `masterId` — 403). Проверяет пересечение по времени: конфликт (409), если у мастера уже есть активная (не `CANCELLED`) запись с пересекающимся интервалом — `COMPLETED` тоже блокирует слот, `CANCELLED` нет.
+- `GET /bookings`, `GET /bookings/:id` — `ADMIN` видит все записи салона; `MASTER` — только свои.
+- `PATCH /bookings/:id/reschedule` — только `ADMIN`; меняет `startTime` (и опционально `masterId`), пересчитывает `endTime`, повторяет проверку пересечений. Нельзя перенести `CANCELLED`/`COMPLETED` запись (409).
+- `PATCH /bookings/:id/status` — переходы `CREATED → CONFIRMED|CANCELLED`, `CONFIRMED → COMPLETED|CANCELLED`; `COMPLETED`/`CANCELLED` терминальны. `ADMIN` может выполнить любой допустимый переход; `MASTER` — только `COMPLETED`/`CANCELLED` и только для своих записей (подтверждение — действие `ADMIN`).
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

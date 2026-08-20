@@ -1,0 +1,426 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { BookingStatus, Role } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { BookingsService } from './bookings.service';
+
+describe('BookingsService', () => {
+  let service: BookingsService;
+  let prisma: {
+    client: { findFirst: jest.Mock };
+    master: { findFirst: jest.Mock };
+    service: { findFirst: jest.Mock };
+    booking: {
+      create: jest.Mock;
+      findMany: jest.Mock;
+      findFirst: jest.Mock;
+      update: jest.Mock;
+    };
+  };
+
+  const admin: AuthenticatedUser = {
+    id: 'admin-1',
+    email: 'admin@b4u.local',
+    role: Role.ADMIN,
+    salonId: 'salon-1',
+    masterId: null,
+  };
+
+  const master: AuthenticatedUser = {
+    id: 'master-user-1',
+    email: 'master@b4u.local',
+    role: Role.MASTER,
+    salonId: 'salon-1',
+    masterId: 'master-rec-1',
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      client: { findFirst: jest.fn() },
+      master: { findFirst: jest.fn() },
+      service: { findFirst: jest.fn() },
+      booking: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BookingsService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+
+    service = module.get(BookingsService);
+  });
+
+  const baseCreateDto = {
+    clientId: 'client-1',
+    serviceId: 'service-1',
+    startTime: '2026-01-10T10:00:00.000Z',
+  };
+
+  describe('create', () => {
+    it('lets ADMIN create a booking for a specific master', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null); // no overlap
+      prisma.booking.create.mockResolvedValue({ id: 'booking-1' });
+
+      await service.create(
+        { ...baseCreateDto, masterId: 'master-rec-1' },
+        admin,
+      );
+
+      expect(prisma.booking.create).toHaveBeenCalledWith({
+        data: {
+          salonId: 'salon-1',
+          clientId: 'client-1',
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+          startTime: new Date('2026-01-10T10:00:00.000Z'),
+          endTime: new Date('2026-01-10T11:00:00.000Z'),
+        },
+      });
+    });
+
+    it('rejects ADMIN creation without a masterId', async () => {
+      await expect(service.create(baseCreateDto, admin)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('lets MASTER create a booking for themselves without specifying masterId', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 30,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.booking.create.mockResolvedValue({ id: 'booking-1' });
+
+      await service.create(baseCreateDto, master);
+
+      expect(prisma.booking.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining() is typed `any` in @types/jest
+          data: expect.objectContaining({ masterId: 'master-rec-1' }),
+        }),
+      );
+    });
+
+    it('rejects MASTER creating a booking for another master', async () => {
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-2' }, master),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a MASTER account with no linked master profile', async () => {
+      await expect(
+        service.create(baseCreateDto, { ...master, masterId: null }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('throws NotFoundException when the client is not in the salon', async () => {
+      prisma.client.findFirst.mockResolvedValue(null);
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws ConflictException when the master has an overlapping active booking', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue({ id: 'existing-booking' });
+
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findAll', () => {
+    it('scopes ADMIN to the whole salon', async () => {
+      prisma.booking.findMany.mockResolvedValue([]);
+
+      await service.findAll(admin);
+
+      expect(prisma.booking.findMany).toHaveBeenCalledWith({
+        where: { salonId: 'salon-1' },
+        orderBy: { startTime: 'asc' },
+      });
+    });
+
+    it('scopes MASTER to their own bookings', async () => {
+      prisma.booking.findMany.mockResolvedValue([]);
+
+      await service.findAll(master);
+
+      expect(prisma.booking.findMany).toHaveBeenCalledWith({
+        where: { salonId: 'salon-1', masterId: 'master-rec-1' },
+        orderBy: { startTime: 'asc' },
+      });
+    });
+  });
+
+  describe('findOne', () => {
+    it('throws NotFoundException when out of scope', async () => {
+      prisma.booking.findFirst.mockResolvedValue(null);
+
+      await expect(service.findOne('booking-1', master)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('reschedule', () => {
+    it('throws NotFoundException when the booking is not in the salon', async () => {
+      prisma.booking.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.reschedule(
+          'booking-1',
+          { startTime: '2026-01-10T12:00:00.000Z' },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejects rescheduling a cancelled booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        salonId: 'salon-1',
+        status: BookingStatus.CANCELLED,
+      });
+
+      await expect(
+        service.reschedule(
+          'booking-1',
+          { startTime: '2026-01-10T12:00:00.000Z' },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rejects rescheduling a completed booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        salonId: 'salon-1',
+        status: BookingStatus.COMPLETED,
+      });
+
+      await expect(
+        service.reschedule(
+          'booking-1',
+          { startTime: '2026-01-10T12:00:00.000Z' },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('excludes the booking itself from the overlap check and recomputes endTime', async () => {
+      prisma.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'booking-1',
+          salonId: 'salon-1',
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+          status: BookingStatus.CREATED,
+        })
+        .mockResolvedValueOnce(null); // no overlap
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 45,
+      });
+      prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+      await service.reschedule(
+        'booking-1',
+        { startTime: '2026-01-10T12:00:00.000Z' },
+        'salon-1',
+      );
+
+      expect(prisma.booking.findFirst).toHaveBeenLastCalledWith({
+        where: {
+          masterId: 'master-rec-1',
+          status: { notIn: [BookingStatus.CANCELLED] },
+          startTime: { lt: new Date('2026-01-10T12:45:00.000Z') },
+          endTime: { gt: new Date('2026-01-10T12:00:00.000Z') },
+          id: { not: 'booking-1' },
+        },
+      });
+      expect(prisma.booking.update).toHaveBeenCalledWith({
+        where: { id: 'booking-1' },
+        data: {
+          masterId: 'master-rec-1',
+          startTime: new Date('2026-01-10T12:00:00.000Z'),
+          endTime: new Date('2026-01-10T12:45:00.000Z'),
+        },
+      });
+    });
+
+    it('rejects reassigning to a master outside the salon', async () => {
+      prisma.booking.findFirst.mockResolvedValueOnce({
+        id: 'booking-1',
+        salonId: 'salon-1',
+        masterId: 'master-rec-1',
+        serviceId: 'service-1',
+        status: BookingStatus.CREATED,
+      });
+      prisma.master.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.reschedule(
+          'booking-1',
+          { startTime: '2026-01-10T12:00:00.000Z', masterId: 'master-rec-2' },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('updateStatus', () => {
+    it('throws NotFoundException when out of scope', async () => {
+      prisma.booking.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateStatus(
+          'booking-1',
+          { status: BookingStatus.CONFIRMED },
+          admin,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('allows ADMIN to confirm a created booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.CREATED,
+      });
+      prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+      await service.updateStatus(
+        'booking-1',
+        { status: BookingStatus.CONFIRMED },
+        admin,
+      );
+
+      expect(prisma.booking.update).toHaveBeenCalledWith({
+        where: { id: 'booking-1' },
+        data: { status: BookingStatus.CONFIRMED },
+      });
+    });
+
+    it('rejects MASTER trying to confirm their own booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.CREATED,
+      });
+
+      await expect(
+        service.updateStatus(
+          'booking-1',
+          { status: BookingStatus.CONFIRMED },
+          master,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.booking.update).not.toHaveBeenCalled();
+    });
+
+    it('allows MASTER to complete their own confirmed booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.CONFIRMED,
+      });
+      prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+      await service.updateStatus(
+        'booking-1',
+        { status: BookingStatus.COMPLETED },
+        master,
+      );
+
+      expect(prisma.booking.update).toHaveBeenCalledWith({
+        where: { id: 'booking-1' },
+        data: { status: BookingStatus.COMPLETED },
+      });
+    });
+
+    it('allows MASTER to cancel their own created booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.CREATED,
+      });
+      prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+      await service.updateStatus(
+        'booking-1',
+        { status: BookingStatus.CANCELLED },
+        master,
+      );
+
+      expect(prisma.booking.update).toHaveBeenCalledWith({
+        where: { id: 'booking-1' },
+        data: { status: BookingStatus.CANCELLED },
+      });
+    });
+
+    it('rejects an invalid transition (e.g. completed -> confirmed)', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.COMPLETED,
+      });
+
+      await expect(
+        service.updateStatus(
+          'booking-1',
+          { status: BookingStatus.CONFIRMED },
+          admin,
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects transitioning out of a terminal cancelled state', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.CANCELLED,
+      });
+
+      await expect(
+        service.updateStatus(
+          'booking-1',
+          { status: BookingStatus.CONFIRMED },
+          admin,
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+});
