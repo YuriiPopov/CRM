@@ -10,13 +10,10 @@ import { Booking, BookingStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { addMinutes, findOverlappingBooking } from './booking-overlap.util';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
-
-// Отменённая запись не занимает время мастера; выполненная — занимала (реально была оказана), поэтому
-// она по-прежнему учитывается при проверке пересечений (см. ТЗ: "проверка доступности мастера по времени").
-const NON_BLOCKING_STATUSES: BookingStatus[] = [BookingStatus.CANCELLED];
 
 const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   [BookingStatus.CREATED]: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED],
@@ -224,15 +221,13 @@ export class BookingsService {
     endTime: Date,
     excludeBookingId?: string,
   ): Promise<void> {
-    const overlapping = await this.prisma.booking.findFirst({
-      where: {
-        masterId,
-        status: { notIn: NON_BLOCKING_STATUSES },
-        startTime: { lt: endTime },
-        endTime: { gt: startTime },
-        ...(excludeBookingId && { id: { not: excludeBookingId } }),
-      },
-    });
+    const overlapping = await findOverlappingBooking(
+      this.prisma,
+      masterId,
+      startTime,
+      endTime,
+      excludeBookingId,
+    );
 
     if (overlapping) {
       throw new ConflictException(
@@ -262,8 +257,4 @@ export class BookingsService {
 
     return { salonId: user.salonId, masterId: user.masterId };
   }
-}
-
-function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60_000);
 }

@@ -126,6 +126,14 @@ CRUD справочника услуг, скоуплен по `salonId`; в от
 
 В `Notification` — `type: NotificationType` (`BOOKING_CONFIRMATION`/`BOOKING_RESCHEDULED`/`BOOKING_CANCELLATION`) и `createdAt`; миграция `add_notification_type_and_created_at` — первая для этого проекта (БД поднималась впервые, `prisma/migrations/` до этого не было).
 
+## Public booking (без авторизации)
+
+Минимальная публичная онлайн-запись — единственные анонимные маршруты в API (см. ТЗ, раздел 8 "MVP и roadmap"). Отдают/принимают только то, что нужно самому клиенту: никогда не возвращают чужие записи, список клиентов или расписание мастера целиком — только доступные слоты и подтверждение собственной записи.
+
+- `GET /public/booking/slots?masterId&serviceId&date=YYYY-MM-DD` — свободные слоты мастера под конкретную услугу на дату. Длительность слота — из `Service.durationMin`; занятость считается той же overlap-логикой, что и в Bookings (общая утилита `booking-overlap.util.ts`). Часы работы захардкожены как MVP-упрощение (`09:00–20:00 UTC`, шаг 15 мин) — в схеме пока нет модели расписания; ничего не блокирует добавить её позже. 404, если мастер неактивен/не найден, услуга не из его салона или мастер её не оказывает (через `MasterService`).
+- `POST /public/booking` — создаёт запись с `source: ONLINE`. Требует `consentGiven: true` (GDPR, как и в закрытом Clients-модуле). Клиент ищется по `(salonId, phone)` — при совпадении переиспользуется существующая карточка вместо дубликата. Повторно проверяет отсутствие пересечения (защита от гонки между чтением слотов и созданием записи) — 409, если слот уже заняли. В ответе — только что созданная запись (`id`, `startTime`, `endTime`, `status`), без `salonId`/`clientId`.
+- Rate-limit — только на этих двух маршрутах (`@nestjs/throttler`, in-memory, без Redis): 30 запросов/мин на чтение слотов, 5 запросов/мин на создание записи; при превышении — 429.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

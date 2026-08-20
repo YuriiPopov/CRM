@@ -11,6 +11,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { PaymentsModule } from './payments/payments.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PublicBookingModule } from './public-booking/public-booking.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     PaymentsModule,
     InventoryModule,
     NotificationsModule,
+    PublicBookingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
