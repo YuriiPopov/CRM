@@ -57,6 +57,22 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Auth
+
+JWT-аутентификация по email+паролю (bcrypt), роли `ADMIN`/`MASTER` (см. `Role` в `prisma/schema.prisma`).
+
+- `POST /auth/login` — `{ email, password }` → `{ accessToken }`.
+- `GET /auth/me` — требует `Authorization: Bearer <token>`, возвращает текущего пользователя.
+- `POST /auth/register` — требует токен пользователя с ролью `ADMIN`; создаёт нового пользователя (`email`, `password`, `role`, опционально `masterId`) в том же салоне, что и у создающего админа.
+
+Так как `/auth/register` защищён ролью `ADMIN`, для первого запуска нужен посевной admin-пользователь:
+
+```bash
+npm run prisma:seed
+```
+
+Создаёт (или обновляет, если уже существует) салон и admin-пользователя с данными из `SEED_SALON_NAME` / `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (см. `.env.example`).
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
