@@ -108,6 +108,14 @@ CRUD справочника услуг, скоуплен по `salonId`; в от
 - `PATCH /bookings/:id/reschedule` — только `ADMIN`; меняет `startTime` (и опционально `masterId`), пересчитывает `endTime`, повторяет проверку пересечений. Нельзя перенести `CANCELLED`/`COMPLETED` запись (409).
 - `PATCH /bookings/:id/status` — переходы `CREATED → CONFIRMED|CANCELLED`, `CONFIRMED → COMPLETED|CANCELLED`; `COMPLETED`/`CANCELLED` терминальны. `ADMIN` может выполнить любой допустимый переход; `MASTER` — только `COMPLETED`/`CANCELLED` и только для своих записей (подтверждение — действие `ADMIN`).
 
+## Payments
+
+`Payment` 1—1 с `Booking` и не несёт `salonId` напрямую — скоуп везде идёт через связь `booking.salonId`/`booking.masterId`.
+
+- `POST /payments` — только `ADMIN`; оплата создаётся только для записи в статусе `COMPLETED` (депозиты/предоплата — вне MVP, см. ТЗ). Повторная оплата той же записи отклоняется (409, `bookingId` уникален), скидка не может превышать сумму (400).
+- `GET /payments`, `GET /payments/:id` — `ADMIN` видит полные финансовые детали (`amount`, `discount`, `method`, `status`) по всему салону; `MASTER` видит только факт оплаты по своим записям (`id`, `bookingId`, `paidAt`, без суммы/скидки/метода).
+- `GET /payments/report/revenue?from&to` — только `ADMIN`; минимальная отчётность по выручке за период (оба параметра опциональны): `grossAmount` (сумма `amount`), `totalDiscount`, `netRevenue = grossAmount - totalDiscount`, `paymentsCount`.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
