@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: b4u
+      POSTGRES_PASSWORD: b4u_dev_password
+      POSTGRES_DB: b4u_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - b4u_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  b4u_postgres_data:
