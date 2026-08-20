@@ -40,6 +40,12 @@ enum NotificationStatus {
   FAILED
 }
 
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  BOOKING_RESCHEDULED
+  BOOKING_CANCELLATION
+}
+
 enum ServiceCategory {
   MANICURE_PEDICURE
   SPA
@@ -211,10 +217,13 @@ model Notification {
   id        String              @id @default(uuid())
   bookingId String
   booking   Booking             @relation(fields: [bookingId], references: [id])
+  type      NotificationType
   channel   NotificationChannel
   status    NotificationStatus  @default(PENDING)
   sentAt    DateTime?
+  createdAt DateTime            @default(now())
 
+  @@index([bookingId])
   @@map("notifications")
 }
 

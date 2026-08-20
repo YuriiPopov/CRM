@@ -7,6 +7,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { BookingStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BookingsService } from './bookings.service';
 
@@ -22,6 +23,11 @@ describe('BookingsService', () => {
       findFirst: jest.Mock;
       update: jest.Mock;
     };
+  };
+  let notifications: {
+    notifyBookingConfirmed: jest.Mock;
+    notifyBookingRescheduled: jest.Mock;
+    notifyBookingCancelled: jest.Mock;
   };
 
   const admin: AuthenticatedUser = {
@@ -52,11 +58,17 @@ describe('BookingsService', () => {
         update: jest.fn(),
       },
     };
+    notifications = {
+      notifyBookingConfirmed: jest.fn().mockResolvedValue(undefined),
+      notifyBookingRescheduled: jest.fn().mockResolvedValue(undefined),
+      notifyBookingCancelled: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BookingsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: NotificationsService, useValue: notifications },
       ],
     }).compile();
 
@@ -95,6 +107,27 @@ describe('BookingsService', () => {
           endTime: new Date('2026-01-10T11:00:00.000Z'),
         },
       });
+      expect(notifications.notifyBookingConfirmed).toHaveBeenCalledWith(
+        'booking-1',
+      );
+    });
+
+    it('does not fail booking creation when the notification dispatch throws', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.booking.create.mockResolvedValue({ id: 'booking-1' });
+      notifications.notifyBookingConfirmed.mockRejectedValue(
+        new Error('email provider down'),
+      );
+
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).resolves.toEqual({ id: 'booking-1' });
     });
 
     it('rejects ADMIN creation without a masterId', async () => {
@@ -284,6 +317,9 @@ describe('BookingsService', () => {
           endTime: new Date('2026-01-10T12:45:00.000Z'),
         },
       });
+      expect(notifications.notifyBookingRescheduled).toHaveBeenCalledWith(
+        'booking-1',
+      );
     });
 
     it('rejects reassigning to a master outside the salon', async () => {
@@ -336,6 +372,7 @@ describe('BookingsService', () => {
         where: { id: 'booking-1' },
         data: { status: BookingStatus.CONFIRMED },
       });
+      expect(notifications.notifyBookingCancelled).not.toHaveBeenCalled();
     });
 
     it('rejects MASTER trying to confirm their own booking', async () => {
@@ -371,6 +408,7 @@ describe('BookingsService', () => {
         where: { id: 'booking-1' },
         data: { status: BookingStatus.COMPLETED },
       });
+      expect(notifications.notifyBookingCancelled).not.toHaveBeenCalled();
     });
 
     it('allows MASTER to cancel their own created booking', async () => {
@@ -390,6 +428,9 @@ describe('BookingsService', () => {
         where: { id: 'booking-1' },
         data: { status: BookingStatus.CANCELLED },
       });
+      expect(notifications.notifyBookingCancelled).toHaveBeenCalledWith(
+        'booking-1',
+      );
     });
 
     it('rejects an invalid transition (e.g. completed -> confirmed)', async () => {

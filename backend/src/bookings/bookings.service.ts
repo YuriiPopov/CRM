@@ -3,10 +3,12 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Booking, BookingStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
@@ -25,7 +27,12 @@ const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(BookingsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async create(dto: CreateBookingDto, user: AuthenticatedUser) {
     const masterId = this.resolveMasterIdForCreate(dto, user);
@@ -51,7 +58,7 @@ export class BookingsService {
 
     await this.assertNoOverlap(masterId, startTime, endTime);
 
-    return this.prisma.booking.create({
+    const booking = await this.prisma.booking.create({
       data: {
         salonId: user.salonId,
         clientId: dto.clientId,
@@ -61,6 +68,12 @@ export class BookingsService {
         endTime,
       },
     });
+
+    await this.notifySafely(() =>
+      this.notificationsService.notifyBookingConfirmed(booking.id),
+    );
+
+    return booking;
   }
 
   findAll(user: AuthenticatedUser) {
@@ -112,10 +125,16 @@ export class BookingsService {
 
     await this.assertNoOverlap(masterId, startTime, endTime, id);
 
-    return this.prisma.booking.update({
+    const updated = await this.prisma.booking.update({
       where: { id },
       data: { masterId, startTime, endTime },
     });
+
+    await this.notifySafely(() =>
+      this.notificationsService.notifyBookingRescheduled(updated.id),
+    );
+
+    return updated;
   }
 
   async updateStatus(
@@ -149,10 +168,18 @@ export class BookingsService {
       );
     }
 
-    return this.prisma.booking.update({
+    const updated = await this.prisma.booking.update({
       where: { id },
       data: { status: dto.status },
     });
+
+    if (dto.status === BookingStatus.CANCELLED) {
+      await this.notifySafely(() =>
+        this.notificationsService.notifyBookingCancelled(updated.id),
+      );
+    }
+
+    return updated;
   }
 
   private resolveMasterIdForCreate(
@@ -211,6 +238,15 @@ export class BookingsService {
       throw new ConflictException(
         'Master already has an overlapping booking at this time',
       );
+    }
+  }
+
+  // Уведомления — второстепенный эффект: их сбой не должен откатывать/ломать сам сценарий записи
+  private async notifySafely(action: () => Promise<void>): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      this.logger.warn(`Notification dispatch failed: ${String(error)}`);
     }
   }
 

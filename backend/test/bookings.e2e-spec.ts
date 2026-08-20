@@ -7,6 +7,9 @@ import {
   BookingStatus,
   Client,
   Master,
+  Notification,
+  NotificationStatus,
+  NotificationType,
   Role,
   Service,
   ServiceCategory,
@@ -46,7 +49,9 @@ class FakePrismaService {
   private mastersById = new Map<string, Master>();
   private servicesById = new Map<string, Service>();
   private bookingsById = new Map<string, Booking>();
+  private notificationsById = new Map<string, Notification>();
   private nextBookingId = 1;
+  private nextNotificationId = 1;
 
   user = {
     findUnique: ({
@@ -151,7 +156,54 @@ class FakePrismaService {
       this.bookingsById.set(where.id, updated);
       return Promise.resolve(updated);
     },
+    findUnique: ({
+      where,
+    }: {
+      where: { id: string };
+    }): Promise<(Booking & { client: Client; service: Service }) | null> => {
+      const booking = this.bookingsById.get(where.id);
+      if (!booking) return Promise.resolve(null);
+      const client = this.clientsById.get(booking.clientId)!;
+      const service = this.servicesById.get(booking.serviceId)!;
+      return Promise.resolve({ ...booking, client, service });
+    },
   };
+
+  notification = {
+    create: ({
+      data,
+    }: {
+      data: Omit<Notification, 'id' | 'createdAt' | 'sentAt'>;
+    }): Promise<Notification> => {
+      const notification: Notification = {
+        id: `notification-${this.nextNotificationId++}`,
+        createdAt: new Date(),
+        sentAt: null,
+        ...data,
+      };
+      this.notificationsById.set(notification.id, notification);
+      return Promise.resolve(notification);
+    },
+    update: ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: Partial<Notification>;
+    }): Promise<Notification> => {
+      const existing = this.notificationsById.get(where.id);
+      if (!existing) throw new Error('not found');
+      const updated = { ...existing, ...data };
+      this.notificationsById.set(where.id, updated);
+      return Promise.resolve(updated);
+    },
+  };
+
+  getNotificationsForBooking(bookingId: string): Notification[] {
+    return [...this.notificationsById.values()].filter(
+      (n) => n.bookingId === bookingId,
+    );
+  }
 
   private matches(booking: Booking, where: BookingWhere): boolean {
     if (where.id !== undefined) {
@@ -255,7 +307,7 @@ describe('Bookings (e2e)', () => {
       salonId: 'salon-1',
       name: 'Client A',
       phone: '+48000000001',
-      email: null,
+      email: 'client-a@example.com',
       notes: null,
       tags: [],
       consentGivenAt: new Date(),
@@ -344,6 +396,14 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CREATED,
         startTime: '2026-03-10T10:00:00.000Z',
         endTime: '2026-03-10T11:00:00.000Z',
+      });
+
+      const bookingId = (response.body as { id: string }).id;
+      const notifications = prisma.getNotificationsForBooking(bookingId);
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0]).toMatchObject({
+        type: NotificationType.BOOKING_CONFIRMATION,
+        status: NotificationStatus.SENT,
       });
     });
 
@@ -568,6 +628,13 @@ describe('Bookings (e2e)', () => {
         startTime: '2026-03-10T14:00:00.000Z',
         endTime: '2026-03-10T15:00:00.000Z',
       });
+
+      const notifications = prisma.getNotificationsForBooking('booking-1');
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0]).toMatchObject({
+        type: NotificationType.BOOKING_RESCHEDULED,
+        status: NotificationStatus.SENT,
+      });
     });
 
     it('rejects rescheduling into an overlap with another active booking', async () => {
@@ -641,6 +708,7 @@ describe('Bookings (e2e)', () => {
         .expect(200);
 
       expect(response.body).toMatchObject({ status: BookingStatus.CONFIRMED });
+      expect(prisma.getNotificationsForBooking('booking-1')).toHaveLength(0);
     });
 
     it('forbids MASTER from confirming their own booking', async () => {
@@ -661,6 +729,13 @@ describe('Bookings (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({ status: BookingStatus.CANCELLED })
         .expect(200);
+
+      const notifications = prisma.getNotificationsForBooking('booking-1');
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0]).toMatchObject({
+        type: NotificationType.BOOKING_CANCELLATION,
+        status: NotificationStatus.SENT,
+      });
     });
 
     it('returns 404 when MASTER acts on another master booking', async () => {

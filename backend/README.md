@@ -116,6 +116,16 @@ CRUD справочника услуг, скоуплен по `salonId`; в от
 - `GET /payments`, `GET /payments/:id` — `ADMIN` видит полные финансовые детали (`amount`, `discount`, `method`, `status`) по всему салону; `MASTER` видит только факт оплаты по своим записям (`id`, `bookingId`, `paidAt`, без суммы/скидки/метода).
 - `GET /payments/report/revenue?from&to` — только `ADMIN`; минимальная отчётность по выручке за период (оба параметра опциональны): `grossAmount` (сумма `amount`), `totalDiscount`, `netRevenue = grossAmount - totalDiscount`, `paymentsCount`.
 
+## Notifications
+
+Упрощённая "таблица исходящих" из архитектуры (п.5) — без Redis/очереди: `BookingsService` сам вызывает `NotificationsService` синхронно при создании/переносе/отмене записи, а сбой отправки никогда не ломает сам сценарий записи (фиксируется как `FAILED`).
+
+- Bookings-триггеры: `POST /bookings` → `BOOKING_CONFIRMATION`; `PATCH /bookings/:id/reschedule` → `BOOKING_RESCHEDULED`; `PATCH /bookings/:id/status` с `CANCELLED` → `BOOKING_CANCELLATION`. Канал — только `EMAIL`; получатель — `booking.client.email`. Если email не указан или отправка упала — статус `FAILED`, при успехе — `SENT` (+`sentAt`).
+- Реальная отправка замокана за интерфейсом `EmailProvider` (DI-токен `EMAIL_PROVIDER`) — `ConsoleEmailProvider` только логирует; замена на реального провайдера (SendGrid/SES/...) не требует изменений в `NotificationsService`.
+- `GET /notifications` (с опциональным `?status=`), `GET /notifications/:id` — только `ADMIN`; `MASTER` доступа не имеет вовсе (403 на все маршруты).
+
+**Требуется миграция схемы:** в `Notification` добавлены `type: NotificationType` (`BOOKING_CONFIRMATION`/`BOOKING_RESCHEDULED`/`BOOKING_CANCELLATION`) и `createdAt`. Реальная БД в этом проекте ещё ни разу не поднималась (нет `prisma/migrations/`), так что это часть ещё не выполненной первой миграции — после `docker compose up -d` выполните `npx prisma migrate dev --name init` как обычно.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
