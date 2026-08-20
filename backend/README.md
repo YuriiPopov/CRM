@@ -82,6 +82,23 @@ CRUD карточек клиентов, все операции скоуплен
 - `PATCH /clients/:id` — только `ADMIN`; `consentWithdrawn: true` фиксирует отзыв согласия (`consentWithdrawnAt`).
 - `DELETE /clients/:id` — только `ADMIN`; при наличии у клиента записей (bookings) удаление отклоняется (409).
 
+## Staff
+
+CRUD карточек мастеров, все операции скоуплены по `salonId` текущего пользователя.
+
+- `POST /staff` — только `ADMIN`; создаёт мастера (`name`, `specialization`, опционально `isActive`).
+- `GET /staff`, `GET /staff/:id` — `ADMIN` видит весь штат своего салона; `MASTER` — только собственную карточку. `GET /staff/:id` включает список привязанных услуг (`services`).
+- `PATCH /staff/:id`, `DELETE /staff/:id` — только `ADMIN`; удаление отклоняется (409), если у мастера есть связанный логин, записи или привязанные услуги.
+- `POST /staff/:id/services/:serviceId` — только `ADMIN`; привязывает услугу к мастеру через `MasterService` (идемпотентно — повторный вызов не ошибка).
+- `DELETE /staff/:id/services/:serviceId` — только `ADMIN`; отвязывает услугу от мастера (404, если такой привязки нет).
+
+## Services
+
+CRUD справочника услуг, скоуплен по `salonId`; в отличие от Clients/Staff, чтение (`GET`) не различается по ролям — каталог общий для `ADMIN` и `MASTER`.
+
+- `POST /services`, `PATCH /services/:id`, `DELETE /services/:id` — только `ADMIN`. Удаление отклоняется (409), если услуга ещё используется мастерами, материалами или записями.
+- `GET /services`, `GET /services/:id` — `ADMIN` и `MASTER`.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
