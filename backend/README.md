@@ -124,7 +124,7 @@ CRUD справочника услуг, скоуплен по `salonId`; в от
 - Реальная отправка замокана за интерфейсом `EmailProvider` (DI-токен `EMAIL_PROVIDER`) — `ConsoleEmailProvider` только логирует; замена на реального провайдера (SendGrid/SES/...) не требует изменений в `NotificationsService`.
 - `GET /notifications` (с опциональным `?status=`), `GET /notifications/:id` — только `ADMIN`; `MASTER` доступа не имеет вовсе (403 на все маршруты).
 
-**Требуется миграция схемы:** в `Notification` добавлены `type: NotificationType` (`BOOKING_CONFIRMATION`/`BOOKING_RESCHEDULED`/`BOOKING_CANCELLATION`) и `createdAt`. Реальная БД в этом проекте ещё ни разу не поднималась (нет `prisma/migrations/`), так что это часть ещё не выполненной первой миграции — после `docker compose up -d` выполните `npx prisma migrate dev --name init` как обычно.
+В `Notification` — `type: NotificationType` (`BOOKING_CONFIRMATION`/`BOOKING_RESCHEDULED`/`BOOKING_CANCELLATION`) и `createdAt`; миграция `add_notification_type_and_created_at` — первая для этого проекта (БД поднималась впервые, `prisma/migrations/` до этого не было).
 
 ## Deployment
 
