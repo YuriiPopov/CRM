@@ -299,3 +299,59 @@
   font-size: 14px;
   color: var(--text);
 }
+
+/* Финансы */
+
+.finance-table {
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.finance-table th,
+.finance-table td {
+  text-align: left;
+  padding: 6px 16px 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.finance-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 480px;
+  margin: 16px 0;
+}
+
+.finance-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.finance-chart-row-label {
+  min-width: 130px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.finance-chart-bar-track {
+  flex: 1;
+  background: var(--code-bg);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.finance-chart-bar {
+  display: block;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.finance-chart-bar-discount {
+  background: #dc2626;
+}
+
+.finance-chart-bar-net {
+  background: #16a34a;
+}
