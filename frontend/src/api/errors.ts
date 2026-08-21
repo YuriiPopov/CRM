@@ -28,6 +28,15 @@ export function getApiErrorMessage(error: unknown, fallback = 'Не удалос
     if (rawMessage?.toLowerCase().includes('no longer available')) {
       return 'Этот слот уже заняли — выберите другое время.'
     }
+    if (rawMessage?.toLowerCase().includes('already been erased')) {
+      return 'Данные этого клиента уже были удалены/анонимизированы ранее.'
+    }
+    if (rawMessage?.toLowerCase().includes('already has a payment')) {
+      return 'У этой записи уже есть оплата.'
+    }
+    if (rawMessage?.toLowerCase().includes('existing bookings')) {
+      return 'У клиента есть записи — сначала удалите/анонимизируйте историю, либо используйте GDPR-удаление.'
+    }
     return rawMessage ?? 'Действие конфликтует с текущим состоянием записи.'
   }
 
@@ -42,6 +51,9 @@ export function getApiErrorMessage(error: unknown, fallback = 'Не удалос
   if (status === 404) {
     if (rawMessage?.toLowerCase().includes('does not offer')) {
       return 'Этот мастер не оказывает выбранную услугу.'
+    }
+    if (rawMessage?.toLowerCase().includes('client')) {
+      return 'Клиент не найден.'
     }
     return rawMessage ?? 'Запись или связанные данные не найдены.'
   }

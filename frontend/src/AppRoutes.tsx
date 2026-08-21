@@ -5,6 +5,7 @@ import { AppLayout } from './layouts/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { HomeRedirect } from './pages/HomeRedirect'
 import { ClientsPage } from './pages/ClientsPage'
+import { ClientDetailPage } from './pages/ClientDetailPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { DashboardPage } from './pages/admin/DashboardPage'
@@ -27,6 +28,7 @@ export function AppRoutes() {
           {/* Доступно и ADMIN, и MASTER — см. ТЗ, роли пользователей. CalendarPage сам решает,
               что показать, по роли из useAuth(); /calendar и /my-schedule — два входа в один экран. */}
           <Route path="clients" element={<ClientsPage />} />
+          <Route path="clients/:id" element={<ClientDetailPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="my-schedule" element={<CalendarPage />} />
 
