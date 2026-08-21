@@ -59,4 +59,24 @@ export class ClientsController {
   remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.clientsService.remove(id, user.salonId);
   }
+
+  // GDPR «право на удаление» — анонимизация карточки (см. ClientsService.eraseClientData)
+  @Delete(':id/gdpr-erasure')
+  @Roles(Role.ADMIN)
+  eraseClientData(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.clientsService.eraseClientData(id, user.salonId);
+  }
+
+  // GDPR «право на переносимость» — карточка + история записей
+  @Get(':id/export')
+  @Roles(Role.ADMIN, Role.MASTER)
+  exportClientData(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.clientsService.exportClientData(id, user);
+  }
 }

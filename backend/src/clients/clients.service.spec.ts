@@ -19,6 +19,9 @@ describe('ClientsService', () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    dataDeletionRequest: { findFirst: jest.Mock; create: jest.Mock };
+    booking: { findMany: jest.Mock };
+    $transaction: jest.Mock;
   };
 
   const admin: AuthenticatedUser = {
@@ -46,6 +49,9 @@ describe('ClientsService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      dataDeletionRequest: { findFirst: jest.fn(), create: jest.fn() },
+      booking: { findMany: jest.fn() },
+      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -212,6 +218,166 @@ describe('ClientsService', () => {
       await expect(
         service.remove('client-1', 'salon-1'),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('eraseClientData', () => {
+    it('throws NotFoundException when the client does not belong to the salon', async () => {
+      prisma.client.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.eraseClientData('client-1', 'salon-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a client that has already been erased', async () => {
+      prisma.client.findFirst.mockResolvedValue({
+        id: 'client-1',
+        salonId: 'salon-1',
+      });
+      prisma.dataDeletionRequest.findFirst.mockResolvedValue({
+        id: 'ddr-1',
+        status: 'processed',
+      });
+
+      await expect(
+        service.eraseClientData('client-1', 'salon-1'),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('anonymizes the client and records a processed DataDeletionRequest atomically', async () => {
+      prisma.client.findFirst.mockResolvedValue({
+        id: 'client-1',
+        salonId: 'salon-1',
+      });
+      prisma.dataDeletionRequest.findFirst.mockResolvedValue(null);
+      prisma.client.update.mockResolvedValue({ id: 'client-1' });
+      prisma.dataDeletionRequest.create.mockResolvedValue({
+        status: 'processed',
+        processedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+
+      const result = await service.eraseClientData('client-1', 'salon-1');
+
+      expect(prisma.client.update).toHaveBeenCalledWith({
+        where: { id: 'client-1' },
+        data: {
+          name: 'Erased client',
+          phone: 'erased-client-1',
+          email: null,
+          notes: null,
+          tags: [],
+          consentWithdrawnAt: expect.any(Date) as Date,
+        },
+      });
+      expect(prisma.dataDeletionRequest.create).toHaveBeenCalledWith({
+        data: {
+          clientId: 'client-1',
+          status: 'processed',
+          processedAt: expect.any(Date) as Date,
+        },
+      });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        clientId: 'client-1',
+        status: 'processed',
+        processedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+    });
+  });
+
+  describe('exportClientData', () => {
+    it('throws NotFoundException when out of scope', async () => {
+      prisma.client.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.exportClientData('client-1', master),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('exports the full booking history and admin-view payments for ADMIN', async () => {
+      prisma.client.findFirst.mockResolvedValue({
+        id: 'client-1',
+        salonId: 'salon-1',
+      });
+      prisma.booking.findMany.mockResolvedValue([
+        {
+          id: 'booking-1',
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+          service: { name: 'Manicure' },
+          startTime: new Date('2026-01-10T10:00:00.000Z'),
+          endTime: new Date('2026-01-10T11:00:00.000Z'),
+          status: 'COMPLETED',
+          source: 'ADMIN',
+          payment: {
+            id: 'payment-1',
+            bookingId: 'booking-1',
+            amount: 100,
+            discount: 0,
+            method: 'cash',
+            status: 'paid',
+            paidAt: new Date(),
+          },
+        },
+      ]);
+
+      const result = await service.exportClientData('client-1', admin);
+
+      expect(prisma.booking.findMany).toHaveBeenCalledWith({
+        where: { clientId: 'client-1' },
+        orderBy: { startTime: 'desc' },
+        include: { service: true, payment: true },
+      });
+      expect(result.bookings[0].payment).toHaveProperty('amount');
+      expect(result.bookings[0]).toMatchObject({
+        id: 'booking-1',
+        serviceName: 'Manicure',
+      });
+    });
+
+    it('scopes the booking history to the MASTER and redacts payment detail', async () => {
+      prisma.client.findFirst.mockResolvedValue({
+        id: 'client-1',
+        salonId: 'salon-1',
+      });
+      prisma.booking.findMany.mockResolvedValue([
+        {
+          id: 'booking-1',
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+          service: { name: 'Manicure' },
+          startTime: new Date('2026-01-10T10:00:00.000Z'),
+          endTime: new Date('2026-01-10T11:00:00.000Z'),
+          status: 'COMPLETED',
+          source: 'ADMIN',
+          payment: {
+            id: 'payment-1',
+            bookingId: 'booking-1',
+            amount: 100,
+            discount: 0,
+            method: 'cash',
+            status: 'paid',
+            paidAt: new Date(),
+          },
+        },
+      ]);
+
+      const result = await service.exportClientData('client-1', master);
+
+      expect(prisma.booking.findMany).toHaveBeenCalledWith({
+        where: { clientId: 'client-1', masterId: 'master-rec-1' },
+        orderBy: { startTime: 'desc' },
+        include: { service: true, payment: true },
+      });
+      expect(result.bookings[0].payment).toEqual({
+        id: 'payment-1',
+        bookingId: 'booking-1',
+        paidAt: expect.any(Date) as Date,
+      });
+      expect(result.bookings[0].payment).not.toHaveProperty('amount');
     });
   });
 });

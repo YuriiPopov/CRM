@@ -4,14 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BookingStatus, Payment, Prisma, Role } from '@prisma/client';
+import { BookingStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { RevenueReportQueryDto } from './dto/revenue-report-query.dto';
-
-// MASTER видит только факт оплаты по своей записи — без суммы/скидки/метода (см. ТЗ, раздел 2 "Роли пользователей")
-export type MasterPaymentView = Pick<Payment, 'id' | 'bookingId' | 'paidAt'>;
+import { toPaymentView } from './payment-view.util';
 
 @Injectable()
 export class PaymentsService {
@@ -69,7 +67,7 @@ export class PaymentsService {
       orderBy: { paidAt: 'desc' },
     });
 
-    return payments.map((payment) => this.toView(payment, user));
+    return payments.map((payment) => toPaymentView(payment, user));
   }
 
   async findOne(id: string, user: AuthenticatedUser) {
@@ -81,7 +79,7 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
-    return this.toView(payment, user);
+    return toPaymentView(payment, user);
   }
 
   // Отчёт по выручке за период — минимальная версия отчётности из ТЗ (только ADMIN, см. RolesGuard)
@@ -114,21 +112,6 @@ export class PaymentsService {
       grossAmount,
       totalDiscount,
       netRevenue: grossAmount - totalDiscount,
-    };
-  }
-
-  private toView(
-    payment: Payment,
-    user: AuthenticatedUser,
-  ): Payment | MasterPaymentView {
-    if (user.role === Role.ADMIN) {
-      return payment;
-    }
-
-    return {
-      id: payment.id,
-      bookingId: payment.bookingId,
-      paidAt: payment.paidAt,
     };
   }
 

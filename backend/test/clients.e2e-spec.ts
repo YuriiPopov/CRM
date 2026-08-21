@@ -1,7 +1,19 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Client, Prisma, Role, User } from '@prisma/client';
+import {
+  Booking,
+  BookingSource,
+  BookingStatus,
+  Client,
+  DataDeletionRequest,
+  Payment,
+  Prisma,
+  Role,
+  Service,
+  ServiceCategory,
+  User,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -16,8 +28,12 @@ class FakePrismaService {
   private usersById = new Map<string, User>();
   private usersByEmail = new Map<string, User>();
   private clientsById = new Map<string, Client>();
-  private bookings: { clientId: string; masterId: string }[] = [];
+  private servicesById = new Map<string, Service>();
+  private bookingsById = new Map<string, Booking>();
+  private paymentsByBookingId = new Map<string, Payment>();
+  private dataDeletionRequestsById = new Map<string, DataDeletionRequest>();
   private nextClientId = 1;
+  private nextDdrId = 1;
 
   user = {
     findUnique: ({
@@ -92,7 +108,9 @@ class FakePrismaService {
     delete: ({ where }: { where: { id: string } }): Promise<Client> => {
       const existing = this.clientsById.get(where.id);
       if (!existing) throw new Error('not found');
-      const hasBookings = this.bookings.some((b) => b.clientId === where.id);
+      const hasBookings = [...this.bookingsById.values()].some(
+        (b) => b.clientId === where.id,
+      );
       if (hasBookings) {
         throw new Prisma.PrismaClientKnownRequestError(
           'Foreign key constraint violated',
@@ -102,6 +120,62 @@ class FakePrismaService {
       this.clientsById.delete(where.id);
       return Promise.resolve(existing);
     },
+  };
+
+  booking = {
+    findMany: ({
+      where,
+    }: {
+      where: { clientId?: string; masterId?: string };
+    }): Promise<
+      (Booking & { service: Service; payment: Payment | null })[]
+    > => {
+      const results = [...this.bookingsById.values()]
+        .filter(
+          (b) =>
+            (!where.clientId || b.clientId === where.clientId) &&
+            (!where.masterId || b.masterId === where.masterId),
+        )
+        .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
+        .map((b) => ({
+          ...b,
+          service: this.servicesById.get(b.serviceId)!,
+          payment: this.paymentsByBookingId.get(b.id) ?? null,
+        }));
+      return Promise.resolve(results);
+    },
+  };
+
+  dataDeletionRequest = {
+    findFirst: ({
+      where,
+    }: {
+      where: { clientId?: string; status?: string };
+    }): Promise<DataDeletionRequest | null> => {
+      const found = [...this.dataDeletionRequestsById.values()].find(
+        (d) =>
+          (!where.clientId || d.clientId === where.clientId) &&
+          (!where.status || d.status === where.status),
+      );
+      return Promise.resolve(found ?? null);
+    },
+    create: ({
+      data,
+    }: {
+      data: Omit<DataDeletionRequest, 'id' | 'requestedAt'>;
+    }): Promise<DataDeletionRequest> => {
+      const ddr: DataDeletionRequest = {
+        id: `ddr-${this.nextDdrId++}`,
+        requestedAt: new Date(),
+        ...data,
+      };
+      this.dataDeletionRequestsById.set(ddr.id, ddr);
+      return Promise.resolve(ddr);
+    },
+  };
+
+  $transaction = (ops: Promise<unknown>[]): Promise<unknown[]> => {
+    return Promise.all(ops);
   };
 
   private matches(client: Client, where: Prisma.ClientWhereInput): boolean {
@@ -116,7 +190,7 @@ class FakePrismaService {
 
     const requiredMasterId = w.bookings?.some?.masterId;
     if (requiredMasterId) {
-      const hasBookingWithMaster = this.bookings.some(
+      const hasBookingWithMaster = [...this.bookingsById.values()].some(
         (b) => b.clientId === client.id && b.masterId === requiredMasterId,
       );
       if (!hasBookingWithMaster) return false;
@@ -134,8 +208,16 @@ class FakePrismaService {
     this.clientsById.set(client.id, client);
   }
 
-  seedBooking(clientId: string, masterId: string) {
-    this.bookings.push({ clientId, masterId });
+  seedService(service: Service) {
+    this.servicesById.set(service.id, service);
+  }
+
+  seedBooking(booking: Booking) {
+    this.bookingsById.set(booking.id, booking);
+  }
+
+  seedPayment(payment: Payment) {
+    this.paymentsByBookingId.set(payment.bookingId, payment);
   }
 }
 
@@ -193,19 +275,49 @@ describe('Clients (e2e)', () => {
       createdAt: new Date(),
     });
 
+    prisma.seedService({
+      id: 'service-a',
+      salonId: 'salon-1',
+      name: 'Massage',
+      category: ServiceCategory.MASSAGE,
+      durationMin: 60,
+      price: 150 as unknown as Service['price'],
+      createdAt: new Date(),
+    });
+
     prisma.seedClient({
       id: 'client-a',
       salonId: 'salon-1',
       name: 'Client A (master 1)',
       phone: '+48000000001',
-      email: null,
-      notes: null,
-      tags: [],
+      email: 'client-a@example.com',
+      notes: 'VIP',
+      tags: ['vip'],
       consentGivenAt: new Date(),
       consentWithdrawnAt: null,
       createdAt: new Date(),
     });
-    prisma.seedBooking('client-a', 'master-rec-1');
+    prisma.seedBooking({
+      id: 'booking-a1',
+      salonId: 'salon-1',
+      clientId: 'client-a',
+      masterId: 'master-rec-1',
+      serviceId: 'service-a',
+      startTime: new Date('2026-01-10T10:00:00.000Z'),
+      endTime: new Date('2026-01-10T11:00:00.000Z'),
+      status: BookingStatus.COMPLETED,
+      source: BookingSource.ADMIN,
+      createdAt: new Date(),
+    });
+    prisma.seedPayment({
+      id: 'payment-a1',
+      bookingId: 'booking-a1',
+      amount: 150 as unknown as Payment['amount'],
+      discount: 0 as unknown as Payment['discount'],
+      method: 'cash',
+      status: 'paid',
+      paidAt: new Date('2026-01-10T11:05:00.000Z'),
+    });
 
     prisma.seedClient({
       id: 'client-b',
@@ -219,7 +331,18 @@ describe('Clients (e2e)', () => {
       consentWithdrawnAt: null,
       createdAt: new Date(),
     });
-    prisma.seedBooking('client-b', 'master-rec-2');
+    prisma.seedBooking({
+      id: 'booking-b1',
+      salonId: 'salon-1',
+      clientId: 'client-b',
+      masterId: 'master-rec-2',
+      serviceId: 'service-a',
+      startTime: new Date('2026-01-11T10:00:00.000Z'),
+      endTime: new Date('2026-01-11T11:00:00.000Z'),
+      status: BookingStatus.COMPLETED,
+      source: BookingSource.ADMIN,
+      createdAt: new Date(),
+    });
 
     prisma.seedClient({
       id: 'client-c',
@@ -420,6 +543,166 @@ describe('Clients (e2e)', () => {
         .delete('/clients/client-a')
         .set('Authorization', `Bearer ${token}`)
         .expect(409);
+    });
+  });
+
+  describe('DELETE /clients/:id/gdpr-erasure', () => {
+    it('forbids MASTER from erasing client data', async () => {
+      const token = await loginAs('master1@b4u.local', master1Password);
+
+      await request(app.getHttpServer())
+        .delete('/clients/client-a/gdpr-erasure')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+
+    it('anonymizes a client with booking/payment history instead of deleting the row', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      const response = await request(app.getHttpServer())
+        .delete('/clients/client-a/gdpr-erasure')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        clientId: 'client-a',
+        status: 'processed',
+      });
+
+      // Booking/Payment history survives — only identifying fields on the client are scrubbed
+      const detail = await request(app.getHttpServer())
+        .get('/clients/client-a')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(detail.body).toMatchObject({
+        id: 'client-a',
+        name: 'Erased client',
+        phone: 'erased-client-a',
+        email: null,
+        notes: null,
+        tags: [],
+      });
+      expect(detail.body).toHaveProperty('consentWithdrawnAt');
+    });
+
+    it('anonymizes a client with no booking history via the same code path', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      const response = await request(app.getHttpServer())
+        .delete('/clients/client-c/gdpr-erasure')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        clientId: 'client-c',
+        status: 'processed',
+      });
+    });
+
+    it('rejects a repeat erasure request as already processed', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      await request(app.getHttpServer())
+        .delete('/clients/client-a/gdpr-erasure')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .delete('/clients/client-a/gdpr-erasure')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(409);
+    });
+
+    it('returns 404 for a client belonging to another salon', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      await request(app.getHttpServer())
+        .delete('/clients/client-other-salon/gdpr-erasure')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+    });
+  });
+
+  interface ExportedBooking {
+    id: string;
+    serviceName: string;
+    status: string;
+    payment: {
+      id: string;
+      bookingId: string;
+      paidAt: string;
+      amount?: number;
+    } | null;
+  }
+
+  interface ExportResponseBody {
+    client: { id: string };
+    bookings: ExportedBooking[];
+    exportedAt: string;
+  }
+
+  describe('GET /clients/:id/export', () => {
+    it('gives ADMIN the full card, booking history, and payment detail', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      const response = await request(app.getHttpServer())
+        .get('/clients/client-a/export')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const body = response.body as ExportResponseBody;
+      expect(body.client).toMatchObject({ id: 'client-a' });
+      expect(body.bookings).toHaveLength(1);
+      expect(body.bookings[0]).toMatchObject({
+        id: 'booking-a1',
+        serviceName: 'Massage',
+        status: BookingStatus.COMPLETED,
+      });
+      expect(body.bookings[0].payment).toMatchObject({
+        amount: 150,
+        method: 'cash',
+      });
+      expect(body).toHaveProperty('exportedAt');
+    });
+
+    it('gives MASTER the client card but only their own bookings, with redacted payment detail', async () => {
+      const token = await loginAs('master1@b4u.local', master1Password);
+
+      const response = await request(app.getHttpServer())
+        .get('/clients/client-a/export')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const body = response.body as ExportResponseBody;
+      expect(body.bookings).toHaveLength(1);
+      expect(body.bookings[0].payment).toEqual({
+        id: 'payment-a1',
+        bookingId: 'booking-a1',
+        paidAt: '2026-01-10T11:05:00.000Z',
+      });
+      expect(body.bookings[0].payment).not.toHaveProperty('amount');
+    });
+
+    it('returns 404 when MASTER exports a client outside their own bookings', async () => {
+      const token = await loginAs('master1@b4u.local', master1Password);
+
+      await request(app.getHttpServer())
+        .get('/clients/client-b/export')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+    });
+
+    it('returns a null payment for a booking that was never paid', async () => {
+      const token = await loginAs('master2@b4u.local', master2Password);
+
+      const response = await request(app.getHttpServer())
+        .get('/clients/client-b/export')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const body = response.body as ExportResponseBody;
+      expect(body.bookings[0].payment).toBeNull();
     });
   });
 });
