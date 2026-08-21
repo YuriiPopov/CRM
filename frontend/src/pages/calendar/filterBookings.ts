@@ -1,0 +1,18 @@
+import type { Booking } from '../../types/booking'
+import { toDateOnly } from './dateUtils'
+
+export const ALL_MASTERS = 'all'
+
+// Ключевая логика отображения: сервер уже скоупит список записей по роли (ADMIN — весь салон,
+// MASTER — только свои, см. GET /bookings), эта функция лишь сужает его до выбранного дня
+// и, для ADMIN, до выбранного в фильтре мастера.
+export function filterBookingsForDay(
+  bookings: Booking[],
+  date: string,
+  masterId: string = ALL_MASTERS,
+): Booking[] {
+  return bookings
+    .filter((booking) => toDateOnly(booking.startTime) === date)
+    .filter((booking) => masterId === ALL_MASTERS || booking.masterId === masterId)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+}

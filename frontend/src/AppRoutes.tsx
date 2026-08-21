@@ -5,14 +5,13 @@ import { AppLayout } from './layouts/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { HomeRedirect } from './pages/HomeRedirect'
 import { ClientsPage } from './pages/ClientsPage'
+import { CalendarPage } from './pages/CalendarPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { DashboardPage } from './pages/admin/DashboardPage'
-import { CalendarPage } from './pages/admin/CalendarPage'
 import { StaffPage } from './pages/admin/StaffPage'
 import { ServicesPage } from './pages/admin/ServicesPage'
 import { FinancePage } from './pages/admin/FinancePage'
 import { ReportsPage } from './pages/admin/ReportsPage'
-import { MySchedulePage } from './pages/master/MySchedulePage'
 
 // Отдельно от App/BrowserRouter, чтобы в тестах маршрутизацию можно было
 // прогнать под MemoryRouter с произвольным initialEntries.
@@ -25,20 +24,18 @@ export function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route index element={<HomeRedirect />} />
 
-          {/* Доступно и ADMIN, и MASTER — см. ТЗ, роли пользователей */}
+          {/* Доступно и ADMIN, и MASTER — см. ТЗ, роли пользователей. CalendarPage сам решает,
+              что показать, по роли из useAuth(); /calendar и /my-schedule — два входа в один экран. */}
           <Route path="clients" element={<ClientsPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
+          <Route path="my-schedule" element={<CalendarPage />} />
 
           <Route element={<RequireRole role="ADMIN" />}>
             <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="calendar" element={<CalendarPage />} />
             <Route path="staff" element={<StaffPage />} />
             <Route path="services" element={<ServicesPage />} />
             <Route path="finance" element={<FinancePage />} />
             <Route path="reports" element={<ReportsPage />} />
-          </Route>
-
-          <Route element={<RequireRole role="MASTER" />}>
-            <Route path="my-schedule" element={<MySchedulePage />} />
           </Route>
         </Route>
       </Route>
