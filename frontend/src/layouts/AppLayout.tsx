@@ -18,6 +18,7 @@ const ADMIN_NAV: NavItem[] = [
 ]
 
 const MASTER_NAV: NavItem[] = [
+  { to: '/dashboard', label: 'Дашборд' },
   { to: '/my-schedule', label: 'Моё расписание' },
   { to: '/clients', label: 'Клиенты' },
   { to: '/staff', label: 'Мастера' },

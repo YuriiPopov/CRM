@@ -11,7 +11,7 @@ import { StaffPage } from './pages/StaffPage'
 import { StaffDetailPage } from './pages/StaffDetailPage'
 import { ServicesPage } from './pages/ServicesPage'
 import { NotFoundPage } from './pages/NotFoundPage'
-import { DashboardPage } from './pages/admin/DashboardPage'
+import { DashboardPage } from './pages/DashboardPage'
 import { FinancePage } from './pages/admin/FinancePage'
 import { ReportsPage } from './pages/admin/ReportsPage'
 
@@ -36,9 +36,9 @@ export function AppRoutes() {
           <Route path="staff" element={<StaffPage />} />
           <Route path="staff/:id" element={<StaffDetailPage />} />
           <Route path="services" element={<ServicesPage />} />
+          <Route path="dashboard" element={<DashboardPage />} />
 
           <Route element={<RequireRole role="ADMIN" />}>
-            <Route path="dashboard" element={<DashboardPage />} />
             <Route path="finance" element={<FinancePage />} />
             <Route path="reports" element={<ReportsPage />} />
           </Route>

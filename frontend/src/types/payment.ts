@@ -21,3 +21,13 @@ export type PaymentView = Payment | MasterPaymentView
 export function isFullPayment(payment: PaymentView): payment is Payment {
   return 'amount' in payment
 }
+
+// Ответ GET /payments/report/revenue (см. PaymentsService.getRevenueReport на бэкенде)
+export interface RevenueReport {
+  from: string | null
+  to: string | null
+  paymentsCount: number
+  grossAmount: number
+  totalDiscount: number
+  netRevenue: number
+}
