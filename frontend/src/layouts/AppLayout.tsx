@@ -20,6 +20,8 @@ const ADMIN_NAV: NavItem[] = [
 const MASTER_NAV: NavItem[] = [
   { to: '/my-schedule', label: 'Моё расписание' },
   { to: '/clients', label: 'Клиенты' },
+  { to: '/staff', label: 'Мастера' },
+  { to: '/services', label: 'Услуги' },
 ]
 
 export function AppLayout() {

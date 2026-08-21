@@ -37,6 +37,12 @@ export function getApiErrorMessage(error: unknown, fallback = 'Не удалос
     if (rawMessage?.toLowerCase().includes('existing bookings')) {
       return 'У клиента есть записи — сначала удалите/анонимизируйте историю, либо используйте GDPR-удаление.'
     }
+    if (rawMessage?.toLowerCase().includes('referenced by')) {
+      return 'Услугу нельзя удалить — она ещё используется мастерами, материалами или записями.'
+    }
+    if (rawMessage?.toLowerCase().includes('linked user account')) {
+      return 'Мастера нельзя удалить — с ним связаны логин, записи или привязанные услуги.'
+    }
     return rawMessage ?? 'Действие конфликтует с текущим состоянием записи.'
   }
 
@@ -54,6 +60,12 @@ export function getApiErrorMessage(error: unknown, fallback = 'Не удалос
     }
     if (rawMessage?.toLowerCase().includes('client')) {
       return 'Клиент не найден.'
+    }
+    if (rawMessage?.toLowerCase().includes('not assigned')) {
+      return 'Эта услуга уже не привязана к мастеру.'
+    }
+    if (rawMessage?.toLowerCase().includes('master not found')) {
+      return 'Мастер не найден.'
     }
     return rawMessage ?? 'Запись или связанные данные не найдены.'
   }

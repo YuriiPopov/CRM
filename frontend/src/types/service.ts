@@ -9,3 +9,10 @@ export interface Service {
   price: number
   createdAt: string
 }
+
+// Используется и на экране Услуг, и в специализации мастера (Master.specialization — та же enum)
+export const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
+  MANICURE_PEDICURE: 'Маникюр/педикюр',
+  SPA: 'СПА',
+  MASSAGE: 'Массаж',
+}

@@ -74,7 +74,7 @@ describe('AppRoutes', () => {
       masterId: 'master-rec-1',
     })
 
-    renderApp('/staff')
+    renderApp('/finance')
 
     expect(await screen.findByRole('heading', { name: /моё расписание/i })).toBeInTheDocument()
   })
