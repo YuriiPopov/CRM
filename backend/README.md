@@ -57,6 +57,10 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## CORS
+
+`app.enableCors()` в `main.ts` разрешает запросы с `FRONTEND_URL` (по умолчанию `http://localhost:5173`, если переменная не задана) и передачу credentials. При деплое фронтенда на другой origin — задать `FRONTEND_URL` в окружении backend.
+
 ## Auth
 
 JWT-аутентификация по email+паролю (bcrypt), роли `ADMIN`/`MASTER` (см. `Role` в `prisma/schema.prisma`).
