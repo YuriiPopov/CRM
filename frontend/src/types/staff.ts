@@ -14,3 +14,11 @@ export interface Master {
 export interface MasterDetail extends Master {
   services: Service[]
 }
+
+// Плоская пара мастер↔услуга — клиентское представление связки MasterService, собранное
+// из нескольких MasterDetail (см. listMasterServiceLinks в api/staff.ts): отдельного
+// bulk-эндпоинта, отдающего все связки салона разом, на бэкенде нет.
+export interface MasterServiceLink {
+  masterId: string
+  serviceId: string
+}

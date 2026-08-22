@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { listBookings, updateBookingStatus } from '../api/bookings'
 import { listClients } from '../api/clients'
-import { listStaff } from '../api/staff'
+import { listMasterServiceLinks, listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { listPayments } from '../api/payments'
 import { getApiErrorMessage } from '../api/errors'
@@ -15,7 +15,7 @@ import { RescheduleModal } from './calendar/RescheduleModal'
 import { CreatePaymentModal } from './calendar/CreatePaymentModal'
 import type { Booking, BookingStatus } from '../types/booking'
 import type { Client } from '../types/client'
-import type { Master } from '../types/staff'
+import type { Master, MasterServiceLink } from '../types/staff'
 import type { Service } from '../types/service'
 import type { PaymentView } from '../types/payment'
 
@@ -33,6 +33,7 @@ export function CalendarPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [masters, setMasters] = useState<Master[]>([])
+  const [masterServiceLinks, setMasterServiceLinks] = useState<MasterServiceLink[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [payments, setPayments] = useState<PaymentView[]>([])
 
@@ -55,7 +56,15 @@ export function CalendarPage() {
 
     const requests: Promise<unknown>[] = [reloadBookings(), listClients().then(setClients), listServices().then(setServices)]
     if (isAdmin) {
-      requests.push(listStaff().then(setMasters))
+      // Связки мастер↔услуга нужны только для формы создания записи (взаимная фильтрация
+      // селектов "Мастер"/"Услуга") — грузим их сразу за списком мастеров, чтобы к моменту
+      // открытия модалки данные уже были готовы.
+      requests.push(
+        listStaff().then((loadedMasters) => {
+          setMasters(loadedMasters)
+          return listMasterServiceLinks(loadedMasters.map((master) => master.id)).then(setMasterServiceLinks)
+        }),
+      )
       // Оплаты нужны только ADMIN — определить, у каких COMPLETED-записей ещё нет Payment
       // (кнопка "Создать оплату" в BookingListItem) и пометить уже оплаченные.
       requests.push(reloadPayments())
@@ -207,6 +216,7 @@ export function CalendarPage() {
           clients={clients}
           masters={masters}
           services={services}
+          masterServiceLinks={masterServiceLinks}
           defaultDate={selectedDate}
           onClose={() => setCreateModalOpen(false)}
           onCreated={() => void reloadBookings()}

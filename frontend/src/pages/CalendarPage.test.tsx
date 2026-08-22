@@ -4,7 +4,7 @@ import { CalendarPage } from './CalendarPage'
 import { useAuth } from '../auth/useAuth'
 import { listBookings, updateBookingStatus } from '../api/bookings'
 import { listClients } from '../api/clients'
-import { listStaff } from '../api/staff'
+import { listMasterServiceLinks, listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { createPayment, listPayments } from '../api/payments'
 import type { AuthenticatedUser } from '../types/auth'
@@ -20,7 +20,7 @@ vi.mock('../api/bookings', () => ({
   updateBookingStatus: vi.fn(),
 }))
 vi.mock('../api/clients', () => ({ listClients: vi.fn() }))
-vi.mock('../api/staff', () => ({ listStaff: vi.fn() }))
+vi.mock('../api/staff', () => ({ listStaff: vi.fn(), listMasterServiceLinks: vi.fn() }))
 vi.mock('../api/services', () => ({ listServices: vi.fn() }))
 vi.mock('../api/payments', () => ({
   listPayments: vi.fn(),
@@ -32,9 +32,15 @@ const mockedListBookings = vi.mocked(listBookings)
 const mockedUpdateBookingStatus = vi.mocked(updateBookingStatus)
 const mockedListClients = vi.mocked(listClients)
 const mockedListStaff = vi.mocked(listStaff)
+const mockedListMasterServiceLinks = vi.mocked(listMasterServiceLinks)
 const mockedListServices = vi.mocked(listServices)
 const mockedListPayments = vi.mocked(listPayments)
 const mockedCreatePayment = vi.mocked(createPayment)
+
+// CalendarPage грузит связки мастер↔услуга только для формы создания записи (см.
+// masterServiceFilter.ts) — сами тесты этого файла её не открывают, поэтому достаточно
+// безобидного дефолта, чтобы не ломать существующие ADMIN-сценарии загрузкой.
+mockedListMasterServiceLinks.mockResolvedValue([])
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',

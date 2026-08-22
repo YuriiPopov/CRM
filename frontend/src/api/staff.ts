@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { Master, MasterDetail } from '../types/staff'
+import type { Master, MasterDetail, MasterServiceLink } from '../types/staff'
 import type { ServiceCategory } from '../types/service'
 
 export interface CreateMasterInput {
@@ -18,6 +18,15 @@ export async function listStaff(): Promise<Master[]> {
 export async function getMaster(id: string): Promise<MasterDetail> {
   const response = await apiClient.get<MasterDetail>(`/staff/${id}`)
   return response.data
+}
+
+// Нет отдельного bulk-эндпоинта, отдающего связки мастер↔услуга разом для всего салона —
+// собираем их из уже существующего GET /staff/:id (MasterDetail.services) по каждому мастеру.
+export async function listMasterServiceLinks(masterIds: string[]): Promise<MasterServiceLink[]> {
+  const details = await Promise.all(masterIds.map((id) => getMaster(id)))
+  return details.flatMap((detail) =>
+    detail.services.map((service) => ({ masterId: detail.id, serviceId: service.id })),
+  )
 }
 
 export async function createMaster(input: CreateMasterInput): Promise<Master> {
