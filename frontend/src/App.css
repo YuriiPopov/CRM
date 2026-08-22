@@ -94,6 +94,29 @@
   margin-bottom: 16px;
 }
 
+.calendar-filters {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.calendar-filters fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.calendar-filters legend {
+  padding: 0 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+
 .view-mode-toggle button {
   background: transparent;
 }

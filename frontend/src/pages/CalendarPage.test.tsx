@@ -277,7 +277,8 @@ describe('CalendarPage', () => {
       discount: 0,
       method: 'cash',
     })
-    expect(await screen.findByText('Оплачено')).toBeInTheDocument()
+    const row = (await screen.findByText('Anna Client')).closest('li')!
+    expect(within(row).getByText('Оплачено')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /создать оплату/i })).not.toBeInTheDocument()
   })
@@ -441,5 +442,120 @@ describe('CalendarPage', () => {
     const rows = screen.getAllByRole('listitem')
     expect(rows).toHaveLength(1)
     expect(within(rows[0]).getByText('Master Two')).toBeInTheDocument()
+  })
+
+  it('unchecking a status hides bookings with that status, and re-checking it shows them again', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    const cancelledBooking: Booking = { ...booking, id: 'booking-cancelled', status: 'CANCELLED' }
+    mockedListBookings.mockResolvedValue([booking, cancelledBooking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service])
+    mockedListPayments.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findAllByText('Anna Client')
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Отменена' }))
+    const remaining = screen.getAllByRole('listitem')
+    expect(remaining).toHaveLength(1)
+    expect(within(remaining[0]).getByText('Создана')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Отменена' }))
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('shows a filter-specific empty state (not the plain "no bookings" one) when every status is unchecked', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([booking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service])
+    mockedListPayments.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findByText('Anna Client')
+
+    for (const status of ['Создана', 'Подтверждена', 'Завершена', 'Отменена']) {
+      await user.click(screen.getByRole('checkbox', { name: status }))
+    }
+
+    expect(await screen.findByText(/соответствующих выбранным фильтрам/i)).toBeInTheDocument()
+    expect(screen.queryByText(/^на эту дату записей нет$/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Anna Client')).not.toBeInTheDocument()
+  })
+
+  it('does not show the payment filter to MASTER', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([])
+    mockedListClients.mockResolvedValue([])
+    mockedListServices.mockResolvedValue([])
+
+    render(<CalendarPage />)
+
+    await screen.findByText(/на эту дату записей нет/i)
+    expect(screen.queryByText('Оплата')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Оплачено' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Не оплачено' })).not.toBeInTheDocument()
+    // Статус, в отличие от оплаты, доступен и MASTER
+    expect(screen.getByText('Статус')).toBeInTheDocument()
+  })
+
+  it('unchecking "Не оплачено" for ADMIN hides unpaid bookings but keeps paid ones', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([booking, completedBooking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service])
+    mockedListPayments.mockResolvedValue([existingPayment])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findAllByText('Anna Client')
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Не оплачено' }))
+
+    const rows = screen.getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]).getByText('Оплачено')).toBeInTheDocument()
+  })
+
+  it('applies the status filter per column in "По мастерам" mode, with a filter-specific empty state', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    const cancelledForMasterTwo: Booking = {
+      ...booking,
+      id: 'booking-cancelled-m2',
+      masterId: 'master-2',
+      status: 'CANCELLED',
+    }
+    mockedListBookings.mockResolvedValue([booking, cancelledForMasterTwo])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master, masterTwo])
+    mockedListServices.mockResolvedValue([service])
+    mockedListPayments.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findAllByText('Anna Client')
+
+    await user.click(screen.getByRole('button', { name: /по мастерам/i }))
+    await user.click(screen.getByRole('checkbox', { name: 'Отменена' }))
+
+    const masterOneColumn = screen.getByRole('heading', { name: 'Master One' }).closest('.master-column')!
+    expect(within(masterOneColumn).getByText('Anna Client')).toBeInTheDocument()
+
+    const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest('.master-column')!
+    expect(within(masterTwoColumn).queryByText('Anna Client')).not.toBeInTheDocument()
+    expect(within(masterTwoColumn).getByText(/по выбранным фильтрам/i)).toBeInTheDocument()
   })
 })

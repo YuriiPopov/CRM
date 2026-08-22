@@ -7,7 +7,9 @@ import { listServices } from '../api/services'
 import { listPayments } from '../api/payments'
 import { getApiErrorMessage } from '../api/errors'
 import { ALL_MASTERS, filterBookingsForDay } from './calendar/filterBookings'
+import { ALL_BOOKING_STATUSES, filterBookingsByVisibility } from './calendar/bookingVisibilityFilter'
 import { todayDateOnly } from './calendar/dateUtils'
+import { STATUS_LABELS } from './calendar/statusTransitions'
 import { BookingListItem } from './calendar/BookingListItem'
 import { MasterColumnsView } from './calendar/MasterColumnsView'
 import { CreateBookingModal } from './calendar/CreateBookingModal'
@@ -18,6 +20,7 @@ import type { Client } from '../types/client'
 import type { Master, MasterServiceLink } from '../types/staff'
 import type { Service } from '../types/service'
 import type { PaymentView } from '../types/payment'
+import type { PaymentVisibilityFilter } from './calendar/bookingVisibilityFilter'
 
 // Один и тот же экран смонтирован и на /calendar (ADMIN), и на /my-schedule (MASTER) —
 // поведение различается только за счёт роли из useAuth(), а не отдельных компонентов.
@@ -29,6 +32,15 @@ export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(todayDateOnly)
   const [selectedMasterId, setSelectedMasterId] = useState<string>(ALL_MASTERS)
   const [viewMode, setViewMode] = useState<'list' | 'byMaster'>('list')
+  // Намеренно НЕ сбрасываем при смене даты — фильтр статуса/оплаты обычно листают вместе
+  // с датами (например, "показывать только отменённые" при просмотре нескольких дней подряд).
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<BookingStatus>>(
+    () => new Set(ALL_BOOKING_STATUSES),
+  )
+  const [paymentFilter, setPaymentFilter] = useState<PaymentVisibilityFilter>({
+    showPaid: true,
+    showUnpaid: true,
+  })
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -102,6 +114,35 @@ export function CalendarPage() {
   const mastersById = useMemo(() => new Map(masters.map((m) => [m.id, m])), [masters])
   const servicesById = useMemo(() => new Map(services.map((s) => [s.id, s])), [services])
   const paidBookingIds = useMemo(() => new Set(payments.map((p) => p.bookingId)), [payments])
+
+  // Фильтр "Оплачено/Не оплачено" виден только ADMIN (только для него грузятся payments —
+  // см. эффект выше), поэтому для MASTER он всегда пропускает всё, как будто оба чекбокса включены.
+  const visibleBookings = useMemo(
+    () =>
+      filterBookingsByVisibility(
+        dayBookings,
+        selectedStatuses,
+        paidBookingIds,
+        isAdmin ? paymentFilter : { showPaid: true, showUnpaid: true },
+      ),
+    [dayBookings, selectedStatuses, paidBookingIds, paymentFilter, isAdmin],
+  )
+
+  const toggleStatus = (status: BookingStatus) => {
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev)
+      if (next.has(status)) {
+        next.delete(status)
+      } else {
+        next.add(status)
+      }
+      return next
+    })
+  }
+
+  const togglePaymentFilter = (key: keyof PaymentVisibilityFilter) => {
+    setPaymentFilter((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
 
   const handleStatusChange = async (booking: Booking, status: BookingStatus) => {
     setActionError(null)
@@ -194,6 +235,44 @@ export function CalendarPage() {
         </div>
       )}
 
+      <div className="calendar-filters">
+        <fieldset>
+          <legend>Статус</legend>
+          {ALL_BOOKING_STATUSES.map((status) => (
+            <label key={status} className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={selectedStatuses.has(status)}
+                onChange={() => toggleStatus(status)}
+              />
+              {STATUS_LABELS[status]}
+            </label>
+          ))}
+        </fieldset>
+
+        {isAdmin && (
+          <fieldset>
+            <legend>Оплата</legend>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={paymentFilter.showPaid}
+                onChange={() => togglePaymentFilter('showPaid')}
+              />
+              Оплачено
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={paymentFilter.showUnpaid}
+                onChange={() => togglePaymentFilter('showUnpaid')}
+              />
+              Не оплачено
+            </label>
+          </fieldset>
+        )}
+      </div>
+
       {loadError && <p role="alert">{loadError}</p>}
       {actionError && <p role="alert">{actionError}</p>}
 
@@ -201,14 +280,21 @@ export function CalendarPage() {
         <p>Загрузка…</p>
       ) : viewMode === 'byMaster' ? (
         masters.some((master) => master.isActive) ? (
-          <MasterColumnsView masters={masters} bookings={dayBookings} renderBooking={renderBookingItem} />
+          <MasterColumnsView
+            masters={masters}
+            bookings={visibleBookings}
+            unfilteredBookings={dayBookings}
+            renderBooking={renderBookingItem}
+          />
         ) : (
           <p>Нет активных мастеров</p>
         )
       ) : dayBookings.length === 0 ? (
         <p>На эту дату записей нет</p>
+      ) : visibleBookings.length === 0 ? (
+        <p>Нет записей, соответствующих выбранным фильтрам</p>
       ) : (
-        <ul className="booking-list">{dayBookings.map((booking) => renderBookingItem(booking))}</ul>
+        <ul className="booking-list">{visibleBookings.map((booking) => renderBookingItem(booking))}</ul>
       )}
 
       {createModalOpen && (
