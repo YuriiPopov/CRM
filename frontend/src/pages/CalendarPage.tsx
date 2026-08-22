@@ -4,16 +4,20 @@ import { listBookings, updateBookingStatus } from '../api/bookings'
 import { listClients } from '../api/clients'
 import { listStaff } from '../api/staff'
 import { listServices } from '../api/services'
+import { listPayments } from '../api/payments'
 import { getApiErrorMessage } from '../api/errors'
 import { ALL_MASTERS, filterBookingsForDay } from './calendar/filterBookings'
 import { todayDateOnly } from './calendar/dateUtils'
 import { BookingListItem } from './calendar/BookingListItem'
+import { MasterColumnsView } from './calendar/MasterColumnsView'
 import { CreateBookingModal } from './calendar/CreateBookingModal'
 import { RescheduleModal } from './calendar/RescheduleModal'
+import { CreatePaymentModal } from './calendar/CreatePaymentModal'
 import type { Booking, BookingStatus } from '../types/booking'
 import type { Client } from '../types/client'
 import type { Master } from '../types/staff'
 import type { Service } from '../types/service'
+import type { PaymentView } from '../types/payment'
 
 // Один и тот же экран смонтирован и на /calendar (ADMIN), и на /my-schedule (MASTER) —
 // поведение различается только за счёт роли из useAuth(), а не отдельных компонентов.
@@ -24,11 +28,13 @@ export function CalendarPage() {
 
   const [selectedDate, setSelectedDate] = useState(todayDateOnly)
   const [selectedMasterId, setSelectedMasterId] = useState<string>(ALL_MASTERS)
+  const [viewMode, setViewMode] = useState<'list' | 'byMaster'>('list')
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [masters, setMasters] = useState<Master[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [payments, setPayments] = useState<PaymentView[]>([])
 
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -37,8 +43,10 @@ export function CalendarPage() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [rescheduleTarget, setRescheduleTarget] = useState<Booking | null>(null)
+  const [paymentTarget, setPaymentTarget] = useState<Booking | null>(null)
 
   const reloadBookings = useCallback(() => listBookings().then(setBookings), [])
+  const reloadPayments = useCallback(() => listPayments().then(setPayments), [])
 
   // Роль не меняется без повторного логина (и, значит, ремаунта), так что этот эффект
   // фактически выполняется один раз при монтировании — loading/loadError уже верны в initial state.
@@ -48,6 +56,9 @@ export function CalendarPage() {
     const requests: Promise<unknown>[] = [reloadBookings(), listClients().then(setClients), listServices().then(setServices)]
     if (isAdmin) {
       requests.push(listStaff().then(setMasters))
+      // Оплаты нужны только ADMIN — определить, у каких COMPLETED-записей ещё нет Payment
+      // (кнопка "Создать оплату" в BookingListItem) и пометить уже оплаченные.
+      requests.push(reloadPayments())
     }
 
     Promise.all(requests)
@@ -63,16 +74,25 @@ export function CalendarPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin, reloadBookings])
+  }, [isAdmin, reloadBookings, reloadPayments])
 
+  // В режиме "По мастерам" фильтр одного мастера теряет смысл (там и так одна колонка на
+  // каждого мастера), поэтому он игнорируется, пока viewMode === 'byMaster', и снова
+  // применяется при возврате к "Список" — без сброса самого selectedMasterId.
   const dayBookings = useMemo(
-    () => filterBookingsForDay(bookings, selectedDate, isAdmin ? selectedMasterId : ALL_MASTERS),
-    [bookings, selectedDate, selectedMasterId, isAdmin],
+    () =>
+      filterBookingsForDay(
+        bookings,
+        selectedDate,
+        isAdmin && viewMode === 'list' ? selectedMasterId : ALL_MASTERS,
+      ),
+    [bookings, selectedDate, selectedMasterId, isAdmin, viewMode],
   )
 
   const clientsById = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
   const mastersById = useMemo(() => new Map(masters.map((m) => [m.id, m])), [masters])
   const servicesById = useMemo(() => new Map(services.map((s) => [s.id, s])), [services])
+  const paidBookingIds = useMemo(() => new Set(payments.map((p) => p.bookingId)), [payments])
 
   const handleStatusChange = async (booking: Booking, status: BookingStatus) => {
     setActionError(null)
@@ -86,6 +106,25 @@ export function CalendarPage() {
       setBusyBookingId(null)
     }
   }
+
+  // Общий рендер карточки записи — используется и плоским списком, и колонками режима
+  // "По мастерам", чтобы обе раскладки показывали абсолютно одинаковую карточку.
+  const renderBookingItem = (booking: Booking) => (
+    <BookingListItem
+      key={booking.id}
+      booking={booking}
+      client={clientsById.get(booking.clientId)}
+      master={mastersById.get(booking.masterId)}
+      service={servicesById.get(booking.serviceId)}
+      role={user!.role}
+      isPaid={paidBookingIds.has(booking.id)}
+      canCreatePayment={isAdmin && booking.status === 'COMPLETED' && !paidBookingIds.has(booking.id)}
+      busy={busyBookingId === booking.id}
+      onStatusChange={(status) => void handleStatusChange(booking, status)}
+      onReschedule={() => setRescheduleTarget(booking)}
+      onCreatePayment={() => setPaymentTarget(booking)}
+    />
+  )
 
   return (
     <section>
@@ -102,7 +141,7 @@ export function CalendarPage() {
           />
         </label>
 
-        {isAdmin && (
+        {isAdmin && viewMode === 'list' && (
           <label htmlFor="calendar-master-filter">
             Мастер
             <select
@@ -125,29 +164,42 @@ export function CalendarPage() {
         </button>
       </div>
 
+      {isAdmin && (
+        <div className="view-mode-toggle" role="group" aria-label="Режим отображения">
+          <button
+            type="button"
+            aria-pressed={viewMode === 'list'}
+            className={viewMode === 'list' ? 'active' : undefined}
+            onClick={() => setViewMode('list')}
+          >
+            Список
+          </button>
+          <button
+            type="button"
+            aria-pressed={viewMode === 'byMaster'}
+            className={viewMode === 'byMaster' ? 'active' : undefined}
+            onClick={() => setViewMode('byMaster')}
+          >
+            По мастерам
+          </button>
+        </div>
+      )}
+
       {loadError && <p role="alert">{loadError}</p>}
       {actionError && <p role="alert">{actionError}</p>}
 
       {loading ? (
         <p>Загрузка…</p>
+      ) : viewMode === 'byMaster' ? (
+        masters.some((master) => master.isActive) ? (
+          <MasterColumnsView masters={masters} bookings={dayBookings} renderBooking={renderBookingItem} />
+        ) : (
+          <p>Нет активных мастеров</p>
+        )
       ) : dayBookings.length === 0 ? (
         <p>На эту дату записей нет</p>
       ) : (
-        <ul className="booking-list">
-          {dayBookings.map((booking) => (
-            <BookingListItem
-              key={booking.id}
-              booking={booking}
-              client={clientsById.get(booking.clientId)}
-              master={mastersById.get(booking.masterId)}
-              service={servicesById.get(booking.serviceId)}
-              role={user!.role}
-              busy={busyBookingId === booking.id}
-              onStatusChange={(status) => void handleStatusChange(booking, status)}
-              onReschedule={() => setRescheduleTarget(booking)}
-            />
-          ))}
-        </ul>
+        <ul className="booking-list">{dayBookings.map((booking) => renderBookingItem(booking))}</ul>
       )}
 
       {createModalOpen && (
@@ -168,6 +220,15 @@ export function CalendarPage() {
           service={servicesById.get(rescheduleTarget.serviceId)}
           onClose={() => setRescheduleTarget(null)}
           onRescheduled={() => void reloadBookings()}
+        />
+      )}
+
+      {paymentTarget && (
+        <CreatePaymentModal
+          booking={paymentTarget}
+          service={servicesById.get(paymentTarget.serviceId)}
+          onClose={() => setPaymentTarget(null)}
+          onCreated={() => void reloadPayments()}
         />
       )}
     </section>

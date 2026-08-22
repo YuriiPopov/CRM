@@ -12,8 +12,11 @@ interface BookingListItemProps {
   master: Master | undefined
   service: Service | undefined
   role: Role
+  isPaid: boolean
+  canCreatePayment: boolean
   onStatusChange: (status: BookingStatus) => void
   onReschedule: () => void
+  onCreatePayment: () => void
   busy: boolean
 }
 
@@ -23,22 +26,30 @@ export function BookingListItem({
   master,
   service,
   role,
+  isPaid,
+  canCreatePayment,
   onStatusChange,
   onReschedule,
+  onCreatePayment,
   busy,
 }: BookingListItemProps) {
   const statusActions = getAvailableStatusActions(booking.status, role)
   const showReschedule = canReschedule(booking.status, role)
 
   return (
-    <li className={`booking-item booking-item-${booking.status.toLowerCase()}`}>
+    <li
+      className={`booking-item booking-item-${booking.status.toLowerCase()}${isPaid ? ' booking-item-paid' : ''}`}
+    >
       <div className="booking-item-time">{formatTimeRange(booking.startTime, booking.endTime)}</div>
       <div className="booking-item-details">
         <strong>{client?.name ?? 'Клиент не найден'}</strong>
         <span>{service?.name ?? 'Услуга не найдена'}</span>
         <span>{master?.name ?? 'Мастер не найден'}</span>
       </div>
-      <div className="booking-item-status">{STATUS_LABELS[booking.status]}</div>
+      <div className="booking-item-status">
+        {STATUS_LABELS[booking.status]}
+        {isPaid && <span className="booking-item-paid-badge">Оплачено</span>}
+      </div>
       <div className="booking-item-actions">
         {statusActions.map((status) => (
           <button
@@ -53,6 +64,11 @@ export function BookingListItem({
         {showReschedule && (
           <button type="button" disabled={busy} onClick={onReschedule}>
             Перенести
+          </button>
+        )}
+        {canCreatePayment && (
+          <button type="button" disabled={busy} onClick={onCreatePayment}>
+            Создать оплату
           </button>
         )}
       </div>

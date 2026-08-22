@@ -88,6 +88,48 @@
   font-size: 14px;
 }
 
+.view-mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.view-mode-toggle button {
+  background: transparent;
+}
+
+.view-mode-toggle button.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.master-columns {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.master-column {
+  flex: 0 0 260px;
+  min-width: 260px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.master-column-header {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.master-column-empty {
+  color: var(--text);
+  font-size: 14px;
+}
+
 .booking-list {
   list-style: none;
   margin: 0;
@@ -131,6 +173,17 @@
 .booking-item-cancelled .booking-item-status {
   color: var(--text);
   text-decoration: line-through;
+}
+
+.booking-item-paid-badge {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .booking-item-actions {
