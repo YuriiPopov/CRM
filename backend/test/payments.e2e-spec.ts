@@ -514,5 +514,29 @@ describe('Payments (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(400);
     });
+
+    // Regression: a payment recorded just now (paidAt = real "now", like the end of the
+    // create-booking -> COMPLETED -> POST /payments flow) must show up under the "Today"/
+    // "This month" presets, which query with bare from=to=<today> dates. Before the fix,
+    // a bare "to" was compared as that day's midnight (lte 00:00:00.000Z), which excluded
+    // every payment made later the same day.
+    it('includes a payment made moments ago when queried with bare "Today" dates', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+      const today = new Date().toISOString().slice(0, 10);
+
+      const response = await request(app.getHttpServer())
+        .get(`/payments/report/revenue?from=${today}&to=${today}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      // Only the payment created in this describe's beforeEach (paidAt = now); the
+      // 'payment-existing' fixture is dated 2026-01-13 and must stay excluded.
+      expect(response.body).toMatchObject({
+        paymentsCount: 1,
+        grossAmount: 300,
+        totalDiscount: 50,
+        netRevenue: 250,
+      });
+    });
   });
 });

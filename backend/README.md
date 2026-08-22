@@ -123,7 +123,7 @@ CRUD справочника услуг, скоуплен по `salonId`; в от
 
 - `POST /payments` — только `ADMIN`; оплата создаётся только для записи в статусе `COMPLETED` (депозиты/предоплата — вне MVP, см. ТЗ). Повторная оплата той же записи отклоняется (409, `bookingId` уникален), скидка не может превышать сумму (400).
 - `GET /payments`, `GET /payments/:id` — `ADMIN` видит полные финансовые детали (`amount`, `discount`, `method`, `status`) по всему салону; `MASTER` видит только факт оплаты по своим записям (`id`, `bookingId`, `paidAt`, без суммы/скидки/метода).
-- `GET /payments/report/revenue?from&to` — только `ADMIN`; минимальная отчётность по выручке за период (оба параметра опциональны): `grossAmount` (сумма `amount`), `totalDiscount`, `netRevenue = grossAmount - totalDiscount`, `paymentsCount`.
+- `GET /payments/report/revenue?from&to` — только `ADMIN`; минимальная отчётность по выручке за период (оба параметра опциональны): `grossAmount` (сумма `amount`), `totalDiscount`, `netRevenue = grossAmount - totalDiscount`, `paymentsCount`. `to` как bare date (`YYYY-MM-DD`) включает весь день целиком (до `23:59:59.999Z`), а не обрывается в полночь — можно передавать и с временем (полный ISO-таймстамп), тогда используется как есть.
 
 ## Notifications
 

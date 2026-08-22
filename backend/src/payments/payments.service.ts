@@ -11,6 +11,20 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { RevenueReportQueryDto } from './dto/revenue-report-query.dto';
 import { toPaymentView } from './payment-view.util';
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// "to" — как правило, bare date (RevenueReportQueryDto допускает и то, и другое через
+// @IsDateString()); должен включать весь указанный день, а не обрываться в полночь —
+// lte(new Date('2026-01-31')) сравнивал бы с 2026-01-31T00:00:00.000Z и отсекал все платежи
+// этого дня. Уже была версия этого бага на фронтенде (см. toInclusiveEndOfDayIso в
+// dateRangePresets.ts) — здесь тот же фикс, но на бэкенде, чтобы API было верным для любого
+// вызывающего (curl/Postman/другой клиент), а не только для текущего фронтенда.
+function inclusiveUpperBound(dateOnlyOrIso: string): Date {
+  return DATE_ONLY_PATTERN.test(dateOnlyOrIso)
+    ? new Date(`${dateOnlyOrIso}T23:59:59.999Z`)
+    : new Date(dateOnlyOrIso);
+}
+
 @Injectable()
 export class PaymentsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -92,7 +106,7 @@ export class PaymentsService {
     if (query.from || query.to) {
       where.paidAt = {
         ...(query.from && { gte: new Date(query.from) }),
-        ...(query.to && { lte: new Date(query.to) }),
+        ...(query.to && { lte: inclusiveUpperBound(query.to) }),
       };
     }
 
