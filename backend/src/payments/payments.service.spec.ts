@@ -267,7 +267,10 @@ describe('PaymentsService', () => {
 
     it('extends a bare "to" date to the end of that day, not midnight', async () => {
       prisma.payment.aggregate.mockResolvedValue({
-        _sum: { amount: new Prisma.Decimal(100), discount: new Prisma.Decimal(0) },
+        _sum: {
+          amount: new Prisma.Decimal(100),
+          discount: new Prisma.Decimal(0),
+        },
         _count: 1,
       });
 
@@ -275,6 +278,7 @@ describe('PaymentsService', () => {
 
       expect(prisma.payment.aggregate).toHaveBeenCalledWith(
         expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining() is typed `any` in @types/jest
           where: expect.objectContaining({
             paidAt: { lte: new Date('2026-08-22T23:59:59.999Z') },
           }),
@@ -284,14 +288,21 @@ describe('PaymentsService', () => {
 
     it('leaves a "to" timestamp that already has a time component untouched', async () => {
       prisma.payment.aggregate.mockResolvedValue({
-        _sum: { amount: new Prisma.Decimal(100), discount: new Prisma.Decimal(0) },
+        _sum: {
+          amount: new Prisma.Decimal(100),
+          discount: new Prisma.Decimal(0),
+        },
         _count: 1,
       });
 
-      await service.getRevenueReport({ to: '2026-08-22T10:00:00.000Z' }, 'salon-1');
+      await service.getRevenueReport(
+        { to: '2026-08-22T10:00:00.000Z' },
+        'salon-1',
+      );
 
       expect(prisma.payment.aggregate).toHaveBeenCalledWith(
         expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining() is typed `any` in @types/jest
           where: expect.objectContaining({
             paidAt: { lte: new Date('2026-08-22T10:00:00.000Z') },
           }),

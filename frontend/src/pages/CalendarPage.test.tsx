@@ -383,10 +383,10 @@ describe('CalendarPage', () => {
     expect(screen.getByRole('heading', { name: 'Master Two' })).toBeInTheDocument()
     expect(screen.queryByText('Retired Master')).not.toBeInTheDocument()
 
-    const masterOneColumn = screen.getByRole('heading', { name: 'Master One' }).closest('.master-column')!
+    const masterOneColumn = screen.getByRole('heading', { name: 'Master One' }).closest<HTMLElement>('.master-column')!
     expect(within(masterOneColumn).getByText('Anna Client')).toBeInTheDocument()
 
-    const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest('.master-column')!
+    const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest<HTMLElement>('.master-column')!
     const masterTwoItems = within(masterTwoColumn).getAllByRole('listitem')
     expect(masterTwoItems.map((item) => item.className)).toEqual([
       expect.stringContaining('booking-item'),
@@ -415,7 +415,7 @@ describe('CalendarPage', () => {
 
     await user.click(screen.getByRole('button', { name: /по мастерам/i }))
 
-    const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest('.master-column')!
+    const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest<HTMLElement>('.master-column')!
     expect(within(masterTwoColumn).getByText(/нет записей/i)).toBeInTheDocument()
   })
 
@@ -551,10 +551,10 @@ describe('CalendarPage', () => {
     await user.click(screen.getByRole('button', { name: /по мастерам/i }))
     await user.click(screen.getByRole('checkbox', { name: 'Отменена' }))
 
-    const masterOneColumn = screen.getByRole('heading', { name: 'Master One' }).closest('.master-column')!
+    const masterOneColumn = screen.getByRole('heading', { name: 'Master One' }).closest<HTMLElement>('.master-column')!
     expect(within(masterOneColumn).getByText('Anna Client')).toBeInTheDocument()
 
-    const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest('.master-column')!
+    const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest<HTMLElement>('.master-column')!
     expect(within(masterTwoColumn).queryByText('Anna Client')).not.toBeInTheDocument()
     expect(within(masterTwoColumn).getByText(/по выбранным фильтрам/i)).toBeInTheDocument()
   })
