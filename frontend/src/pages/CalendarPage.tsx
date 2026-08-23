@@ -5,14 +5,19 @@ import { listClients } from '../api/clients'
 import { listMasterServiceLinks, listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { listPayments } from '../api/payments'
+import { listMasterBlocks, deleteMasterBlock } from '../api/masterBlocks'
 import { getApiErrorMessage } from '../api/errors'
 import { ALL_MASTERS, filterBookingsForDay } from './calendar/filterBookings'
+import { filterBlocksForDay } from './calendar/filterBlocksForDay'
+import { groupBlocksByMaster } from './calendar/groupBlocksByMaster'
 import { ALL_BOOKING_STATUSES, filterBookingsByVisibility } from './calendar/bookingVisibilityFilter'
 import { todayDateOnly } from './calendar/dateUtils'
 import { STATUS_LABELS } from './calendar/statusTransitions'
 import { BookingListItem } from './calendar/BookingListItem'
+import { ScheduleBlockItem } from './calendar/ScheduleBlockItem'
 import { MasterColumnsView } from './calendar/MasterColumnsView'
 import { CreateBookingModal } from './calendar/CreateBookingModal'
+import { BlockTimeModal } from './calendar/BlockTimeModal'
 import { RescheduleModal } from './calendar/RescheduleModal'
 import { CreatePaymentModal } from './calendar/CreatePaymentModal'
 import type { Booking, BookingStatus } from '../types/booking'
@@ -20,6 +25,7 @@ import type { Client } from '../types/client'
 import type { Master, MasterServiceLink } from '../types/staff'
 import type { Service } from '../types/service'
 import type { PaymentView } from '../types/payment'
+import type { MasterBlock } from '../types/masterBlock'
 import type { PaymentVisibilityFilter } from './calendar/bookingVisibilityFilter'
 
 // Один и тот же экран смонтирован и на /calendar (ADMIN), и на /my-schedule (MASTER) —
@@ -48,25 +54,37 @@ export function CalendarPage() {
   const [masterServiceLinks, setMasterServiceLinks] = useState<MasterServiceLink[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [payments, setPayments] = useState<PaymentView[]>([])
+  const [blocks, setBlocks] = useState<MasterBlock[]>([])
 
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [busyBookingId, setBusyBookingId] = useState<string | null>(null)
+  const [busyBlockId, setBusyBlockId] = useState<string | null>(null)
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [rescheduleTarget, setRescheduleTarget] = useState<Booking | null>(null)
   const [paymentTarget, setPaymentTarget] = useState<Booking | null>(null)
 
   const reloadBookings = useCallback(() => listBookings().then(setBookings), [])
   const reloadPayments = useCallback(() => listPayments().then(setPayments), [])
+  // Блокировки грузятся без параметров from/to (см. MasterBlocksService.findAll) — их
+  // немного (это не поток данных вроде записей), и на клиенте всё равно фильтруются на
+  // конкретный день через filterBlocksForDay/groupBlocksByMaster, так что диапазон не нужен.
+  const reloadBlocks = useCallback(() => listMasterBlocks().then(setBlocks), [])
 
   // Роль не меняется без повторного логина (и, значит, ремаунта), так что этот эффект
   // фактически выполняется один раз при монтировании — loading/loadError уже верны в initial state.
   useEffect(() => {
     let cancelled = false
 
-    const requests: Promise<unknown>[] = [reloadBookings(), listClients().then(setClients), listServices().then(setServices)]
+    const requests: Promise<unknown>[] = [
+      reloadBookings(),
+      listClients().then(setClients),
+      listServices().then(setServices),
+      reloadBlocks(),
+    ]
     if (isAdmin) {
       // Связки мастер↔услуга нужны только для формы создания записи (взаимная фильтрация
       // селектов "Мастер"/"Услуга") — грузим их сразу за списком мастеров, чтобы к моменту
@@ -95,7 +113,7 @@ export function CalendarPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin, reloadBookings, reloadPayments])
+  }, [isAdmin, reloadBookings, reloadPayments, reloadBlocks])
 
   // В режиме "По мастерам" фильтр одного мастера теряет смысл (там и так одна колонка на
   // каждого мастера), поэтому он игнорируется, пока viewMode === 'byMaster', и снова
@@ -114,6 +132,15 @@ export function CalendarPage() {
   const mastersById = useMemo(() => new Map(masters.map((m) => [m.id, m])), [masters])
   const servicesById = useMemo(() => new Map(services.map((s) => [s.id, s])), [services])
   const paidBookingIds = useMemo(() => new Set(payments.map((p) => p.bookingId)), [payments])
+
+  // Резервирование времени мастера (Backlog п.9) — те же правила видимости, что у записей:
+  // в режиме "Список" ADMIN может дополнительно сузить до одного мастера, MASTER и так видит
+  // только свои блоки (бэкенд их скоупит), "По мастерам" использует собственную группировку.
+  const dayBlocks = useMemo(
+    () => filterBlocksForDay(blocks, selectedDate, isAdmin && viewMode === 'list' ? selectedMasterId : ALL_MASTERS),
+    [blocks, selectedDate, selectedMasterId, isAdmin, viewMode],
+  )
+  const blocksByMasterId = useMemo(() => groupBlocksByMaster(blocks, selectedDate), [blocks, selectedDate])
 
   // Фильтр "Оплачено/Не оплачено" виден только ADMIN (только для него грузятся payments —
   // см. эффект выше), поэтому для MASTER он всегда пропускает всё, как будто оба чекбокса включены.
@@ -156,6 +183,37 @@ export function CalendarPage() {
       setBusyBookingId(null)
     }
   }
+
+  const handleDeleteBlock = async (block: MasterBlock) => {
+    setActionError(null)
+    setBusyBlockId(block.id)
+    try {
+      await deleteMasterBlock(block.id)
+      await reloadBlocks()
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, 'Не удалось снять блокировку'))
+    } finally {
+      setBusyBlockId(null)
+    }
+  }
+
+  // ADMIN снимает любую блокировку салона, MASTER — только свою (тот же приём, что и в
+  // MasterBlocksService.remove на бэкенде — здесь просто скрывает кнопку заранее).
+  const canDeleteBlock = (block: MasterBlock) => isAdmin || block.masterId === user?.masterId
+
+  // showMasterName=true только в плоском списке — в колонках "По мастерам" мастер и так
+  // ясен из заголовка колонки (см. MasterColumnsView).
+  const renderBlockItem = (block: MasterBlock, showMasterName: boolean) => (
+    <ScheduleBlockItem
+      key={block.id}
+      block={block}
+      master={mastersById.get(block.masterId)}
+      showMasterName={showMasterName}
+      canDelete={canDeleteBlock(block)}
+      busy={busyBlockId === block.id}
+      onDelete={() => void handleDeleteBlock(block)}
+    />
+  )
 
   // Общий рендер карточки записи — используется и плоским списком, и колонками режима
   // "По мастерам", чтобы обе раскладки показывали абсолютно одинаковую карточку.
@@ -211,6 +269,9 @@ export function CalendarPage() {
 
         <button type="button" onClick={() => setCreateModalOpen(true)}>
           + Новая запись
+        </button>
+        <button type="button" onClick={() => setBlockModalOpen(true)}>
+          Заблокировать время
         </button>
       </div>
 
@@ -285,16 +346,21 @@ export function CalendarPage() {
             bookings={visibleBookings}
             unfilteredBookings={dayBookings}
             renderBooking={renderBookingItem}
+            blocksByMasterId={blocksByMasterId}
+            renderBlock={(block) => renderBlockItem(block, false)}
           />
         ) : (
           <p>Нет активных мастеров</p>
         )
-      ) : dayBookings.length === 0 ? (
+      ) : dayBookings.length === 0 && dayBlocks.length === 0 ? (
         <p>На эту дату записей нет</p>
-      ) : visibleBookings.length === 0 ? (
+      ) : visibleBookings.length === 0 && dayBlocks.length === 0 ? (
         <p>Нет записей, соответствующих выбранным фильтрам</p>
       ) : (
-        <ul className="booking-list">{visibleBookings.map((booking) => renderBookingItem(booking))}</ul>
+        <ul className="booking-list">
+          {dayBlocks.map((block) => renderBlockItem(block, true))}
+          {visibleBookings.map((booking) => renderBookingItem(booking))}
+        </ul>
       )}
 
       {createModalOpen && (
@@ -306,6 +372,15 @@ export function CalendarPage() {
           defaultDate={selectedDate}
           onClose={() => setCreateModalOpen(false)}
           onCreated={() => void reloadBookings()}
+        />
+      )}
+
+      {blockModalOpen && (
+        <BlockTimeModal
+          masters={masters}
+          defaultDate={selectedDate}
+          onClose={() => setBlockModalOpen(false)}
+          onCreated={() => void reloadBlocks()}
         />
       )}
 

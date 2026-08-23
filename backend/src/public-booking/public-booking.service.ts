@@ -8,6 +8,8 @@ import { BookingSource, Client, Master, Service } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   addMinutes,
+  BOOKING_BUFFER_MINUTES,
+  findOverlappingBlock,
   findOverlappingBooking,
   NON_BLOCKING_BOOKING_STATUSES,
 } from '../bookings/booking-overlap.util';
@@ -49,16 +51,29 @@ export class PublicBookingService {
     const windowEnd = new Date(dayStart);
     windowEnd.setUTCHours(SALON_CLOSE_HOUR_UTC, 0, 0, 0);
 
+    // Запрашиваем с запасом в BOOKING_BUFFER_MINUTES по краям окна — иначе запись,
+    // заканчивающаяяся чуть раньше windowStart (или начинающаяся чуть позже windowEnd),
+    // не попала бы в выборку, хотя её буферная зона всё ещё перекрывает крайние слоты дня.
     const existingBookings = await this.prisma.booking.findMany({
       where: {
         masterId: master.id,
         status: { notIn: NON_BLOCKING_BOOKING_STATUSES },
+        startTime: { lt: addMinutes(windowEnd, BOOKING_BUFFER_MINUTES) },
+        endTime: { gt: addMinutes(windowStart, -BOOKING_BUFFER_MINUTES) },
+      },
+      select: { startTime: true, endTime: true },
+    });
+
+    // Резервирование времени мастера (Backlog п.9) — заблокированные периоды не должны
+    // предлагаться клиенту как свободные слоты, наравне с уже занятыми записями.
+    const blocks = await this.prisma.masterBlock.findMany({
+      where: {
+        masterId: master.id,
         startTime: { lt: windowEnd },
         endTime: { gt: windowStart },
       },
       select: { startTime: true, endTime: true },
     });
-
     const now = new Date();
     const slots: AvailableSlot[] = [];
 
@@ -70,11 +85,21 @@ export class PublicBookingService {
       if (slotStart < now) continue;
 
       const slotEnd = addMinutes(slotStart, service.durationMin);
-      const overlaps = existingBookings.some(
-        (booking) => booking.startTime < slotEnd && booking.endTime > slotStart,
+
+      // Буферное время между записями (Backlog п.10) — вокруг каждой существующей записи
+      // держим минимальный зазор, поэтому слот сравнивается с "раздутым" интервалом записи
+      // (booking.startTime - buffer .. booking.endTime + buffer), а не с её точным временем.
+      const overlapsBooking = existingBookings.some(
+        (booking) =>
+          addMinutes(booking.startTime, -BOOKING_BUFFER_MINUTES) < slotEnd &&
+          addMinutes(booking.endTime, BOOKING_BUFFER_MINUTES) > slotStart,
+      );
+      // Блокировки (Backlog п.9) — без буфера, ровно по их границам.
+      const overlapsBlock = blocks.some(
+        (block) => block.startTime < slotEnd && block.endTime > slotStart,
       );
 
-      if (!overlaps) {
+      if (!overlapsBooking && !overlapsBlock) {
         slots.push({
           startTime: slotStart.toISOString(),
           endTime: slotEnd.toISOString(),
@@ -113,8 +138,20 @@ export class PublicBookingService {
       master.id,
       startTime,
       endTime,
+      undefined,
+      BOOKING_BUFFER_MINUTES,
     );
     if (overlapping) {
+      throw new ConflictException('This time slot is no longer available');
+    }
+
+    const overlappingBlock = await findOverlappingBlock(
+      this.prisma,
+      master.id,
+      startTime,
+      endTime,
+    );
+    if (overlappingBlock) {
       throw new ConflictException('This time slot is no longer available');
     }
 

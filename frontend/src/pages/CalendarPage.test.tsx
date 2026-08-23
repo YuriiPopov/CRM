@@ -7,6 +7,7 @@ import { listClients } from '../api/clients'
 import { listMasterServiceLinks, listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { createPayment, listPayments } from '../api/payments'
+import { listMasterBlocks } from '../api/masterBlocks'
 import type { AuthenticatedUser } from '../types/auth'
 import type { Booking } from '../types/booking'
 import type { Client } from '../types/client'
@@ -26,6 +27,11 @@ vi.mock('../api/payments', () => ({
   listPayments: vi.fn(),
   createPayment: vi.fn(),
 }))
+vi.mock('../api/masterBlocks', () => ({
+  listMasterBlocks: vi.fn(),
+  createMasterBlock: vi.fn(),
+  deleteMasterBlock: vi.fn(),
+}))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListBookings = vi.mocked(listBookings)
@@ -36,11 +42,15 @@ const mockedListMasterServiceLinks = vi.mocked(listMasterServiceLinks)
 const mockedListServices = vi.mocked(listServices)
 const mockedListPayments = vi.mocked(listPayments)
 const mockedCreatePayment = vi.mocked(createPayment)
+const mockedListMasterBlocks = vi.mocked(listMasterBlocks)
 
 // CalendarPage грузит связки мастер↔услуга только для формы создания записи (см.
 // masterServiceFilter.ts) — сами тесты этого файла её не открывают, поэтому достаточно
 // безобидного дефолта, чтобы не ломать существующие ADMIN-сценарии загрузкой.
 mockedListMasterServiceLinks.mockResolvedValue([])
+// Блокировки грузятся безусловно (и для ADMIN, и для MASTER) при каждом монтировании
+// CalendarPage — сами тесты этого файла блокировки не открывают, безобидный дефолт.
+mockedListMasterBlocks.mockResolvedValue([])
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',

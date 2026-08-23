@@ -16,6 +16,7 @@ describe('PublicBookingService', () => {
     masterService: { findUnique: jest.Mock };
     booking: { findMany: jest.Mock; findFirst: jest.Mock; create: jest.Mock };
     client: { findFirst: jest.Mock; create: jest.Mock };
+    masterBlock: { findMany: jest.Mock; findFirst: jest.Mock };
   };
 
   const master = { id: 'master-1', salonId: 'salon-1', isActive: true };
@@ -28,7 +29,12 @@ describe('PublicBookingService', () => {
       masterService: { findUnique: jest.fn() },
       booking: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
       client: { findFirst: jest.fn(), create: jest.fn() },
+      masterBlock: { findMany: jest.fn(), findFirst: jest.fn() },
     };
+    // По умолчанию блокировок нет (Backlog п.9) — тесты, которым нужен конфликт
+    // с MasterBlock, переопределяют это значение явно.
+    prisma.masterBlock.findMany.mockResolvedValue([]);
+    prisma.masterBlock.findFirst.mockResolvedValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -98,12 +104,72 @@ describe('PublicBookingService', () => {
       );
       expect(bookedSlot).toBeUndefined();
 
+      // Не рядом с забронированным временем (10:00–11:00) — иначе попадёт в 10-минутную
+      // буферную зону (Backlog п.10, см. отдельный describe ниже) и тест перестанет проверять
+      // то, что заявлено. Салон открыт 09:00–20:00 UTC (SALON_OPEN_HOUR_UTC), так что берём
+      // слот ближе к вечеру, а не перед открытием.
       const freeSlot = result.slots.find(
-        (s) => s.startTime === '2099-06-15T09:00:00.000Z',
+        (s) => s.startTime === '2099-06-15T15:00:00.000Z',
       );
       expect(freeSlot).toEqual({
-        startTime: '2099-06-15T09:00:00.000Z',
-        endTime: '2099-06-15T10:00:00.000Z',
+        startTime: '2099-06-15T15:00:00.000Z',
+        endTime: '2099-06-15T16:00:00.000Z',
+      });
+    });
+
+    // Буферное время между записями (Backlog п.10) — фиксированные 10 минут на весь салон,
+    // проверяются в getAvailableSlots наравне с прямым пересечением.
+    describe('booking buffer (Backlog п.10)', () => {
+      beforeEach(() => {
+        prisma.master.findFirst.mockResolvedValue(master);
+        prisma.service.findFirst.mockResolvedValue(service_);
+        prisma.masterService.findUnique.mockResolvedValue({});
+        // Booked 10:00–11:00 UTC
+        prisma.booking.findMany.mockResolvedValue([
+          {
+            startTime: new Date('2099-06-15T10:00:00.000Z'),
+            endTime: new Date('2099-06-15T11:00:00.000Z'),
+          },
+        ]);
+      });
+
+      it('excludes a slot that ends inside the 10-minute buffer before a booking', async () => {
+        const result = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        // 09:00–10:00 ends exactly when the booking starts — within the buffer, must be excluded
+        expect(
+          result.slots.find((s) => s.startTime === '2099-06-15T09:00:00.000Z'),
+        ).toBeUndefined();
+      });
+
+      it('excludes a slot that starts inside the 10-minute buffer after a booking', async () => {
+        const result = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        // 11:00–12:00 starts exactly when the booking ends — within the buffer, must be excluded
+        expect(
+          result.slots.find((s) => s.startTime === '2099-06-15T11:00:00.000Z'),
+        ).toBeUndefined();
+      });
+
+      it('offers a slot once it clears the buffer on both sides', async () => {
+        const result = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        // 11:15–12:15 starts 15 minutes after the booking ends — past the 10-minute buffer
+        expect(
+          result.slots.find((s) => s.startTime === '2099-06-15T11:15:00.000Z'),
+        ).toEqual({
+          startTime: '2099-06-15T11:15:00.000Z',
+          endTime: '2099-06-15T12:15:00.000Z',
+        });
       });
     });
 
@@ -190,6 +256,34 @@ describe('PublicBookingService', () => {
         ConflictException,
       );
       expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('checks overlap with a 10-minute buffer padding (Backlog п.10)', async () => {
+      prisma.master.findFirst.mockResolvedValue(master);
+      prisma.service.findFirst.mockResolvedValue(service_);
+      prisma.masterService.findUnique.mockResolvedValue({});
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.masterBlock.findFirst.mockResolvedValue(null);
+      prisma.client.findFirst.mockResolvedValue({
+        id: 'client-1',
+        salonId: 'salon-1',
+      });
+      prisma.booking.create.mockResolvedValue({
+        id: 'booking-1',
+        startTime: new Date(dto.startTime),
+        endTime: new Date('2099-06-15T11:00:00.000Z'),
+        status: BookingStatus.CREATED,
+      });
+
+      await service.createBooking(dto);
+
+      expect(prisma.booking.findFirst).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining() is typed `any` in @types/jest
+        where: expect.objectContaining({
+          startTime: { lt: new Date('2099-06-15T11:10:00.000Z') },
+          endTime: { gt: new Date('2099-06-15T09:50:00.000Z') },
+        }),
+      });
     });
 
     it('reuses an existing client by phone within the salon instead of duplicating', async () => {

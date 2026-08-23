@@ -12,6 +12,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PublicBookingModule } from './public-booking/public-booking.module';
+import { MasterBlocksModule } from './master-blocks/master-blocks.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { PublicBookingModule } from './public-booking/public-booking.module';
     InventoryModule,
     NotificationsModule,
     PublicBookingModule,
+    MasterBlocksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

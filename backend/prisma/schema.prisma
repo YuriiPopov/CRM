@@ -65,6 +65,7 @@ model Salon {
   bookings     Booking[]
   materials    Material[]
   staffUsers   User[]
+  masterBlocks MasterBlock[]
 
   @@map("salons")
 }
@@ -118,6 +119,7 @@ model Master {
   user            User?
   services        MasterService[]
   bookings        Booking[]
+  blocks          MasterBlock[]
 
   @@index([salonId])
   @@map("masters")
@@ -173,6 +175,25 @@ model Booking {
   @@index([salonId])
   @@index([masterId, startTime])
   @@map("bookings")
+}
+
+// Резервирование/блокировка времени мастера (Backlog п.9) — выходной, отпуск, перерыв.
+// Не привязана к конкретной записи клиента; учитывается наравне с Booking в overlap-проверке
+// (см. booking-overlap.util.ts) — мастер недоступен для новой записи, пока действует блокировка.
+model MasterBlock {
+  id        String   @id @default(uuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id])
+  masterId  String
+  master    Master   @relation(fields: [masterId], references: [id])
+  startTime DateTime
+  endTime   DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([salonId])
+  @@index([masterId, startTime])
+  @@map("master_blocks")
 }
 
 model Payment {

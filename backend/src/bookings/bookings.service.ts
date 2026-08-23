@@ -10,7 +10,12 @@ import { Booking, BookingStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
-import { addMinutes, findOverlappingBooking } from './booking-overlap.util';
+import {
+  addMinutes,
+  BOOKING_BUFFER_MINUTES,
+  findOverlappingBlock,
+  findOverlappingBooking,
+} from './booking-overlap.util';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
@@ -221,17 +226,35 @@ export class BookingsService {
     endTime: Date,
     excludeBookingId?: string,
   ): Promise<void> {
+    // Буферное время между записями (Backlog п.10) — фиксированный зазор на весь салон,
+    // проверяется наравне с прямым пересечением (см. findOverlappingBooking).
     const overlapping = await findOverlappingBooking(
       this.prisma,
       masterId,
       startTime,
       endTime,
       excludeBookingId,
+      BOOKING_BUFFER_MINUTES,
     );
 
     if (overlapping) {
       throw new ConflictException(
         'Master already has an overlapping booking at this time',
+      );
+    }
+
+    // Резервирование времени мастера (Backlog п.9, MasterBlock) — недоступен для записи,
+    // пока действует блокировка (выходной/отпуск/перерыв), наравне с другими записями.
+    const overlappingBlock = await findOverlappingBlock(
+      this.prisma,
+      masterId,
+      startTime,
+      endTime,
+    );
+
+    if (overlappingBlock) {
+      throw new ConflictException(
+        'Master is unavailable at this time (schedule blocked)',
       );
     }
   }

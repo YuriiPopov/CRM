@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { groupBookingsByMaster } from './groupBookingsByMaster'
 import type { Booking } from '../../types/booking'
 import type { Master } from '../../types/staff'
+import type { MasterBlock } from '../../types/masterBlock'
 
 interface MasterColumnsViewProps {
   masters: Master[]
@@ -11,12 +12,23 @@ interface MasterColumnsViewProps {
   // записей в этот день" от "есть, но все отфильтрованы" и показать разное пустое состояние.
   unfilteredBookings: Booking[]
   renderBooking: (booking: Booking) => ReactNode
+  // Блокировки расписания (Backlog п.9) — уже сгруппированы по мастеру и отфильтрованы на день
+  // (см. groupBlocksByMaster в CalendarPage), рендерятся отдельным блоком поверх списка записей.
+  blocksByMasterId: Map<string, MasterBlock[]>
+  renderBlock: (block: MasterBlock) => ReactNode
 }
 
 // Карточка записи не меняется между режимами "Список"/"По мастерам" — renderBooking
 // приходит из CalendarPage уже полностью настроенной (та же BookingListItem с теми же
 // пропсами), эта колонка лишь группирует и раскладывает их по мастерам.
-export function MasterColumnsView({ masters, bookings, unfilteredBookings, renderBooking }: MasterColumnsViewProps) {
+export function MasterColumnsView({
+  masters,
+  bookings,
+  unfilteredBookings,
+  renderBooking,
+  blocksByMasterId,
+  renderBlock,
+}: MasterColumnsViewProps) {
   const columns = useMemo(() => groupBookingsByMaster(bookings, masters), [bookings, masters])
 
   const totalCountByMasterId = useMemo(() => {
@@ -29,20 +41,26 @@ export function MasterColumnsView({ masters, bookings, unfilteredBookings, rende
 
   return (
     <div className="master-columns">
-      {columns.map(({ master, bookings: masterBookings }) => (
-        <div key={master.id} className="master-column">
-          <h2 className="master-column-header">{master.name}</h2>
-          {masterBookings.length === 0 ? (
-            <p className="master-column-empty">
-              {(totalCountByMasterId.get(master.id) ?? 0) === 0
-                ? 'Нет записей'
-                : 'Нет записей по выбранным фильтрам'}
-            </p>
-          ) : (
-            <ul className="booking-list">{masterBookings.map((booking) => renderBooking(booking))}</ul>
-          )}
-        </div>
-      ))}
+      {columns.map(({ master, bookings: masterBookings }) => {
+        const masterBlocks = blocksByMasterId.get(master.id) ?? []
+        return (
+          <div key={master.id} className="master-column">
+            <h2 className="master-column-header">{master.name}</h2>
+            {masterBookings.length === 0 && masterBlocks.length === 0 ? (
+              <p className="master-column-empty">
+                {(totalCountByMasterId.get(master.id) ?? 0) === 0
+                  ? 'Нет записей'
+                  : 'Нет записей по выбранным фильтрам'}
+              </p>
+            ) : (
+              <ul className="booking-list">
+                {masterBlocks.map((block) => renderBlock(block))}
+                {masterBookings.map((booking) => renderBooking(booking))}
+              </ul>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

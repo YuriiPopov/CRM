@@ -23,6 +23,7 @@ describe('BookingsService', () => {
       findFirst: jest.Mock;
       update: jest.Mock;
     };
+    masterBlock: { findFirst: jest.Mock };
   };
   let notifications: {
     notifyBookingConfirmed: jest.Mock;
@@ -57,7 +58,11 @@ describe('BookingsService', () => {
         findFirst: jest.fn(),
         update: jest.fn(),
       },
+      masterBlock: { findFirst: jest.fn() },
     };
+    // По умолчанию блокировок нет — тесты, которым нужен конфликт с MasterBlock,
+    // переопределяют это значение явно (см. describe('MasterBlock overlap')).
+    prisma.masterBlock.findFirst.mockResolvedValue(null);
     notifications = {
       notifyBookingConfirmed: jest.fn().mockResolvedValue(undefined),
       notifyBookingRescheduled: jest.fn().mockResolvedValue(undefined),
@@ -300,12 +305,14 @@ describe('BookingsService', () => {
         'salon-1',
       );
 
+      // Буферное время между записями (Backlog п.10) — окно проверки раздвинуто на
+      // BOOKING_BUFFER_MINUTES (10 мин) с обеих сторон относительно нового startTime/endTime.
       expect(prisma.booking.findFirst).toHaveBeenLastCalledWith({
         where: {
           masterId: 'master-rec-1',
           status: { notIn: [BookingStatus.CANCELLED] },
-          startTime: { lt: new Date('2026-01-10T12:45:00.000Z') },
-          endTime: { gt: new Date('2026-01-10T12:00:00.000Z') },
+          startTime: { lt: new Date('2026-01-10T12:55:00.000Z') },
+          endTime: { gt: new Date('2026-01-10T11:50:00.000Z') },
           id: { not: 'booking-1' },
         },
       });
@@ -462,6 +469,79 @@ describe('BookingsService', () => {
           admin,
         ),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  // Буферное время между записями (Backlog п.10) — фиксированные 10 минут на весь салон,
+  // проверяются наравне с прямым пересечением (см. assertNoOverlap/findOverlappingBooking).
+  describe('booking buffer (Backlog п.10)', () => {
+    it('queries overlap with a 10-minute buffer padding on create', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.booking.create.mockResolvedValue({ id: 'booking-1' });
+
+      await service.create(
+        { ...baseCreateDto, masterId: 'master-rec-1' },
+        admin,
+      );
+
+      expect(prisma.booking.findFirst).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining() is typed `any` in @types/jest
+        where: expect.objectContaining({
+          startTime: { lt: new Date('2026-01-10T11:10:00.000Z') },
+          endTime: { gt: new Date('2026-01-10T09:50:00.000Z') },
+        }),
+      });
+    });
+  });
+
+  // Резервирование времени мастера (Backlog п.9, MasterBlock) — учитывается наравне
+  // с пересечением с другими записями (см. assertNoOverlap).
+  describe('MasterBlock overlap', () => {
+    it('rejects creating a booking that overlaps a schedule block', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null); // no booking overlap
+      prisma.masterBlock.findFirst.mockResolvedValue({ id: 'block-1' });
+
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects rescheduling a booking onto a schedule block', async () => {
+      prisma.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'booking-1',
+          status: BookingStatus.CREATED,
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+        })
+        .mockResolvedValueOnce(null); // no booking overlap at the new time
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.masterBlock.findFirst.mockResolvedValue({ id: 'block-1' });
+
+      await expect(
+        service.reschedule(
+          'booking-1',
+          { startTime: '2026-01-10T10:00:00.000Z' },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.update).not.toHaveBeenCalled();
     });
   });
 });
