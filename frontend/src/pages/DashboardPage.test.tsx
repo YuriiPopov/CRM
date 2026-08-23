@@ -4,20 +4,24 @@ import { DashboardPage } from './DashboardPage'
 import { useAuth } from '../auth/useAuth'
 import { listBookings } from '../api/bookings'
 import { listClients } from '../api/clients'
+import { listStaff } from '../api/staff'
 import { getRevenueReport } from '../api/payments'
 import type { AuthenticatedUser } from '../types/auth'
 import type { Booking } from '../types/booking'
 import type { Client } from '../types/client'
+import type { Master } from '../types/staff'
 import type { RevenueReport } from '../types/payment'
 
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/bookings', () => ({ listBookings: vi.fn() }))
 vi.mock('../api/clients', () => ({ listClients: vi.fn() }))
+vi.mock('../api/staff', () => ({ listStaff: vi.fn() }))
 vi.mock('../api/payments', () => ({ getRevenueReport: vi.fn() }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListBookings = vi.mocked(listBookings)
 const mockedListClients = vi.mocked(listClients)
+const mockedListStaff = vi.mocked(listStaff)
 const mockedGetRevenueReport = vi.mocked(getRevenueReport)
 
 const adminUser: AuthenticatedUser = {
@@ -48,6 +52,23 @@ const client: Client = {
   consentWithdrawnAt: null,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
+
+const clientTwo: Client = { ...client, id: 'client-2', name: 'Boris Client' }
+
+const master: Master = {
+  id: 'master-1',
+  salonId: 'salon-1',
+  name: 'Master One',
+  specialization: 'SPA',
+  isActive: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+const masterTwo: Master = { ...master, id: 'master-2', name: 'Master Two' }
+
+// listStaff грузится только для ADMIN (легенда "мастер → цвет" таймлайна на сегодня, см.
+// masterColor.ts) — безобидный дефолт, чтобы существующие ADMIN-сценарии не ломались загрузкой.
+mockedListStaff.mockResolvedValue([master])
 
 function makeBooking(overrides: Partial<Booking>): Booking {
   return {
@@ -140,7 +161,7 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    await screen.findByText('Anna Client')
+    await screen.findAllByText('Anna Client')
     expect(screen.queryByText('Выручка за месяц')).not.toBeInTheDocument()
     expect(mockedGetRevenueReport).not.toHaveBeenCalled()
 
@@ -171,5 +192,116 @@ describe('DashboardPage', () => {
     renderPage()
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
+  })
+
+  it('shows a colored timeline row per master for ADMIN, each labeled with the master name', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([
+      makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1' }),
+      makeBooking({
+        id: 'b2',
+        masterId: 'master-2',
+        clientId: 'client-2',
+        startTime: '2026-03-10T16:00:00.000Z',
+        endTime: '2026-03-10T17:00:00.000Z',
+      }),
+    ])
+    mockedListClients.mockResolvedValue([client, clientTwo])
+    mockedListStaff.mockResolvedValue([master, masterTwo])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    const rowLabels = timeline.querySelectorAll('.dashboard-timeline-row-label')
+    expect(Array.from(rowLabels).map((label) => label.textContent)).toEqual(['Master One', 'Master Two'])
+
+    // Каждая запись — в своей строке
+    const rows = timeline.querySelectorAll('.dashboard-timeline-row')
+    expect(within(rows[0] as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
+    expect(within(rows[1] as HTMLElement).getByText('Boris Client')).toBeInTheDocument()
+  })
+
+  it('puts overlapping bookings of two different masters on separate rows instead of overlapping visually', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([
+      makeBooking({
+        id: 'b1',
+        masterId: 'master-1',
+        clientId: 'client-1',
+        startTime: '2026-03-10T13:45:00.000Z',
+        endTime: '2026-03-10T15:45:00.000Z',
+      }),
+      makeBooking({
+        id: 'b2',
+        masterId: 'master-2',
+        clientId: 'client-2',
+        startTime: '2026-03-10T14:00:00.000Z',
+        endTime: '2026-03-10T15:00:00.000Z',
+      }),
+    ])
+    mockedListClients.mockResolvedValue([client, clientTwo])
+    mockedListStaff.mockResolvedValue([master, masterTwo])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    const rows = Array.from(timeline.querySelectorAll('.dashboard-timeline-row'))
+    expect(rows).toHaveLength(2)
+    expect(within(rows[0] as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
+    expect(within(rows[0] as HTMLElement).queryByText('Boris Client')).not.toBeInTheDocument()
+    expect(within(rows[1] as HTMLElement).getByText('Boris Client')).toBeInTheDocument()
+    expect(within(rows[1] as HTMLElement).queryByText('Anna Client')).not.toBeInTheDocument()
+  })
+
+  it('shows only the master’s own bookings on the timeline for MASTER, in a single unlabeled row', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1' })])
+    mockedListClients.mockResolvedValue([client])
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    expect(within(timeline).getByText('Anna Client')).toBeInTheDocument()
+    expect(timeline.querySelectorAll('.dashboard-timeline-row')).toHaveLength(1)
+    expect(timeline.querySelector('.dashboard-timeline-row-label')).not.toBeInTheDocument()
+    expect(mockedListStaff).not.toHaveBeenCalled()
+  })
+
+  it('excludes CANCELLED bookings from the timeline', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([
+      makeBooking({ id: 'b1', clientId: 'client-1', status: 'CREATED' }),
+      makeBooking({
+        id: 'b2',
+        clientId: 'client-2',
+        status: 'CANCELLED',
+        startTime: '2026-03-10T16:00:00.000Z',
+        endTime: '2026-03-10T17:00:00.000Z',
+      }),
+    ])
+    mockedListClients.mockResolvedValue([client, clientTwo])
+    mockedListStaff.mockResolvedValue([master])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    expect(within(timeline).getByText('Anna Client')).toBeInTheDocument()
+    expect(within(timeline).queryByText('Boris Client')).not.toBeInTheDocument()
+  })
+
+  it('shows an empty state when there are no active bookings today for the timeline', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1', status: 'CANCELLED' })])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+    renderPage()
+
+    expect(await screen.findByText(/на сегодня активных записей нет/i)).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /таймлайн/i })).not.toBeInTheDocument()
   })
 })

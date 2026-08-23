@@ -3,13 +3,22 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { listBookings } from '../api/bookings'
 import { listClients } from '../api/clients'
+import { listStaff } from '../api/staff'
 import { getRevenueReport } from '../api/payments'
 import { getApiErrorMessage } from '../api/errors'
 import { formatTimeRange, toDateOnly, todayDateOnly } from './calendar/dateUtils'
 import { STATUS_LABELS } from './calendar/statusTransitions'
 import { countByStatus, currentMonthRange, upcomingBookings } from './dashboard/dashboardUtils'
+import {
+  filterActiveTimelineBookings,
+  groupTimelineBlocksByMaster,
+  TIMELINE_END_HOUR,
+  TIMELINE_START_HOUR,
+} from './dashboard/timeline'
+import { getMasterColor } from './dashboard/masterColor'
 import type { Booking, BookingStatus } from '../types/booking'
 import type { Client } from '../types/client'
+import type { Master } from '../types/staff'
 import type { RevenueReport } from '../types/payment'
 
 // Общий компонент для /dashboard (стартовая страница ADMIN) — ADMIN видит сводку по всему салону
@@ -22,6 +31,7 @@ export function DashboardPage() {
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [masters, setMasters] = useState<Master[]>([])
   const [revenue, setRevenue] = useState<RevenueReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -36,6 +46,10 @@ export function DashboardPage() {
     if (isAdmin) {
       const { from, to } = currentMonthRange()
       requests.push(getRevenueReport({ from, to }).then(setRevenue))
+      // Список мастеров нужен только для таймлайна на сегодня (подпись строки — имя мастера
+      // тем же цветом, что и его записи) — MASTER видит на таймлайне только свои же записи
+      // в одной безымянной строке, ему список чужих мастеров не нужен.
+      requests.push(listStaff().then(setMasters))
     }
 
     Promise.all(requests)
@@ -62,6 +76,22 @@ export function DashboardPage() {
     [bookings],
   )
   const clientsById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients])
+
+  // "Активные" в терминах таймлайна — без CANCELLED (см. timeline.ts). Для MASTER бэкенд
+  // и так скоупит /bookings только его собственными записями, доп. фильтрации по мастеру не нужно.
+  const timelineBookings = useMemo(() => filterActiveTimelineBookings(todayBookings), [todayBookings])
+  // Одна строка на каждого мастера, у кого сегодня есть активная запись (masters для MASTER
+  // не грузится и остаётся [] — тогда получаем ровно одну строку с его же записями).
+  const timelineRows = useMemo(
+    () => groupTimelineBlocksByMaster(timelineBookings, masters),
+    [timelineBookings, masters],
+  )
+  const timelineHours = useMemo(
+    () => Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 }, (_, i) => TIMELINE_START_HOUR + i),
+    [],
+  )
+  const hourToPercent = (hour: number) =>
+    ((hour - TIMELINE_START_HOUR) / (TIMELINE_END_HOUR - TIMELINE_START_HOUR)) * 100
 
   if (loading) {
     return <p>Загрузка…</p>
@@ -104,6 +134,60 @@ export function DashboardPage() {
           </div>
         )}
       </div>
+
+      <h2>Таймлайн на сегодня</h2>
+      {timelineRows.length === 0 ? (
+        <p>На сегодня активных записей нет</p>
+      ) : (
+        <div className="dashboard-timeline" role="img" aria-label="Таймлайн активных записей на сегодня">
+          <div className="dashboard-timeline-inner">
+            <div className="dashboard-timeline-hours">
+              {isAdmin && <span className="dashboard-timeline-label-spacer" aria-hidden="true" />}
+              <div className="dashboard-timeline-hours-track">
+                {timelineHours.map((hour) => (
+                  <span
+                    key={hour}
+                    className="dashboard-timeline-tick"
+                    style={{ left: `${hourToPercent(hour)}%` }}
+                  >
+                    {String(hour).padStart(2, '0')}:00
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {timelineRows.map((row) => (
+              <div key={row.masterId} className="dashboard-timeline-row">
+                {isAdmin && (
+                  <div className="dashboard-timeline-row-label" style={{ color: getMasterColor(row.masterId) }}>
+                    {row.masterName}
+                  </div>
+                )}
+                <div className="dashboard-timeline-track">
+                  {row.blocks.map(({ booking, leftPercent, widthPercent }) => {
+                    const client = clientsById.get(booking.clientId)
+                    const label = client?.name ?? 'Клиент не найден'
+                    return (
+                      <div
+                        key={booking.id}
+                        className="dashboard-timeline-block"
+                        style={{
+                          left: `${leftPercent}%`,
+                          width: `${widthPercent}%`,
+                          background: isAdmin ? getMasterColor(row.masterId) : 'var(--accent)',
+                        }}
+                        title={`${formatTimeRange(booking.startTime, booking.endTime)} · ${label}`}
+                      >
+                        {label}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <h2>Ближайшие записи</h2>
       {upcoming.length === 0 ? (

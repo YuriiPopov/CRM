@@ -376,6 +376,78 @@
   color: var(--text);
 }
 
+.dashboard-timeline {
+  margin: 20px 0 24px;
+  overflow-x: auto;
+}
+
+.dashboard-timeline-inner {
+  min-width: 640px;
+}
+
+.dashboard-timeline-hours,
+.dashboard-timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-timeline-row + .dashboard-timeline-row {
+  margin-top: 6px;
+}
+
+.dashboard-timeline-hours {
+  margin-bottom: 4px;
+}
+
+.dashboard-timeline-row-label,
+.dashboard-timeline-label-spacer {
+  flex: 0 0 110px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-timeline-hours-track,
+.dashboard-timeline-track {
+  position: relative;
+  flex: 1;
+}
+
+.dashboard-timeline-hours-track {
+  height: 16px;
+}
+
+.dashboard-timeline-track {
+  height: 36px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.dashboard-timeline-tick {
+  position: absolute;
+  top: 0;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.dashboard-timeline-block {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: #fff;
+  font-size: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* Финансы */
 
 .finance-table {
