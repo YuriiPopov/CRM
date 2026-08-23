@@ -173,16 +173,34 @@
 }
 
 .booking-item-time {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-weight: 600;
   min-width: 110px;
+}
+
+.booking-item-date {
+  color: var(--text);
+}
+
+.booking-item-time-range {
+  color: var(--text);
 }
 
 .booking-item-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   flex: 1;
   min-width: 160px;
+}
+
+.booking-item-info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .booking-item-status {
@@ -236,6 +254,12 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* Резервирование времени мастера (Backlog п.9) — серая карточка, визуально отличная от записи */
+.schedule-block-item {
+  background: var(--code-bg);
+  border-style: dashed;
 }
 
 /* Модальные формы (создание/перенос записи) */

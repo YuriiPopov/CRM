@@ -5,23 +5,27 @@ import { useAuth } from '../auth/useAuth'
 import { listBookings } from '../api/bookings'
 import { listClients } from '../api/clients'
 import { listStaff } from '../api/staff'
+import { listServices } from '../api/services'
 import { getRevenueReport } from '../api/payments'
 import type { AuthenticatedUser } from '../types/auth'
 import type { Booking } from '../types/booking'
 import type { Client } from '../types/client'
 import type { Master } from '../types/staff'
+import type { Service } from '../types/service'
 import type { RevenueReport } from '../types/payment'
 
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/bookings', () => ({ listBookings: vi.fn() }))
 vi.mock('../api/clients', () => ({ listClients: vi.fn() }))
 vi.mock('../api/staff', () => ({ listStaff: vi.fn() }))
+vi.mock('../api/services', () => ({ listServices: vi.fn() }))
 vi.mock('../api/payments', () => ({ getRevenueReport: vi.fn() }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListBookings = vi.mocked(listBookings)
 const mockedListClients = vi.mocked(listClients)
 const mockedListStaff = vi.mocked(listStaff)
+const mockedListServices = vi.mocked(listServices)
 const mockedGetRevenueReport = vi.mocked(getRevenueReport)
 
 const adminUser: AuthenticatedUser = {
@@ -66,9 +70,22 @@ const master: Master = {
 
 const masterTwo: Master = { ...master, id: 'master-2', name: 'Master Two' }
 
+const service: Service = {
+  id: 'service-1',
+  salonId: 'salon-1',
+  name: 'Massage',
+  category: 'MASSAGE',
+  durationMin: 60,
+  price: 150,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
 // listStaff грузится только для ADMIN (легенда "мастер → цвет" таймлайна на сегодня, см.
 // masterColor.ts) — безобидный дефолт, чтобы существующие ADMIN-сценарии не ломались загрузкой.
 mockedListStaff.mockResolvedValue([master])
+// listServices грузится безусловно (нужна в карточке "Ближайшие записи" и ADMIN, и MASTER) —
+// безобидный дефолт по той же причине.
+mockedListServices.mockResolvedValue([service])
 
 function makeBooking(overrides: Partial<Booking>): Booking {
   return {
@@ -152,6 +169,42 @@ describe('DashboardPage', () => {
 
     const calendarLink = screen.getByRole('link', { name: /в календарь/i })
     expect(calendarLink).toHaveAttribute('href', '/calendar')
+  })
+
+  it('shows the booking date, service, and master name in each "Ближайшие записи" card for ADMIN', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1' })])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+    renderPage()
+
+    // "Anna Client" встречается и в блоке таймлайна (тоже активная запись сегодня, тоже div,
+    // не li) — берём именно строку списка "Ближайшие записи".
+    const matches = await screen.findAllByText('Anna Client')
+    const row = matches.map((el) => el.closest('li')).find((li): li is HTMLLIElement => li !== null)!
+    expect(within(row).getByText(/10\.03\.2026/)).toBeInTheDocument()
+    expect(within(row).getByText('Massage')).toBeInTheDocument()
+    expect(within(row).getByText('Master One')).toBeInTheDocument()
+  })
+
+  it('shows "Вы" instead of the master name in "Ближайшие записи" for MASTER', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1', masterId: 'master-1' })])
+    mockedListClients.mockResolvedValue([client])
+    mockedListServices.mockResolvedValue([service])
+
+    renderPage()
+
+    // "Anna Client" может встретиться и в блоке таймлайна (тоже div, не li) — берём именно
+    // строку списка "Ближайшие записи".
+    const matches = await screen.findAllByText('Anna Client')
+    const row = matches.map((el) => el.closest('li')).find((li): li is HTMLLIElement => li !== null)!
+    expect(within(row).getByText('Вы')).toBeInTheDocument()
+    expect(within(row).queryByText('Master One')).not.toBeInTheDocument()
+    expect(mockedListStaff).not.toHaveBeenCalled()
   })
 
   it('hides the revenue widget and links to /my-schedule for MASTER', async () => {

@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth'
 import { listBookings } from '../api/bookings'
 import { listClients } from '../api/clients'
 import { listStaff } from '../api/staff'
+import { listServices } from '../api/services'
 import { getRevenueReport } from '../api/payments'
 import { getApiErrorMessage } from '../api/errors'
 import { formatTimeRange, toDateOnly, todayDateOnly } from './calendar/dateUtils'
@@ -19,6 +20,7 @@ import { getMasterColor } from './dashboard/masterColor'
 import type { Booking, BookingStatus } from '../types/booking'
 import type { Client } from '../types/client'
 import type { Master } from '../types/staff'
+import type { Service } from '../types/service'
 import type { RevenueReport } from '../types/payment'
 
 // Общий компонент для /dashboard (стартовая страница ADMIN) — ADMIN видит сводку по всему салону
@@ -32,6 +34,7 @@ export function DashboardPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [masters, setMasters] = useState<Master[]>([])
+  const [services, setServices] = useState<Service[]>([])
   const [revenue, setRevenue] = useState<RevenueReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -42,13 +45,17 @@ export function DashboardPage() {
     const requests: Promise<unknown>[] = [
       listBookings().then(setBookings),
       listClients().then(setClients),
+      // Услуга нужна в карточке "Ближайшие записи" (см. ниже) — и ADMIN, и MASTER её видят,
+      // поэтому грузим безусловно, в отличие от masters (см. комментарий ниже).
+      listServices().then(setServices),
     ]
     if (isAdmin) {
       const { from, to } = currentMonthRange()
       requests.push(getRevenueReport({ from, to }).then(setRevenue))
-      // Список мастеров нужен только для таймлайна на сегодня (подпись строки — имя мастера
-      // тем же цветом, что и его записи) — MASTER видит на таймлайне только свои же записи
-      // в одной безымянной строке, ему список чужих мастеров не нужен.
+      // Список мастеров — для таймлайна (подпись строки цветом мастера) и для имени мастера
+      // в карточке "Ближайшие записи". MASTER не грузит его: на таймлайне у него одна
+      // безымянная строка со своими записями, а в "Ближайших записях" вместо имени — "Вы"
+      // (тот же приём, что и в ClientDetailPage).
       requests.push(listStaff().then(setMasters))
     }
 
@@ -76,6 +83,8 @@ export function DashboardPage() {
     [bookings],
   )
   const clientsById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients])
+  const mastersById = useMemo(() => new Map(masters.map((master) => [master.id, master])), [masters])
+  const servicesById = useMemo(() => new Map(services.map((service) => [service.id, service])), [services])
 
   // "Активные" в терминах таймлайна — без CANCELLED (см. timeline.ts). Для MASTER бэкенд
   // и так скоупит /bookings только его собственными записями, доп. фильтрации по мастеру не нужно.
@@ -196,15 +205,25 @@ export function DashboardPage() {
         <ul className="booking-list">
           {upcoming.map((booking) => {
             const client = clientsById.get(booking.clientId)
+            const service = servicesById.get(booking.serviceId)
             return (
               <li key={booking.id} className="booking-item">
                 <div className="booking-item-time">
-                  {formatTimeRange(booking.startTime, booking.endTime)}
+                  <div className="booking-item-date">
+                    {new Date(booking.startTime).toLocaleDateString('ru-RU')}
+                  </div>
+                  <div className="booking-item-time-range">
+                    {formatTimeRange(booking.startTime, booking.endTime)}
+                  </div>
                 </div>
                 <div className="booking-item-details">
-                  <strong>
-                    {client ? <Link to={`/clients/${client.id}`}>{client.name}</Link> : 'Клиент не найден'}
-                  </strong>
+                  <div className="booking-item-info-row">
+                    <strong>
+                      {client ? <Link to={`/clients/${client.id}`}>{client.name}</Link> : 'Клиент не найден'}
+                    </strong>
+                    <span>{service?.name ?? 'Услуга не найдена'}</span>
+                    <span>{isAdmin ? (mastersById.get(booking.masterId)?.name ?? 'Мастер не найден') : 'Вы'}</span>
+                  </div>
                   <span className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
                     {STATUS_LABELS[booking.status]}
                   </span>
