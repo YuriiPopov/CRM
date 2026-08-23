@@ -495,6 +495,21 @@
   text-overflow: ellipsis;
 }
 
+/* Блокировка времени мастера (Backlog п.9/п.11) — диагональная штриховка вместо заливки,
+   чтобы отличаться от блоков записей (обычная заливка цветом мастера/акцентом) при любой
+   роли и любом мастере: это не "занят", а "недоступен". */
+.dashboard-timeline-block-unavailable {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--unavailable-stripe),
+    var(--unavailable-stripe) 4px,
+    var(--unavailable-bg) 4px,
+    var(--unavailable-bg) 10px
+  );
+  border: 1px solid var(--unavailable-border);
+  color: var(--text-h);
+}
+
 /* Финансы */
 
 .finance-table {

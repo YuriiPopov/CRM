@@ -2,11 +2,26 @@ import {
   filterActiveTimelineBookings,
   groupTimelineBlocksByMaster,
   layoutBookingsOnTimeline,
+  layoutMasterBlocksOnTimeline,
   TIMELINE_END_HOUR,
   TIMELINE_START_HOUR,
 } from './timeline'
 import type { Booking, BookingStatus } from '../../types/booking'
 import type { Master } from '../../types/staff'
+import type { MasterBlock } from '../../types/masterBlock'
+
+function makeMasterBlock(overrides: Partial<MasterBlock>): MasterBlock {
+  return {
+    id: 'block-1',
+    salonId: 'salon-1',
+    masterId: 'master-1',
+    startTime: '2026-03-10T10:00:00.000Z',
+    endTime: '2026-03-10T11:00:00.000Z',
+    reason: 'Перерыв',
+    createdAt: '2026-03-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
 
 function makeBooking(overrides: Partial<Booking>): Booking {
   return {
@@ -172,5 +187,54 @@ describe('groupTimelineBlocksByMaster', () => {
 
   it('returns an empty array for an empty bookings list', () => {
     expect(groupTimelineBlocksByMaster([], [masterOne])).toEqual([])
+  })
+
+  it('creates a row for a master who only has a time block and no bookings', () => {
+    const block = makeMasterBlock({ masterId: 'master-2' })
+    const rows = groupTimelineBlocksByMaster([], [masterOne, masterTwo], [block])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].masterId).toBe('master-2')
+    expect(rows[0].blocks).toEqual([])
+    expect(rows[0].unavailableBlocks.map((b) => b.block.id)).toEqual([block.id])
+  })
+
+  it('attaches unavailable blocks to the same row as that master\'s bookings', () => {
+    const bookingA = makeBooking({ id: 'a', masterId: 'master-1' })
+    const block = makeMasterBlock({ id: 'block-1', masterId: 'master-1' })
+    const rows = groupTimelineBlocksByMaster([bookingA], [masterOne], [block])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].blocks.map((b) => b.booking.id)).toEqual(['a'])
+    expect(rows[0].unavailableBlocks.map((b) => b.block.id)).toEqual(['block-1'])
+  })
+
+  it('defaults to no unavailable blocks when none are passed', () => {
+    const bookingA = makeBooking({ id: 'a', masterId: 'master-1' })
+    const rows = groupTimelineBlocksByMaster([bookingA], [masterOne])
+    expect(rows[0].unavailableBlocks).toEqual([])
+  })
+})
+
+describe('layoutMasterBlocksOnTimeline', () => {
+  it('positions a block spanning the full working window at 0%..100%', () => {
+    const block = makeMasterBlock({
+      startTime: `2026-03-10T${String(TIMELINE_START_HOUR).padStart(2, '0')}:00:00.000Z`,
+      endTime: `2026-03-10T${String(TIMELINE_END_HOUR).padStart(2, '0')}:00:00.000Z`,
+    })
+    const [layout] = layoutMasterBlocksOnTimeline([block])
+    expect(layout.leftPercent).toBe(0)
+    expect(layout.widthPercent).toBe(100)
+  })
+
+  it('clamps a block that starts before the working window to the left edge', () => {
+    const block = makeMasterBlock({ startTime: '2026-03-10T00:00:00.000Z', endTime: '2026-03-10T09:30:00.000Z' })
+    const [layout] = layoutMasterBlocksOnTimeline([block])
+    expect(layout.leftPercent).toBe(0)
+  })
+
+  it('pairs each layout entry with its own block', () => {
+    const blockA = makeMasterBlock({ id: 'a' })
+    const blockB = makeMasterBlock({ id: 'b', startTime: '2026-03-10T09:00:00.000Z', endTime: '2026-03-10T09:30:00.000Z' })
+    const layouts = layoutMasterBlocksOnTimeline([blockA, blockB])
+    expect(layouts.map((layout) => layout.block.id)).toEqual(['a', 'b'])
   })
 })

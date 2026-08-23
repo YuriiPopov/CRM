@@ -5,6 +5,7 @@ import { listBookings } from '../api/bookings'
 import { listClients } from '../api/clients'
 import { listStaff } from '../api/staff'
 import { listServices } from '../api/services'
+import { listMasterBlocks } from '../api/masterBlocks'
 import { getRevenueReport } from '../api/payments'
 import { getApiErrorMessage } from '../api/errors'
 import { formatTimeRange, toDateOnly, todayDateOnly } from './calendar/dateUtils'
@@ -22,6 +23,7 @@ import type { Client } from '../types/client'
 import type { Master } from '../types/staff'
 import type { Service } from '../types/service'
 import type { RevenueReport } from '../types/payment'
+import type { MasterBlock } from '../types/masterBlock'
 
 // Общий компонент для /dashboard (стартовая страница ADMIN) — ADMIN видит сводку по всему салону
 // (включая выручку), MASTER — упрощённую версию только по своим записям (см. StaffPage/CalendarPage
@@ -35,6 +37,7 @@ export function DashboardPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [masters, setMasters] = useState<Master[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [masterBlocks, setMasterBlocks] = useState<MasterBlock[]>([])
   const [revenue, setRevenue] = useState<RevenueReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -48,6 +51,10 @@ export function DashboardPage() {
       // Услуга нужна в карточке "Ближайшие записи" (см. ниже) — и ADMIN, и MASTER её видят,
       // поэтому грузим безусловно, в отличие от masters (см. комментарий ниже).
       listServices().then(setServices),
+      // Блокировки времени (Backlog п.9/п.11) — backend сам скоупит по роли (MASTER видит только
+      // свои, см. MasterBlocksService.findAll), поэтому грузим безусловно и без параметров, как
+      // и listBookings() выше; фильтрация на "сегодня" — на клиенте, тем же приёмом, что и с bookings.
+      listMasterBlocks().then(setMasterBlocks),
     ]
     if (isAdmin) {
       const { from, to } = currentMonthRange()
@@ -77,6 +84,16 @@ export function DashboardPage() {
     () => bookings.filter((booking) => toDateOnly(booking.startTime) === today),
     [bookings, today],
   )
+  // В отличие от todayBookings (сравнение по дате начала — записи короткие, в один день),
+  // блокировка (Backlog п.9) может быть многодневной (отпуск), поэтому берём пересечение с
+  // сегодняшними сутками по обеим границам, а не сравнение дат начала.
+  const todayMasterBlocks = useMemo(() => {
+    const todayStart = new Date(`${today}T00:00:00.000Z`)
+    const todayEnd = new Date(`${today}T23:59:59.999Z`)
+    return masterBlocks.filter(
+      (block) => new Date(block.startTime) <= todayEnd && new Date(block.endTime) >= todayStart,
+    )
+  }, [masterBlocks, today])
   const statusCounts = useMemo(() => countByStatus(todayBookings), [todayBookings])
   const upcoming = useMemo(
     () => upcomingBookings(bookings, new Date().toISOString()),
@@ -92,8 +109,8 @@ export function DashboardPage() {
   // Одна строка на каждого мастера, у кого сегодня есть активная запись (masters для MASTER
   // не грузится и остаётся [] — тогда получаем ровно одну строку с его же записями).
   const timelineRows = useMemo(
-    () => groupTimelineBlocksByMaster(timelineBookings, masters),
-    [timelineBookings, masters],
+    () => groupTimelineBlocksByMaster(timelineBookings, masters, todayMasterBlocks),
+    [timelineBookings, masters, todayMasterBlocks],
   )
   const timelineHours = useMemo(
     () => Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 }, (_, i) => TIMELINE_START_HOUR + i),
@@ -146,7 +163,7 @@ export function DashboardPage() {
 
       <h2>Таймлайн на сегодня</h2>
       {timelineRows.length === 0 ? (
-        <p>На сегодня активных записей нет</p>
+        <p>На сегодня активных записей и блокировок времени нет</p>
       ) : (
         <div className="dashboard-timeline" role="img" aria-label="Таймлайн активных записей на сегодня">
           <div className="dashboard-timeline-inner">
@@ -191,6 +208,19 @@ export function DashboardPage() {
                       </div>
                     )
                   })}
+                  {/* Блокировка времени мастера (Backlog п.9) — отдельная штриховка, а не цвет
+                      мастера, чтобы "недоступен" визуально отличалось от "занят записью" даже
+                      в режиме MASTER, где обычные записи заливаются одним --accent (см. выше). */}
+                  {row.unavailableBlocks.map(({ block, leftPercent, widthPercent }) => (
+                    <div
+                      key={block.id}
+                      className="dashboard-timeline-block dashboard-timeline-block-unavailable"
+                      style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
+                      title={`${formatTimeRange(block.startTime, block.endTime)} · ${block.reason ?? 'Недоступен'}`}
+                    >
+                      {block.reason ?? 'Недоступен'}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}

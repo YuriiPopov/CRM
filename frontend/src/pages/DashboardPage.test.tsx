@@ -6,6 +6,7 @@ import { listBookings } from '../api/bookings'
 import { listClients } from '../api/clients'
 import { listStaff } from '../api/staff'
 import { listServices } from '../api/services'
+import { listMasterBlocks } from '../api/masterBlocks'
 import { getRevenueReport } from '../api/payments'
 import type { AuthenticatedUser } from '../types/auth'
 import type { Booking } from '../types/booking'
@@ -13,12 +14,14 @@ import type { Client } from '../types/client'
 import type { Master } from '../types/staff'
 import type { Service } from '../types/service'
 import type { RevenueReport } from '../types/payment'
+import type { MasterBlock } from '../types/masterBlock'
 
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/bookings', () => ({ listBookings: vi.fn() }))
 vi.mock('../api/clients', () => ({ listClients: vi.fn() }))
 vi.mock('../api/staff', () => ({ listStaff: vi.fn() }))
 vi.mock('../api/services', () => ({ listServices: vi.fn() }))
+vi.mock('../api/masterBlocks', () => ({ listMasterBlocks: vi.fn() }))
 vi.mock('../api/payments', () => ({ getRevenueReport: vi.fn() }))
 
 const mockedUseAuth = vi.mocked(useAuth)
@@ -26,6 +29,7 @@ const mockedListBookings = vi.mocked(listBookings)
 const mockedListClients = vi.mocked(listClients)
 const mockedListStaff = vi.mocked(listStaff)
 const mockedListServices = vi.mocked(listServices)
+const mockedListMasterBlocks = vi.mocked(listMasterBlocks)
 const mockedGetRevenueReport = vi.mocked(getRevenueReport)
 
 const adminUser: AuthenticatedUser = {
@@ -86,6 +90,9 @@ mockedListStaff.mockResolvedValue([master])
 // listServices грузится безусловно (нужна в карточке "Ближайшие записи" и ADMIN, и MASTER) —
 // безобидный дефолт по той же причине.
 mockedListServices.mockResolvedValue([service])
+// listMasterBlocks (Backlog п.9/п.11) тоже грузится безусловно — пустой список по умолчанию,
+// чтобы существующие сценарии без блокировок не ломались.
+mockedListMasterBlocks.mockResolvedValue([])
 
 function makeBooking(overrides: Partial<Booking>): Booking {
   return {
@@ -354,7 +361,55 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    expect(await screen.findByText(/на сегодня активных записей нет/i)).toBeInTheDocument()
+    expect(await screen.findByText(/на сегодня активных записей и блокировок времени нет/i)).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: /таймлайн/i })).not.toBeInTheDocument()
+  })
+
+  it('shows a master’s time block on the timeline (Backlog п.11), even without bookings today', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([])
+    mockedListClients.mockResolvedValue([])
+    mockedListStaff.mockResolvedValue([master])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+    const block: MasterBlock = {
+      id: 'block-1',
+      salonId: 'salon-1',
+      masterId: 'master-1',
+      startTime: '2026-03-10T14:00:00.000Z',
+      endTime: '2026-03-10T15:00:00.000Z',
+      reason: 'Обед',
+      createdAt: '2026-03-01T00:00:00.000Z',
+    }
+    mockedListMasterBlocks.mockResolvedValue([block])
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    expect(within(timeline).getByText('Обед')).toBeInTheDocument()
+    expect(within(timeline).getByText('Master One')).toBeInTheDocument()
+  })
+
+  it('renders a block with no reason using a fallback label', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([])
+    mockedListClients.mockResolvedValue([])
+    mockedListStaff.mockResolvedValue([master])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+    mockedListMasterBlocks.mockResolvedValue([
+      {
+        id: 'block-1',
+        salonId: 'salon-1',
+        masterId: 'master-1',
+        startTime: '2026-03-10T14:00:00.000Z',
+        endTime: '2026-03-10T15:00:00.000Z',
+        reason: null,
+        createdAt: '2026-03-01T00:00:00.000Z',
+      },
+    ])
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    expect(within(timeline).getByText('Недоступен')).toBeInTheDocument()
   })
 })

@@ -20,6 +20,13 @@
   --status-cancelled: #dc2626;
   --status-cancelled-bg: rgba(220, 38, 38, 0.1);
   --status-cancelled-border: rgba(220, 38, 38, 0.35);
+
+  /* Блокировка времени мастера на таймлайне Дашборда (Backlog п.11) — нейтральный серый,
+     сознательно вне палитры мастеров (masterColor.ts) и вне статусных цветов выше, чтобы
+     "недоступен" не путался ни с одним мастером и ни с одним статусом записи. */
+  --unavailable-stripe: rgba(107, 99, 117, 0.35);
+  --unavailable-bg: rgba(107, 99, 117, 0.12);
+  --unavailable-border: rgba(107, 99, 117, 0.4);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
@@ -63,6 +70,10 @@
     --status-cancelled: #f87171;
     --status-cancelled-bg: rgba(248, 113, 113, 0.15);
     --status-cancelled-border: rgba(248, 113, 113, 0.45);
+
+    --unavailable-stripe: rgba(156, 163, 175, 0.35);
+    --unavailable-bg: rgba(156, 163, 175, 0.14);
+    --unavailable-border: rgba(156, 163, 175, 0.4);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   }
