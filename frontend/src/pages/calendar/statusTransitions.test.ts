@@ -1,4 +1,4 @@
-import { canReschedule, getAvailableStatusActions } from './statusTransitions'
+import { canReschedule, getAvailableStatusActions, getStatusBadgeClass } from './statusTransitions'
 
 describe('getAvailableStatusActions', () => {
   describe('ADMIN', () => {
@@ -53,4 +53,21 @@ describe('canReschedule', () => {
       expect(canReschedule(status, 'MASTER')).toBe(false)
     },
   )
+})
+
+describe('getStatusBadgeClass', () => {
+  it.each([
+    ['CREATED', 'status-badge-created'],
+    ['CONFIRMED', 'status-badge-confirmed'],
+    ['COMPLETED', 'status-badge-completed'],
+    ['CANCELLED', 'status-badge-cancelled'],
+  ] as const)('maps %s to %s', (status, expectedClass) => {
+    expect(getStatusBadgeClass(status)).toBe(expectedClass)
+  })
+
+  it('returns a distinct class for every status (no accidental overlap)', () => {
+    const statuses = ['CREATED', 'CONFIRMED', 'COMPLETED', 'CANCELLED'] as const
+    const classes = new Set(statuses.map((status) => getStatusBadgeClass(status)))
+    expect(classes.size).toBe(statuses.length)
+  })
 })

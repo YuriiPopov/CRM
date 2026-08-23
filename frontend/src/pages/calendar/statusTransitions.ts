@@ -44,3 +44,18 @@ export const STATUS_ACTION_LABELS: Record<BookingStatus, string> = {
   COMPLETED: 'Завершить',
   CANCELLED: 'Отменить',
 }
+
+// Единственное место, где статус записи сопоставляется с цветом бейджа (см. .status-badge-*
+// в App.css) — переиспользуется везде, где статус выводится текстом (BookingListItem в
+// Календаре, история записей клиента, "Ближайшие записи" на Дашборде), чтобы не дублировать
+// раскраску по компонентам.
+const STATUS_BADGE_CLASS: Record<BookingStatus, string> = {
+  CREATED: 'status-badge-created',
+  CONFIRMED: 'status-badge-confirmed',
+  COMPLETED: 'status-badge-completed',
+  CANCELLED: 'status-badge-cancelled',
+}
+
+export function getStatusBadgeClass(status: BookingStatus): string {
+  return STATUS_BADGE_CLASS[status]
+}

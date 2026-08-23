@@ -189,12 +189,35 @@
   padding: 2px 10px;
   border-radius: 999px;
   background: var(--code-bg);
+  border: 1px solid transparent;
   font-size: 14px;
   white-space: nowrap;
 }
 
-.booking-item-cancelled .booking-item-status {
-  color: var(--text);
+/* Цветовая индикация статуса записи — см. STATUS_BADGE_CLASS в statusTransitions.ts,
+   единственное место, откуда эти классы применяются (Календарь, история клиента, Дашборд). */
+.status-badge-created {
+  background: var(--status-created-bg);
+  border-color: var(--status-created-border);
+  color: var(--status-created);
+}
+
+.status-badge-confirmed {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.status-badge-completed {
+  background: var(--status-completed-bg);
+  border-color: var(--status-completed-border);
+  color: var(--status-completed);
+}
+
+.status-badge-cancelled {
+  background: var(--status-cancelled-bg);
+  border-color: var(--status-cancelled-border);
+  color: var(--status-cancelled);
   text-decoration: line-through;
 }
 

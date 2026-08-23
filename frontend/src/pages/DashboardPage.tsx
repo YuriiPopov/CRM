@@ -7,7 +7,7 @@ import { listStaff } from '../api/staff'
 import { getRevenueReport } from '../api/payments'
 import { getApiErrorMessage } from '../api/errors'
 import { formatTimeRange, toDateOnly, todayDateOnly } from './calendar/dateUtils'
-import { STATUS_LABELS } from './calendar/statusTransitions'
+import { getStatusBadgeClass, STATUS_LABELS } from './calendar/statusTransitions'
 import { countByStatus, currentMonthRange, upcomingBookings } from './dashboard/dashboardUtils'
 import {
   filterActiveTimelineBookings,
@@ -205,7 +205,9 @@ export function DashboardPage() {
                   <strong>
                     {client ? <Link to={`/clients/${client.id}`}>{client.name}</Link> : 'Клиент не найден'}
                   </strong>
-                  <span>{STATUS_LABELS[booking.status]}</span>
+                  <span className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
+                    {STATUS_LABELS[booking.status]}
+                  </span>
                 </div>
                 <div className="booking-item-actions">
                   <Link to={calendarPath}>В календарь</Link>

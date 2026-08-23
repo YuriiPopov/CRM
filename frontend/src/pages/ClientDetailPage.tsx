@@ -5,7 +5,7 @@ import { eraseClientData, exportClientData } from '../api/clients'
 import { listStaff } from '../api/staff'
 import { getApiErrorMessage } from '../api/errors'
 import { formatTimeRange, toDateOnly } from './calendar/dateUtils'
-import { STATUS_LABELS } from './calendar/statusTransitions'
+import { getStatusBadgeClass, STATUS_LABELS } from './calendar/statusTransitions'
 import { EditClientModal } from './clients/EditClientModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { downloadJson } from '../utils/downloadJson'
@@ -162,7 +162,9 @@ export function ClientDetailPage() {
                     : 'Не оплачено'}
                 </span>
               </div>
-              <div className="booking-item-status">{STATUS_LABELS[booking.status]}</div>
+              <div className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
+                {STATUS_LABELS[booking.status]}
+              </div>
             </li>
           ))}
         </ul>

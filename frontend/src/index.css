@@ -8,6 +8,18 @@
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
+
+  /* Статусы записи — бейдж (см. .status-badge-* в App.css). CONFIRMED сознательно
+     переиспользует --accent/--accent-bg/--accent-border выше, отдельных токенов под него нет. */
+  --status-created: #2563eb;
+  --status-created-bg: rgba(37, 99, 235, 0.1);
+  --status-created-border: rgba(37, 99, 235, 0.4);
+  --status-completed: #16a34a;
+  --status-completed-bg: rgba(22, 163, 74, 0.12);
+  --status-completed-border: rgba(22, 163, 74, 0.4);
+  --status-cancelled: #dc2626;
+  --status-cancelled-bg: rgba(220, 38, 38, 0.1);
+  --status-cancelled-border: rgba(220, 38, 38, 0.35);
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
@@ -41,6 +53,16 @@
     --accent-bg: rgba(192, 132, 252, 0.15);
     --accent-border: rgba(192, 132, 252, 0.5);
     --social-bg: rgba(47, 48, 58, 0.5);
+
+    --status-created: #60a5fa;
+    --status-created-bg: rgba(96, 165, 250, 0.15);
+    --status-created-border: rgba(96, 165, 250, 0.45);
+    --status-completed: #4ade80;
+    --status-completed-bg: rgba(74, 222, 128, 0.15);
+    --status-completed-border: rgba(74, 222, 128, 0.45);
+    --status-cancelled: #f87171;
+    --status-cancelled-bg: rgba(248, 113, 113, 0.15);
+    --status-cancelled-border: rgba(248, 113, 113, 0.45);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   }

@@ -1,4 +1,10 @@
-import { canReschedule, getAvailableStatusActions, STATUS_ACTION_LABELS, STATUS_LABELS } from './statusTransitions'
+import {
+  canReschedule,
+  getAvailableStatusActions,
+  getStatusBadgeClass,
+  STATUS_ACTION_LABELS,
+  STATUS_LABELS,
+} from './statusTransitions'
 import { formatTimeRange } from './dateUtils'
 import type { Booking, BookingStatus } from '../../types/booking'
 import type { Client } from '../../types/client'
@@ -46,7 +52,7 @@ export function BookingListItem({
         <span>{service?.name ?? 'Услуга не найдена'}</span>
         <span>{master?.name ?? 'Мастер не найден'}</span>
       </div>
-      <div className="booking-item-status">
+      <div className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
         {STATUS_LABELS[booking.status]}
         {isPaid && <span className="booking-item-paid-badge">Оплачено</span>}
       </div>
