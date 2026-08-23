@@ -43,6 +43,9 @@ export function getApiErrorMessage(error: unknown, fallback = 'Не удалос
     if (rawMessage?.toLowerCase().includes('linked user account')) {
       return 'Мастера нельзя удалить — с ним связаны логин, записи или привязанные услуги.'
     }
+    if (rawMessage?.toLowerCase().includes('already exists')) {
+      return 'Пользователь с таким email уже существует — выберите другой адрес.'
+    }
     return rawMessage ?? 'Действие конфликтует с текущим состоянием записи.'
   }
 
