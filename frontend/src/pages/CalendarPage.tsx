@@ -230,6 +230,7 @@ export function CalendarPage() {
       master={mastersById.get(booking.masterId)}
       service={servicesById.get(booking.serviceId)}
       role={user!.role}
+      currentMasterId={user?.masterId ?? null}
       isPaid={paidBookingIds.has(booking.id)}
       canCreatePayment={isAdmin && booking.status === 'COMPLETED' && !paidBookingIds.has(booking.id)}
       busy={busyBookingId === booking.id}

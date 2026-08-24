@@ -18,6 +18,10 @@ interface BookingListItemProps {
   master: Master | undefined
   service: Service | undefined
   role: Role
+  // Собственный masterId текущего пользователя (useAuth().user.masterId) — только для роли
+  // MASTER, чтобы показать "Это вы" вместо резолва через master (см. Backlog item17: на
+  // /my-schedule роль MASTER не грузит полный список мастеров, master всегда undefined).
+  currentMasterId: string | null
   isPaid: boolean
   canCreatePayment: boolean
   onStatusChange: (status: BookingStatus) => void
@@ -32,6 +36,7 @@ export function BookingListItem({
   master,
   service,
   role,
+  currentMasterId,
   isPaid,
   canCreatePayment,
   onStatusChange,
@@ -41,6 +46,7 @@ export function BookingListItem({
 }: BookingListItemProps) {
   const statusActions = getAvailableStatusActions(booking.status, role)
   const showReschedule = canReschedule(booking.status, role)
+  const isOwnBooking = role === 'MASTER' && booking.masterId === currentMasterId
 
   return (
     <li
@@ -50,7 +56,7 @@ export function BookingListItem({
       <div className="booking-item-details">
         <strong>{client?.name ?? 'Клиент не найден'}</strong>
         <span>{service?.name ?? 'Услуга не найдена'}</span>
-        <span>{master?.name ?? 'Мастер не найден'}</span>
+        {isOwnBooking ? <span>Это вы</span> : master && <span>{master.name}</span>}
       </div>
       <div className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
         {STATUS_LABELS[booking.status]}
