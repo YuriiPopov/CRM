@@ -25,8 +25,11 @@ import { UpdateClientDto } from './dto/update-client.dto';
 export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
 
+  // MASTER может создать клиента прямо из формы создания записи (Backlog п.5) — отдельной
+  // вкладки "Клиенты" для него нет (см. RequireRole на /clients в AppRoutes), поэтому это
+  // единственный путь завести нового клиента под ролью MASTER.
   @Post()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MASTER)
   create(@Body() dto: CreateClientDto, @CurrentUser() user: AuthenticatedUser) {
     return this.clientsService.create(dto, user.salonId);
   }

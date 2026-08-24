@@ -200,19 +200,18 @@ export class ClientsService {
     }
   }
 
-  // ADMIN видит всех клиентов салона; MASTER — только клиентов по своим записям (см. ТЗ, раздел 2 "Роли пользователей")
+  // ADMIN и MASTER видят весь список клиентов салона (см. Backlog п.5): у MASTER нет
+  // отдельной вкладки "Клиенты" (см. RequireRole на /clients в AppRoutes), единственный
+  // потребитель findAll() для роли MASTER — выпадающий список клиентов в форме создания
+  // записи (CreateBookingModal), где мастеру нужно видеть всех клиентов салона, а не только
+  // тех, с кем у него уже была запись — иначе он не сможет завести запись на нового для себя
+  // клиента. findOne()/exportClientData() используют этот же scopeWhere только как guard
+  // "клиент принадлежит салону" — сужение по своим записям для них не требовалось и раньше.
   private scopeWhere(user: AuthenticatedUser): Prisma.ClientWhereInput {
-    if (user.role === Role.ADMIN) {
-      return { salonId: user.salonId };
-    }
-
-    if (!user.masterId) {
+    if (!user.masterId && user.role !== Role.ADMIN) {
       return { id: '__none__' };
     }
 
-    return {
-      salonId: user.salonId,
-      bookings: { some: { masterId: user.masterId } },
-    };
+    return { salonId: user.salonId };
   }
 }

@@ -26,19 +26,22 @@ export function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route index element={<HomeRedirect />} />
 
-          {/* Доступно и ADMIN, и MASTER — см. ТЗ, роли пользователей. Страницы сами решают,
-              что показать/разрешить, по роли из useAuth() (см. CalendarPage/ClientsPage/StaffPage).
+          {/* Доступно и ADMIN, и MASTER — см. ТЗ, роли пользователей.
               /calendar и /my-schedule — два входа в один экран. */}
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="clients/:id" element={<ClientDetailPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="my-schedule" element={<CalendarPage />} />
-          <Route path="staff" element={<StaffPage />} />
-          <Route path="staff/:id" element={<StaffDetailPage />} />
-          <Route path="services" element={<ServicesPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
 
+          {/* Клиенты/Мастера/Услуги — только ADMIN (Backlog п.5): раньше страницы сами
+              скрывали часть UI по роли (см. isAdmin-гейты внутри), но сами маршруты оставались
+              доступны MASTER по прямому URL. Явный RequireRole закрывает и это — тем же
+              приёмом, что уже применён к finance/reports ниже. */}
           <Route element={<RequireRole role="ADMIN" />}>
+            <Route path="clients" element={<ClientsPage />} />
+            <Route path="clients/:id" element={<ClientDetailPage />} />
+            <Route path="staff" element={<StaffPage />} />
+            <Route path="staff/:id" element={<StaffDetailPage />} />
+            <Route path="services" element={<ServicesPage />} />
             <Route path="finance" element={<FinancePage />} />
             <Route path="reports" element={<ReportsPage />} />
           </Route>

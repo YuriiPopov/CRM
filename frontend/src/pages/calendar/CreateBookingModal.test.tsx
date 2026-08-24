@@ -84,6 +84,7 @@ function renderModal(overrides: Partial<Parameters<typeof CreateBookingModal>[0]
       defaultDate="2026-03-10"
       onClose={vi.fn()}
       onCreated={vi.fn()}
+      onClientCreated={vi.fn()}
       {...overrides}
     />,
   )
@@ -194,16 +195,30 @@ describe('CreateBookingModal — mutual master/service filtering', () => {
     expect(optionLabels(screen.getByLabelText(/услуга/i))).toEqual([expect.stringMatching(/выберите услугу/i)])
   })
 
-  it('does not filter for MASTER, who has no selectable master field', () => {
+  it('has no selectable master field for MASTER', () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
     renderModal({ masters: [], masterServiceLinks: [] })
 
     expect(screen.queryByLabelText(/мастер/i)).not.toBeInTheDocument()
     expect(screen.getByText('Мастер: вы')).toBeInTheDocument()
+  })
+
+  // Backlog п.5 — сервисы, доступные MASTER в форме создания записи, сужаются до тех, что
+  // привязаны к нему через MasterService (masterServiceLinks), тем же приёмом, что и для ADMIN.
+  it('narrows the service list to only what the current master offers, for MASTER', () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    renderModal({ masters: [], masterServiceLinks: links })
+
     expect(optionLabels(screen.getByLabelText(/услуга/i))).toEqual([
       expect.stringMatching(/выберите услугу/i),
       expect.stringContaining('Massage'),
-      expect.stringContaining('Manicure'),
     ])
+  })
+
+  it('shows no service options for MASTER with no linked services', () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    renderModal({ masters: [], masterServiceLinks: [] })
+
+    expect(optionLabels(screen.getByLabelText(/услуга/i))).toEqual([expect.stringMatching(/выберите услугу/i)])
   })
 })

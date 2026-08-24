@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/useAuth'
 import { createBooking } from '../../api/bookings'
 import { getApiErrorMessage } from '../../api/errors'
 import { SlotPicker } from './SlotPicker'
+import { CreateClientModal } from '../clients/CreateClientModal'
 import { filterMastersForService, filterServicesForMaster, isMasterServiceLinked } from './masterServiceFilter'
 import type { AvailableSlot } from '../../api/publicBooking'
 import type { Client } from '../../types/client'
@@ -19,6 +20,7 @@ interface CreateBookingModalProps {
   defaultDate: string
   onClose: () => void
   onCreated: () => void
+  onClientCreated: (client: Client) => void
 }
 
 export function CreateBookingModal({
@@ -29,6 +31,7 @@ export function CreateBookingModal({
   defaultDate,
   onClose,
   onCreated,
+  onClientCreated,
 }: CreateBookingModalProps) {
   const { user } = useAuth()
   const isAdmin = user?.role === 'ADMIN'
@@ -40,11 +43,17 @@ export function CreateBookingModal({
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Инлайн-создание клиента прямо из формы записи (Backlog п.5) — актуально в первую очередь
+  // для MASTER, у которого нет вкладки "Клиенты", но кнопка доступна и ADMIN как удобство.
+  const [createClientModalOpen, setCreateClientModalOpen] = useState(false)
 
-  // Взаимная фильтрация мастер↔услуга — только для ADMIN: у MASTER мастер фиксирован (не select),
-  // а связки для него и не загружаются (см. CalendarPage), так что фильтровать нечем и незачем.
+  // Взаимная фильтрация мастер↔услуга — для ADMIN сужает оба списка друг под друга; для
+  // MASTER мастер фиксирован (не select), а услуги сужаются до тех, что привязаны к нему
+  // через MasterService (masterServiceLinks грузится в CalendarPage и для MASTER тоже, см. там).
   const availableMasters = isAdmin ? filterMastersForService(masters, masterServiceLinks, serviceId) : masters
-  const availableServices = isAdmin ? filterServicesForMaster(services, masterServiceLinks, masterId) : services
+  const availableServices = isAdmin
+    ? filterServicesForMaster(services, masterServiceLinks, masterId)
+    : filterServicesForMaster(services, masterServiceLinks, user?.masterId ?? '')
 
   // Смена мастера/услуги/даты делает ранее выбранный слот неактуальным — сбрасываем его
   // прямо в обработчике события, а не отдельным эффектом (см. также фикс в AuthContext).
@@ -126,6 +135,12 @@ export function CreateBookingModal({
           </select>
         </label>
 
+        {/* Единственный способ завести нового клиента для MASTER (вкладка "Клиенты" ему
+            недоступна, см. AppRoutes) — доступно и ADMIN как более быстрый путь из формы записи. */}
+        <button type="button" onClick={() => setCreateClientModalOpen(true)}>
+          + Новый клиент
+        </button>
+
         {isAdmin ? (
           <label htmlFor="booking-master">
             Мастер
@@ -185,6 +200,16 @@ export function CreateBookingModal({
           </button>
         </div>
       </form>
+
+      {createClientModalOpen && (
+        <CreateClientModal
+          onClose={() => setCreateClientModalOpen(false)}
+          onCreated={(client) => {
+            onClientCreated(client)
+            setClientId(client.id)
+          }}
+        />
+      )}
     </Modal>
   )
 }

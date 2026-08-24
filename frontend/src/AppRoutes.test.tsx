@@ -79,20 +79,39 @@ describe('AppRoutes', () => {
     expect(await screen.findByRole('heading', { name: /моё расписание/i })).toBeInTheDocument()
   })
 
-  it('lets both roles reach the shared clients section', async () => {
+  it('lets ADMIN reach the clients section', async () => {
     setStoredToken('fake-token')
     mockedFetchCurrentUser.mockResolvedValue({
-      id: 'master-1',
-      email: 'master@b4u.local',
-      role: 'MASTER',
+      id: 'admin-1',
+      email: 'admin@b4u.local',
+      role: 'ADMIN',
       salonId: 'salon-1',
-      masterId: 'master-rec-1',
+      masterId: null,
     })
 
     renderApp('/clients')
 
     expect(await screen.findByRole('heading', { name: /клиенты/i })).toBeInTheDocument()
   })
+
+  // Backlog п.5 — Клиенты/Мастера/Услуги полностью недоступны роли MASTER, даже по прямому URL.
+  it.each(['/clients', '/staff', '/services'])(
+    'redirects a MASTER away from %s back to their own section',
+    async (path) => {
+      setStoredToken('fake-token')
+      mockedFetchCurrentUser.mockResolvedValue({
+        id: 'master-1',
+        email: 'master@b4u.local',
+        role: 'MASTER',
+        salonId: 'salon-1',
+        masterId: 'master-rec-1',
+      })
+
+      renderApp(path)
+
+      expect(await screen.findByRole('heading', { name: /моё расписание/i })).toBeInTheDocument()
+    },
+  )
 
   it('clears the session and bounces to login when /auth/me rejects (expired token)', async () => {
     setStoredToken('stale-token')

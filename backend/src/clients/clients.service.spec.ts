@@ -105,16 +105,13 @@ describe('ClientsService', () => {
       });
     });
 
-    it('scopes MASTER to clients with their own bookings', async () => {
+    it('scopes MASTER to the whole salon, same as ADMIN (Backlog п.5 — booking form needs the full client list)', async () => {
       prisma.client.findMany.mockResolvedValue([]);
 
       await service.findAll(master);
 
       expect(prisma.client.findMany).toHaveBeenCalledWith({
-        where: {
-          salonId: 'salon-1',
-          bookings: { some: { masterId: 'master-rec-1' } },
-        },
+        where: { salonId: 'salon-1' },
         orderBy: { createdAt: 'desc' },
       });
     });

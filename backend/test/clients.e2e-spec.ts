@@ -435,14 +435,22 @@ describe('Clients (e2e)', () => {
         .expect(400);
     });
 
-    it('forbids MASTER from creating clients', async () => {
+    // Backlog п.5 — MASTER может завести клиента прямо из формы создания записи (нет
+    // отдельной вкладки "Клиенты", см. AppRoutes/RequireRole на фронтенде).
+    it('allows MASTER to create a client with explicit consent', async () => {
       const token = await loginAs('master1@b4u.local', master1Password);
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .post('/clients')
         .set('Authorization', `Bearer ${token}`)
         .send({ name: 'New Client', phone: '+48123456789', consentGiven: true })
-        .expect(403);
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        name: 'New Client',
+        phone: '+48123456789',
+        salonId: 'salon-1',
+      });
     });
   });
 
@@ -460,7 +468,10 @@ describe('Clients (e2e)', () => {
       expect(ids).toEqual(['client-a', 'client-b', 'client-c']);
     });
 
-    it('lets MASTER see only clients tied to their own bookings', async () => {
+    // Backlog п.5 — MASTER видит весь список клиентов салона (та же выдача, что и ADMIN):
+    // раньше сужалось до клиентов с записями к этому мастеру, что ломало выбор клиента в
+    // форме создания новой записи (мастеру нужно видеть всех клиентов салона).
+    it('lets MASTER see every client in their own salon, same as ADMIN', async () => {
       const token = await loginAs('master1@b4u.local', master1Password);
 
       const response = await request(app.getHttpServer())
@@ -469,18 +480,19 @@ describe('Clients (e2e)', () => {
         .expect(200);
 
       const body = response.body as Client[];
-      expect(body.map((c) => c.id)).toEqual(['client-a']);
+      const ids = body.map((c) => c.id).sort();
+      expect(ids).toEqual(['client-a', 'client-b', 'client-c']);
     });
   });
 
   describe('GET /clients/:id', () => {
-    it('returns 404 when a MASTER requests a client outside their own bookings', async () => {
+    it('lets a MASTER fetch a client outside their own bookings (Backlog п.5 — same salon-wide scope as GET /clients)', async () => {
       const token = await loginAs('master1@b4u.local', master1Password);
 
       await request(app.getHttpServer())
         .get('/clients/client-b')
         .set('Authorization', `Bearer ${token}`)
-        .expect(404);
+        .expect(200);
     });
 
     it('returns the client when a MASTER requests one of their own bookings', async () => {
@@ -684,13 +696,18 @@ describe('Clients (e2e)', () => {
       expect(body.bookings[0].payment).not.toHaveProperty('amount');
     });
 
-    it('returns 404 when MASTER exports a client outside their own bookings', async () => {
+    // Backlog п.5 — client lookup для export теперь salon-wide (как GET /clients/:id), но
+    // история записей по-прежнему сужается до записей этого мастера (см. exportClientData) —
+    // клиент найден, но его бронирования к другому мастеру в выгрузку не попадают.
+    it('exports a client outside their own bookings for MASTER with an empty booking history', async () => {
       const token = await loginAs('master1@b4u.local', master1Password);
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .get('/clients/client-b/export')
         .set('Authorization', `Bearer ${token}`)
-        .expect(404);
+        .expect(200);
+
+      expect(response.body).toMatchObject({ bookings: [] });
     });
 
     it('returns a null payment for a booking that was never paid', async () => {

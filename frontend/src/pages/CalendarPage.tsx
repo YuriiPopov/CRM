@@ -98,6 +98,11 @@ export function CalendarPage() {
       // Оплаты нужны только ADMIN — определить, у каких COMPLETED-записей ещё нет Payment
       // (кнопка "Создать оплату" в BookingListItem) и пометить уже оплаченные.
       requests.push(reloadPayments())
+    } else if (user?.masterId) {
+      // MASTER не грузит полный список мастеров (страница "Мастера" ему недоступна — см.
+      // RequireRole в AppRoutes), но связка со своими услугами нужна форме создания записи,
+      // чтобы список услуг сужался только до тех, что привязаны к нему (Backlog п.5).
+      requests.push(listMasterServiceLinks([user.masterId]).then(setMasterServiceLinks))
     }
 
     Promise.all(requests)
@@ -113,7 +118,7 @@ export function CalendarPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin, reloadBookings, reloadPayments, reloadBlocks])
+  }, [isAdmin, user?.masterId, reloadBookings, reloadPayments, reloadBlocks])
 
   // В режиме "По мастерам" фильтр одного мастера теряет смысл (там и так одна колонка на
   // каждого мастера), поэтому он игнорируется, пока viewMode === 'byMaster', и снова
@@ -372,6 +377,7 @@ export function CalendarPage() {
           defaultDate={selectedDate}
           onClose={() => setCreateModalOpen(false)}
           onCreated={() => void reloadBookings()}
+          onClientCreated={(client) => setClients((prev) => [client, ...prev])}
         />
       )}
 
