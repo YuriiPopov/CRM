@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../auth/useAuth'
 import { listClients } from '../api/clients'
 import { getApiErrorMessage } from '../api/errors'
 import { filterClients } from './clients/filterClients'
@@ -8,9 +7,6 @@ import { CreateClientModal } from './clients/CreateClientModal'
 import type { Client } from '../types/client'
 
 export function ClientsPage() {
-  const { user } = useAuth()
-  const isAdmin = user?.role === 'ADMIN'
-
   const [clients, setClients] = useState<Client[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -54,11 +50,11 @@ export function ClientsPage() {
           />
         </label>
 
-        {isAdmin && (
-          <button type="button" onClick={() => setCreateModalOpen(true)}>
-            + Новый клиент
-          </button>
-        )}
+        {/* Просмотр + создание клиентов доступны и ADMIN, и MASTER (Backlog, item19) —
+            редактирование/GDPR остаются ADMIN-only и скрыты на карточке клиента отдельно. */}
+        <button type="button" onClick={() => setCreateModalOpen(true)}>
+          + Новый клиент
+        </button>
       </div>
 
       {loadError && <p role="alert">{loadError}</p>}

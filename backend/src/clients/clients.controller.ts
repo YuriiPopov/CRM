@@ -25,9 +25,10 @@ import { UpdateClientDto } from './dto/update-client.dto';
 export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
 
-  // MASTER может создать клиента прямо из формы создания записи (Backlog п.5) — отдельной
-  // вкладки "Клиенты" для него нет (см. RequireRole на /clients в AppRoutes), поэтому это
-  // единственный путь завести нового клиента под ролью MASTER.
+  // MASTER видит и заводит клиентов салона наравне с ADMIN (просмотр + создание, без
+  // редактирования/GDPR — см. Roles на Patch/Delete ниже; item19). Изначально это было
+  // единственным путём завести клиента под ролью MASTER (из формы создания записи, до того
+  // как /clients открылся для неё на фронте) — оставлено и сейчас как второй равнозначный путь.
   @Post()
   @Roles(Role.ADMIN, Role.MASTER)
   create(@Body() dto: CreateClientDto, @CurrentUser() user: AuthenticatedUser) {

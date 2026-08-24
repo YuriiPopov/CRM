@@ -94,8 +94,25 @@ describe('AppRoutes', () => {
     expect(await screen.findByRole('heading', { name: /клиенты/i })).toBeInTheDocument()
   })
 
-  // Backlog п.5 — Клиенты/Мастера/Услуги полностью недоступны роли MASTER, даже по прямому URL.
-  it.each(['/clients', '/staff', '/services'])(
+  // item19 — Клиенты (просмотр + создание) открыты и MASTER, даже по прямому URL; только
+  // редактирование/GDPR остаются ADMIN-only (скрыты внутри ClientDetailPage, не на уровне маршрута).
+  it('lets MASTER reach the clients section', async () => {
+    setStoredToken('fake-token')
+    mockedFetchCurrentUser.mockResolvedValue({
+      id: 'master-1',
+      email: 'master@b4u.local',
+      role: 'MASTER',
+      salonId: 'salon-1',
+      masterId: 'master-rec-1',
+    })
+
+    renderApp('/clients')
+
+    expect(await screen.findByRole('heading', { name: /клиенты/i })).toBeInTheDocument()
+  })
+
+  // Backlog п.5 — Мастера/Услуги полностью недоступны роли MASTER, даже по прямому URL.
+  it.each(['/staff', '/services'])(
     'redirects a MASTER away from %s back to their own section',
     async (path) => {
       setStoredToken('fake-token')

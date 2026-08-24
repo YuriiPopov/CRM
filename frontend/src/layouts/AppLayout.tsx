@@ -17,11 +17,14 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/reports', label: 'Отчёты' },
 ]
 
-// Клиенты/Мастера/Услуги исключены для MASTER (Backlog п.5) — эти разделы полностью
-// недоступны роли MASTER (см. RequireRole role="ADMIN" в AppRoutes для тех же маршрутов).
+// Мастера/Услуги исключены для MASTER (Backlog п.5) — эти разделы полностью недоступны
+// роли MASTER (см. RequireRole role="ADMIN" в AppRoutes для тех же маршрутов). Клиенты —
+// доступны (просмотр + создание, без редактирования/GDPR) начиная с item19, см. комментарий
+// у маршрутов /clients в AppRoutes.
 const MASTER_NAV: NavItem[] = [
   { to: '/dashboard', label: 'Дашборд' },
   { to: '/my-schedule', label: 'Моё расписание' },
+  { to: '/clients', label: 'Клиенты' },
 ]
 
 export function AppLayout() {

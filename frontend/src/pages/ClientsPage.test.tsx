@@ -104,7 +104,9 @@ describe('ClientsPage', () => {
     expect(await screen.findByText(/ничего не найдено/i)).toBeInTheDocument()
   })
 
-  it('shows "+ Новый клиент" for ADMIN but not for MASTER', async () => {
+  // item19 — просмотр + создание клиентов открыты и MASTER (только редактирование/GDPR
+  // остаются ADMIN-only, и те скрыты на карточке клиента, не в списке).
+  it('shows "+ Новый клиент" for both ADMIN and MASTER', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListClients.mockResolvedValue([])
     const { unmount } = renderPage()
@@ -114,8 +116,7 @@ describe('ClientsPage', () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
     mockedListClients.mockResolvedValue([])
     renderPage()
-    await screen.findByText(/клиентов пока нет/i)
-    expect(screen.queryByRole('button', { name: /новый клиент/i })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /новый клиент/i })).toBeInTheDocument()
   })
 
   it('links each client row to their detail page', async () => {

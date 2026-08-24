@@ -32,13 +32,18 @@ export function AppRoutes() {
           <Route path="my-schedule" element={<CalendarPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
 
-          {/* Клиенты/Мастера/Услуги — только ADMIN (Backlog п.5): раньше страницы сами
+          {/* Клиенты — просмотр + создание доступны и ADMIN, и MASTER (Backlog, item19):
+              backend уже разрешает POST/GET /clients и GET /clients/:id обеим ролям, а
+              PATCH/DELETE/GDPR остаются строго ADMIN (см. isAdmin-гейты внутри страниц —
+              редактирование/экспорт/GDPR на карточке клиента ими и закрыты). */}
+          <Route path="clients" element={<ClientsPage />} />
+          <Route path="clients/:id" element={<ClientDetailPage />} />
+
+          {/* Мастера/Услуги — только ADMIN (Backlog п.5): раньше страницы сами
               скрывали часть UI по роли (см. isAdmin-гейты внутри), но сами маршруты оставались
               доступны MASTER по прямому URL. Явный RequireRole закрывает и это — тем же
               приёмом, что уже применён к finance/reports ниже. */}
           <Route element={<RequireRole role="ADMIN" />}>
-            <Route path="clients" element={<ClientsPage />} />
-            <Route path="clients/:id" element={<ClientDetailPage />} />
             <Route path="staff" element={<StaffPage />} />
             <Route path="staff/:id" element={<StaffDetailPage />} />
             <Route path="services" element={<ServicesPage />} />
