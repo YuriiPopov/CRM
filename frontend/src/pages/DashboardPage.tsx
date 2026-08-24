@@ -18,6 +18,7 @@ import {
   TIMELINE_START_HOUR,
 } from './dashboard/timeline'
 import { getMasterColor } from './dashboard/masterColor'
+import { masterBlockCreatedByLabel } from './calendar/masterBlockCreatedBy'
 import type { Booking, BookingStatus } from '../types/booking'
 import type { Client } from '../types/client'
 import type { Master } from '../types/staff'
@@ -211,16 +212,29 @@ export function DashboardPage() {
                   {/* Блокировка времени мастера (Backlog п.9) — отдельная штриховка, а не цвет
                       мастера, чтобы "недоступен" визуально отличалось от "занят записью" даже
                       в режиме MASTER, где обычные записи заливаются одним --accent (см. выше). */}
-                  {row.unavailableBlocks.map(({ block, leftPercent, widthPercent }) => (
-                    <div
-                      key={block.id}
-                      className="dashboard-timeline-block dashboard-timeline-block-unavailable"
-                      style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
-                      title={`${formatTimeRange(block.startTime, block.endTime)} · ${block.reason ?? 'Недоступен'}`}
-                    >
-                      {block.reason ?? 'Недоступен'}
-                    </div>
-                  ))}
+                  {row.unavailableBlocks.map(({ block, leftPercent, widthPercent }) => {
+                    // "Кем создано" — доп. деталь в тултипе, не в самом чипе (узкая полоса
+                    // таймлайна не резиновая под лишний текст), см. ScheduleBlockItem для
+                    // основной карточки блокировки на Календаре/"Моём расписании".
+                    const createdByLabel = masterBlockCreatedByLabel(block)
+                    const title = [
+                      formatTimeRange(block.startTime, block.endTime),
+                      block.reason ?? 'Недоступен',
+                      createdByLabel,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                    return (
+                      <div
+                        key={block.id}
+                        className="dashboard-timeline-block dashboard-timeline-block-unavailable"
+                        style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
+                        title={title}
+                      >
+                        {block.reason ?? 'Недоступен'}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}

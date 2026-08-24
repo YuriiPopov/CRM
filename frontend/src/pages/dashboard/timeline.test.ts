@@ -19,6 +19,7 @@ function makeMasterBlock(overrides: Partial<MasterBlock>): MasterBlock {
     endTime: '2026-03-10T11:00:00.000Z',
     reason: 'Перерыв',
     createdAt: '2026-03-01T00:00:00.000Z',
+    createdById: null,
     ...overrides,
   }
 }

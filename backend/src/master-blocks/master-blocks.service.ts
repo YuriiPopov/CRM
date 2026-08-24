@@ -68,13 +68,14 @@ export class MasterBlocksService {
         startTime,
         endTime,
         reason: dto.reason,
+        createdById: user.id,
       },
     });
   }
 
   // ADMIN видит блокировки всего салона (опционально отфильтрованные по мастеру);
   // MASTER — только свои, вне зависимости от query.masterId (тот же приём, что в BookingsService.scopeWhere)
-  findAll(query: ListMasterBlocksQueryDto, user: AuthenticatedUser) {
+  async findAll(query: ListMasterBlocksQueryDto, user: AuthenticatedUser) {
     const where: Prisma.MasterBlockWhereInput = { salonId: user.salonId };
 
     if (user.role === Role.MASTER) {
@@ -90,10 +91,20 @@ export class MasterBlocksService {
       where.startTime = { lt: new Date(query.to) };
     }
 
-    return this.prisma.masterBlock.findMany({
+    const blocks = await this.prisma.masterBlock.findMany({
       where,
       orderBy: { startTime: 'asc' },
+      include: { createdBy: { select: { role: true } } },
     });
+
+    // Только роль создателя и признак "это я" — не отдаём фронту email/id других пользователей,
+    // которых MASTER всё равно не может разрешить в имя (ему недоступен список мастеров/сотрудников,
+    // см. диагностику fallback 'Мастер не найден' в timeline.ts/ScheduleBlockItem).
+    return blocks.map(({ createdBy, ...block }) => ({
+      ...block,
+      createdByRole: createdBy?.role ?? null,
+      createdBySelf: block.createdById != null && block.createdById === user.id,
+    }));
   }
 
   async remove(id: string, user: AuthenticatedUser): Promise<void> {

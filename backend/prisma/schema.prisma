@@ -84,6 +84,8 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
+  createdMasterBlocks MasterBlock[] @relation("MasterBlockCreatedBy")
+
   @@map("users")
 }
 
@@ -190,6 +192,12 @@ model MasterBlock {
   endTime   DateTime
   reason    String?
   createdAt DateTime @default(now())
+
+  // Кто поставил блокировку (ADMIN за мастера или сам MASTER) — Backlog: "кем создано" в
+  // карточке блокировки. Nullable — записи, созданные до этой миграции, его не имеют
+  // (см. фронтовый fallback без слова "не найден" для этого случая).
+  createdById String?
+  createdBy   User?   @relation("MasterBlockCreatedBy", fields: [createdById], references: [id])
 
   @@index([salonId])
   @@index([masterId, startTime])

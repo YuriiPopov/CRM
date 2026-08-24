@@ -262,6 +262,11 @@
   border-style: dashed;
 }
 
+.schedule-block-created-by {
+  color: var(--text);
+  font-size: 13px;
+}
+
 /* Модальные формы (создание/перенос записи) */
 
 .modal-backdrop {

@@ -85,6 +85,7 @@ describe('MasterBlocksService', () => {
           startTime: new Date(baseDto.startTime),
           endTime: new Date(baseDto.endTime),
           reason: 'Отпуск',
+          createdById: 'admin-1',
         },
       });
     });
@@ -171,6 +172,7 @@ describe('MasterBlocksService', () => {
       expect(prisma.masterBlock.findMany).toHaveBeenCalledWith({
         where: { salonId: 'salon-1', masterId: 'master-rec-1' },
         orderBy: { startTime: 'asc' },
+        include: { createdBy: { select: { role: true } } },
       });
     });
 
@@ -182,7 +184,67 @@ describe('MasterBlocksService', () => {
       expect(prisma.masterBlock.findMany).toHaveBeenCalledWith({
         where: { salonId: 'salon-1', masterId: 'master-rec-1' },
         orderBy: { startTime: 'asc' },
+        include: { createdBy: { select: { role: true } } },
       });
+    });
+
+    it('flattens createdBy into createdByRole and marks createdBySelf for the viewer', async () => {
+      prisma.masterBlock.findMany.mockResolvedValue([
+        {
+          id: 'block-1',
+          masterId: 'master-rec-1',
+          createdById: 'master-user-1',
+          createdBy: { role: Role.MASTER },
+        },
+        {
+          id: 'block-2',
+          masterId: 'master-rec-1',
+          createdById: 'admin-1',
+          createdBy: { role: Role.ADMIN },
+        },
+      ]);
+
+      const result = await service.findAll({}, masterUser);
+
+      expect(result).toEqual([
+        {
+          id: 'block-1',
+          masterId: 'master-rec-1',
+          createdById: 'master-user-1',
+          createdByRole: Role.MASTER,
+          createdBySelf: true,
+        },
+        {
+          id: 'block-2',
+          masterId: 'master-rec-1',
+          createdById: 'admin-1',
+          createdByRole: Role.ADMIN,
+          createdBySelf: false,
+        },
+      ]);
+    });
+
+    it('reports createdByRole/createdBySelf as null/false for pre-migration blocks without a creator', async () => {
+      prisma.masterBlock.findMany.mockResolvedValue([
+        {
+          id: 'block-1',
+          masterId: 'master-rec-1',
+          createdById: null,
+          createdBy: null,
+        },
+      ]);
+
+      const result = await service.findAll({}, admin);
+
+      expect(result).toEqual([
+        {
+          id: 'block-1',
+          masterId: 'master-rec-1',
+          createdById: null,
+          createdByRole: null,
+          createdBySelf: false,
+        },
+      ]);
     });
   });
 

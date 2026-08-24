@@ -1,4 +1,5 @@
 import { formatTimeRange } from './dateUtils'
+import { masterBlockCreatedByLabel } from './masterBlockCreatedBy'
 import type { MasterBlock } from '../../types/masterBlock'
 import type { Master } from '../../types/staff'
 
@@ -23,12 +24,18 @@ export function ScheduleBlockItem({
   onDelete,
   busy,
 }: ScheduleBlockItemProps) {
+  // На экране "Моё расписание" (роль MASTER) полный список мастеров недоступен (Backlog п.5),
+  // поэтому master здесь undefined — имя мастера не показываем вовсе (мастер и так знает,
+  // чьё это расписание), а не подставляем "не найден" (см. ТЗ, диагностика).
+  const createdByLabel = masterBlockCreatedByLabel(block)
+
   return (
     <li className="booking-item schedule-block-item">
       <div className="booking-item-time">{formatTimeRange(block.startTime, block.endTime)}</div>
       <div className="booking-item-details">
         <strong>Заблокировано</strong>
-        {showMasterName && <span>{master?.name ?? 'Мастер не найден'}</span>}
+        {showMasterName && master && <span>{master.name}</span>}
+        {createdByLabel && <span className="schedule-block-created-by">{createdByLabel}</span>}
         {block.reason && <span>{block.reason}</span>}
       </div>
       {canDelete && (

@@ -379,6 +379,7 @@ describe('DashboardPage', () => {
       endTime: '2026-03-10T15:00:00.000Z',
       reason: 'Обед',
       createdAt: '2026-03-01T00:00:00.000Z',
+      createdById: null,
     }
     mockedListMasterBlocks.mockResolvedValue([block])
 
@@ -404,6 +405,7 @@ describe('DashboardPage', () => {
         endTime: '2026-03-10T15:00:00.000Z',
         reason: null,
         createdAt: '2026-03-01T00:00:00.000Z',
+        createdById: null,
       },
     ])
 
