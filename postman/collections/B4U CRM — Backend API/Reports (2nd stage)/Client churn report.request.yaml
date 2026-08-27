@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/reports/client-churn"
+method: GET
+order: 4000

@@ -1,6 +1,10 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, ServiceCategory } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServicesService } from './services.service';
 
@@ -14,6 +18,7 @@ describe('ServicesService', () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    serviceCategory: { findFirst: jest.Mock };
   };
 
   beforeEach(async () => {
@@ -25,6 +30,7 @@ describe('ServicesService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      serviceCategory: { findFirst: jest.fn() },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -39,27 +45,51 @@ describe('ServicesService', () => {
 
   describe('create', () => {
     it('creates a service scoped to the salon', async () => {
+      prisma.serviceCategory.findFirst.mockResolvedValue({
+        id: 'category-1',
+        salonId: 'salon-1',
+      });
       prisma.service.create.mockResolvedValue({ id: 'service-1' });
 
       await service.create(
         {
           name: 'Manicure',
-          category: ServiceCategory.MANICURE_PEDICURE,
+          categoryId: 'category-1',
           durationMin: 60,
           price: 120,
         },
         'salon-1',
       );
 
+      expect(prisma.serviceCategory.findFirst).toHaveBeenCalledWith({
+        where: { id: 'category-1', salonId: 'salon-1' },
+      });
       expect(prisma.service.create).toHaveBeenCalledWith({
         data: {
           salonId: 'salon-1',
           name: 'Manicure',
-          category: ServiceCategory.MANICURE_PEDICURE,
+          categoryId: 'category-1',
           durationMin: 60,
           price: 120,
         },
       });
+    });
+
+    it('rejects a categoryId that does not belong to the salon', async () => {
+      prisma.serviceCategory.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create(
+          {
+            name: 'Manicure',
+            categoryId: 'category-1',
+            durationMin: 60,
+            price: 120,
+          },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.service.create).not.toHaveBeenCalled();
     });
   });
 
@@ -118,6 +148,23 @@ describe('ServicesService', () => {
         where: { id: 'service-1' },
         data: { price: 150 },
       });
+    });
+
+    it('validates a provided categoryId belongs to the salon', async () => {
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        salonId: 'salon-1',
+      });
+      prisma.serviceCategory.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update(
+          'service-1',
+          { categoryId: 'category-other-salon' },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.service.update).not.toHaveBeenCalled();
     });
   });
 

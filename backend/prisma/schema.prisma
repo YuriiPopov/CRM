@@ -46,12 +46,6 @@ enum NotificationType {
   BOOKING_CANCELLATION
 }
 
-enum ServiceCategory {
-  MANICURE_PEDICURE
-  SPA
-  MASSAGE
-}
-
 model Salon {
   id        String   @id @default(uuid())
   name      String
@@ -59,13 +53,14 @@ model Salon {
   timezone  String   @default("Europe/Warsaw")
   createdAt DateTime @default(now())
 
-  clients      Client[]
-  masters      Master[]
-  services     Service[]
-  bookings     Booking[]
-  materials    Material[]
-  staffUsers   User[]
-  masterBlocks MasterBlock[]
+  clients           Client[]
+  masters           Master[]
+  services          Service[]
+  serviceCategories ServiceCategory[]
+  bookings          Booking[]
+  materials         Material[]
+  staffUsers        User[]
+  masterBlocks      MasterBlock[]
 
   @@map("salons")
 }
@@ -110,16 +105,16 @@ model Client {
 }
 
 model Master {
-  id             String   @id @default(uuid())
-  salonId        String
-  salon          Salon    @relation(fields: [salonId], references: [id])
-  name           String
-  specialization ServiceCategory
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  id        String   @id @default(uuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id])
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   user            User?
   services        MasterService[]
+  specializations MasterSpecialization[]
   bookings        Booking[]
   blocks          MasterBlock[]
 
@@ -127,12 +122,28 @@ model Master {
   @@map("masters")
 }
 
+model ServiceCategory {
+  id        String   @id @default(uuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id])
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  services        Service[]
+  specializations MasterSpecialization[]
+
+  @@index([salonId])
+  @@map("service_categories")
+}
+
 model Service {
   id          String          @id @default(uuid())
   salonId     String
   salon       Salon           @relation(fields: [salonId], references: [id])
   name        String
-  category    ServiceCategory
+  categoryId  String
+  category    ServiceCategory @relation(fields: [categoryId], references: [id])
   durationMin Int
   price       Decimal         @db.Decimal(10, 2)
   createdAt   DateTime        @default(now())
@@ -142,6 +153,7 @@ model Service {
   bookings  Booking[]
 
   @@index([salonId])
+  @@index([categoryId])
   @@map("services")
 }
 
@@ -153,6 +165,16 @@ model MasterService {
 
   @@id([masterId, serviceId])
   @@map("master_services")
+}
+
+model MasterSpecialization {
+  masterId   String
+  master     Master          @relation(fields: [masterId], references: [id])
+  categoryId String
+  category   ServiceCategory @relation(fields: [categoryId], references: [id])
+
+  @@id([masterId, categoryId])
+  @@map("master_specializations")
 }
 
 model Booking {

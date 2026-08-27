@@ -3,8 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { ServicesPage } from './ServicesPage'
 import { useAuth } from '../auth/useAuth'
 import { deleteService, listServices } from '../api/services'
+import { listServiceCategories } from '../api/serviceCategories'
 import type { AuthenticatedUser } from '../types/auth'
-import type { Service } from '../types/service'
+import type { Service, ServiceCategoryRef } from '../types/service'
 
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/services', () => ({
@@ -13,10 +14,17 @@ vi.mock('../api/services', () => ({
   updateService: vi.fn(),
   deleteService: vi.fn(),
 }))
+vi.mock('../api/serviceCategories', () => ({
+  listServiceCategories: vi.fn(),
+  createServiceCategory: vi.fn(),
+  updateServiceCategory: vi.fn(),
+  deleteServiceCategory: vi.fn(),
+}))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListServices = vi.mocked(listServices)
 const mockedDeleteService = vi.mocked(deleteService)
+const mockedListServiceCategories = vi.mocked(listServiceCategories)
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',
@@ -34,12 +42,28 @@ const masterUser: AuthenticatedUser = {
   masterId: 'master-1',
 }
 
+function makeCategory(overrides: Partial<ServiceCategoryRef> = {}): ServiceCategoryRef {
+  return {
+    id: 'category-manicure',
+    salonId: 'salon-1',
+    name: 'Маникюр/педикюр',
+    isDefault: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+const categories: ServiceCategoryRef[] = [
+  makeCategory(),
+  makeCategory({ id: 'category-massage', name: 'Массаж', isDefault: false }),
+]
+
 function makeService(overrides: Partial<Service>): Service {
   return {
     id: 'service-1',
     salonId: 'salon-1',
     name: 'Manicure',
-    category: 'MANICURE_PEDICURE',
+    categoryId: 'category-manicure',
     durationMin: 60,
     price: 100,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -59,6 +83,7 @@ describe('ServicesPage', () => {
   it('loads and lists services with category/duration/price', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListServices.mockResolvedValue([makeService({})])
+    mockedListServiceCategories.mockResolvedValue(categories)
 
     render(<ServicesPage />)
 
@@ -71,8 +96,9 @@ describe('ServicesPage', () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListServices.mockResolvedValue([
       makeService({ id: 's-manicure', name: 'Manicure' }),
-      makeService({ id: 's-massage', name: 'Relax Massage', category: 'MASSAGE' }),
+      makeService({ id: 's-massage', name: 'Relax Massage', categoryId: 'category-massage' }),
     ])
+    mockedListServiceCategories.mockResolvedValue(categories)
 
     const user = userEvent.setup()
     render(<ServicesPage />)
@@ -87,6 +113,7 @@ describe('ServicesPage', () => {
   it('shows create/edit/delete actions for ADMIN but only a read-only list for MASTER', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListServices.mockResolvedValue([makeService({})])
+    mockedListServiceCategories.mockResolvedValue(categories)
     const { unmount } = render(<ServicesPage />)
     expect(await screen.findByRole('button', { name: /новая услуга/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /редактировать/i })).toBeInTheDocument()
@@ -95,6 +122,7 @@ describe('ServicesPage', () => {
 
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
     mockedListServices.mockResolvedValue([makeService({})])
+    mockedListServiceCategories.mockResolvedValue(categories)
     render(<ServicesPage />)
     await screen.findByText('Manicure')
     expect(screen.queryByRole('button', { name: /новая услуга/i })).not.toBeInTheDocument()
@@ -105,6 +133,7 @@ describe('ServicesPage', () => {
   it('shows a friendly message when deleting a service still referenced elsewhere (409)', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListServices.mockResolvedValue([makeService({})])
+    mockedListServiceCategories.mockResolvedValue(categories)
     mockedDeleteService.mockRejectedValue(
       mockAxiosError(
         409,
@@ -128,6 +157,7 @@ describe('ServicesPage', () => {
   it('removes the service from the list after a successful delete', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListServices.mockResolvedValue([makeService({})])
+    mockedListServiceCategories.mockResolvedValue(categories)
     mockedDeleteService.mockResolvedValue(undefined)
 
     const user = userEvent.setup()

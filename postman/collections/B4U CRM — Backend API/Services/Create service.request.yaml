@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{baseUrl}}/services"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Маникюр классический",
+      "durationMin": 60,
+      "price": 120.00,
+      "category": "маникюр/педикюр"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 201) {
+          const json = pm.response.json();
+          if (json.id) pm.collectionVariables.set('serviceId', json.id);
+      }
+    language: text/javascript
+order: 2000

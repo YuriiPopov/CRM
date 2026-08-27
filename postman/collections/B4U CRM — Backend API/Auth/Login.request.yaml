@@ -1,0 +1,23 @@
+$kind: http-request
+name: Login
+url: http://localhost:3000/api/auth/login
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "anna@example.com",
+      "password": "StrongPass123!"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 200 || pm.response.code === 201) {
+          const json = pm.response.json();
+          if (json.accessToken) pm.collectionVariables.set('accessToken', json.accessToken);
+          else if (json.access_token) pm.collectionVariables.set('accessToken', json.access_token);
+      }
+    language: text/javascript
+order: 2000

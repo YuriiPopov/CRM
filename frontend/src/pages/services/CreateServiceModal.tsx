@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
 import { createService } from '../../api/services'
+import { listServiceCategories } from '../../api/serviceCategories'
 import { getApiErrorMessage } from '../../api/errors'
-import { SERVICE_CATEGORY_LABELS } from '../../types/service'
-import type { Service, ServiceCategory } from '../../types/service'
+import type { Service, ServiceCategoryRef } from '../../types/service'
 
 interface CreateServiceModalProps {
   onClose: () => void
@@ -13,13 +13,32 @@ interface CreateServiceModalProps {
 
 export function CreateServiceModal({ onClose, onCreated }: CreateServiceModalProps) {
   const [name, setName] = useState('')
-  const [category, setCategory] = useState<ServiceCategory>('MANICURE_PEDICURE')
+  const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
+  const [categoryId, setCategoryId] = useState('')
   const [durationMin, setDurationMin] = useState('')
   const [price, setPrice] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canSubmit = Boolean(name.trim() && durationMin && price) && !submitting
+  useEffect(() => {
+    let cancelled = false
+    listServiceCategories()
+      .then((loaded) => {
+        if (cancelled) return
+        setCategories(loaded)
+        const defaultCategory = loaded.find((c) => c.isDefault) ?? loaded[0]
+        if (defaultCategory) setCategoryId(defaultCategory.id)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(getApiErrorMessage(err, 'Не удалось загрузить категории'))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const canSubmit =
+    Boolean(name.trim() && categoryId && durationMin && price) && !submitting
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -29,7 +48,7 @@ export function CreateServiceModal({ onClose, onCreated }: CreateServiceModalPro
     try {
       const service = await createService({
         name: name.trim(),
-        category,
+        categoryId,
         durationMin: Number(durationMin),
         price: Number(price),
       })
@@ -54,12 +73,13 @@ export function CreateServiceModal({ onClose, onCreated }: CreateServiceModalPro
           Категория
           <select
             id="service-category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value as ServiceCategory)}
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            disabled={categories.length === 0}
           >
-            {Object.entries(SERVICE_CATEGORY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
               </option>
             ))}
           </select>

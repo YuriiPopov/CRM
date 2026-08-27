@@ -4,10 +4,10 @@ import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { assignService, getMaster, unassignService } from '../api/staff'
 import { listServices } from '../api/services'
+import { listServiceCategories } from '../api/serviceCategories'
 import { getApiErrorMessage } from '../api/errors'
 import { EditMasterModal } from './staff/EditMasterModal'
-import { SERVICE_CATEGORY_LABELS } from '../types/service'
-import type { Service } from '../types/service'
+import type { Service, ServiceCategoryRef } from '../types/service'
 import type { MasterDetail } from '../types/staff'
 
 export function StaffDetailPage() {
@@ -17,6 +17,7 @@ export function StaffDetailPage() {
 
   const [master, setMaster] = useState<MasterDetail | null>(null)
   const [allServices, setAllServices] = useState<Service[]>([])
+  const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -39,7 +40,7 @@ export function StaffDetailPage() {
     setLoading(true)
     setLoadError(null)
 
-    const requests: Promise<unknown>[] = [load()]
+    const requests: Promise<unknown>[] = [load(), listServiceCategories().then(setCategories)]
     if (isAdmin) {
       requests.push(listServices().then(setAllServices))
     }
@@ -56,6 +57,11 @@ export function StaffDetailPage() {
       cancelled = true
     }
   }, [load, isAdmin])
+
+  const categoriesById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  )
 
   const attachedServiceIds = useMemo(
     () => new Set(master?.services.map((service) => service.id) ?? []),
@@ -127,7 +133,12 @@ export function StaffDetailPage() {
 
       <dl className="client-card">
         <dt>Специализация</dt>
-        <dd>{SERVICE_CATEGORY_LABELS[master.specialization]}</dd>
+        <dd>
+          {master.specializationCategoryIds
+            .map((catId) => categoriesById.get(catId)?.name)
+            .filter(Boolean)
+            .join(', ')}
+        </dd>
         <dt>Статус</dt>
         <dd>{master.isActive ? 'Активен' : 'Неактивен'}</dd>
       </dl>
@@ -149,7 +160,7 @@ export function StaffDetailPage() {
             <li key={service.id} className="booking-item">
               <div className="booking-item-details">
                 <strong>{service.name}</strong>
-                <span>{SERVICE_CATEGORY_LABELS[service.category]}</span>
+                <span>{categoriesById.get(service.categoryId)?.name ?? '—'}</span>
                 <span>
                   {service.durationMin} мин · {service.price}
                 </span>

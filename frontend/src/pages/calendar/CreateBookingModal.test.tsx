@@ -48,7 +48,7 @@ const masterOne: Master = {
   id: 'master-1',
   salonId: 'salon-1',
   name: 'Anna Master',
-  specialization: 'SPA',
+  specializationCategoryIds: ['category-spa'],
   isActive: true,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
@@ -60,13 +60,13 @@ const serviceOne: Service = {
   id: 'service-1',
   salonId: 'salon-1',
   name: 'Massage',
-  category: 'MASSAGE',
+  categoryId: 'category-massage',
   durationMin: 60,
   price: 150,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
 
-const serviceTwo: Service = { ...serviceOne, id: 'service-2', name: 'Manicure', category: 'MANICURE_PEDICURE' }
+const serviceTwo: Service = { ...serviceOne, id: 'service-2', name: 'Manicure', categoryId: 'category-manicure' }
 
 // master-1 offers only service-1, master-2 offers only service-2, master-3 offers nothing
 const links: MasterServiceLink[] = [

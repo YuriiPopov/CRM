@@ -11,7 +11,6 @@ import {
   Prisma,
   Role,
   Service,
-  ServiceCategory,
   User,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -279,7 +278,7 @@ describe('Clients (e2e)', () => {
       id: 'service-a',
       salonId: 'salon-1',
       name: 'Massage',
-      category: ServiceCategory.MASSAGE,
+      categoryId: 'category-massage',
       durationMin: 60,
       price: 150 as unknown as Service['price'],
       createdAt: new Date(),

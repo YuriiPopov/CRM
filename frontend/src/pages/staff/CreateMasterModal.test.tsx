@@ -3,19 +3,33 @@ import userEvent from '@testing-library/user-event'
 import { CreateMasterModal } from './CreateMasterModal'
 import { createMaster } from '../../api/staff'
 import { registerUser } from '../../api/auth'
+import { listServiceCategories } from '../../api/serviceCategories'
 import type { Master } from '../../types/staff'
+import type { ServiceCategoryRef } from '../../types/service'
 
 vi.mock('../../api/staff', () => ({ createMaster: vi.fn() }))
 vi.mock('../../api/auth', () => ({ registerUser: vi.fn() }))
+vi.mock('../../api/serviceCategories', () => ({ listServiceCategories: vi.fn() }))
 
 const mockedCreateMaster = vi.mocked(createMaster)
 const mockedRegisterUser = vi.mocked(registerUser)
+const mockedListServiceCategories = vi.mocked(listServiceCategories)
+
+const categories: ServiceCategoryRef[] = [
+  {
+    id: 'category-spa',
+    salonId: 'salon-1',
+    name: 'СПА',
+    isDefault: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+]
 
 const createdMaster: Master = {
   id: 'master-new',
   salonId: 'salon-1',
   name: 'Anna Kowalska',
-  specialization: 'MANICURE_PEDICURE',
+  specializationCategoryIds: ['category-spa'],
   isActive: true,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
@@ -26,11 +40,16 @@ function mockAxiosError(status: number, message: string) {
 
 async function fillForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/^имя$/i), 'Anna Kowalska')
+  await user.click(await screen.findByLabelText('СПА'))
   await user.type(screen.getByLabelText(/email/i), 'anna@b4u.local')
   await user.type(screen.getByLabelText(/пароль/i), 'SecurePass123')
 }
 
 describe('CreateMasterModal', () => {
+  beforeEach(() => {
+    mockedListServiceCategories.mockResolvedValue(categories)
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
   })
@@ -55,7 +74,7 @@ describe('CreateMasterModal', () => {
 
     expect(mockedCreateMaster).toHaveBeenCalledWith({
       name: 'Anna Kowalska',
-      specialization: 'MANICURE_PEDICURE',
+      specializationCategoryIds: ['category-spa'],
     })
     expect(mockedRegisterUser).toHaveBeenCalledWith({
       email: 'anna@b4u.local',
@@ -95,6 +114,7 @@ describe('CreateMasterModal', () => {
     // The master was already created — the modal must say so and keep it open, not the form
     expect(screen.getByText(/мастер «anna kowalska» уже создан/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^имя$/i)).toBeDisabled()
+    expect(screen.getByLabelText('СПА')).toBeDisabled()
     expect(onClose).not.toHaveBeenCalled()
 
     // Fix the email and retry — only the login step should be re-sent
@@ -133,7 +153,7 @@ describe('CreateMasterModal', () => {
     expect(screen.getByLabelText(/^имя$/i)).not.toBeDisabled()
   })
 
-  it('disables submit until name, email, and an 8+ character password are all filled in', async () => {
+  it('disables submit until name, a specialization, email, and an 8+ character password are all filled in', async () => {
     const user = userEvent.setup()
     render(<CreateMasterModal onClose={vi.fn()} onCreated={vi.fn()} />)
 
@@ -146,6 +166,9 @@ describe('CreateMasterModal', () => {
     expect(submitButton).toBeDisabled()
 
     await user.type(screen.getByLabelText(/пароль/i), '1234')
+    expect(submitButton).toBeDisabled()
+
+    await user.click(await screen.findByLabelText('СПА'))
     expect(submitButton).toBeEnabled()
   })
 })

@@ -16,6 +16,7 @@ class FakePrismaService {
   private usersById = new Map<string, User>();
   private usersByEmail = new Map<string, User>();
   private servicesById = new Map<string, Service>();
+  private categoriesById = new Map<string, ServiceCategory>();
   private nextServiceId = 1;
 
   user = {
@@ -29,6 +30,23 @@ class FakePrismaService {
       if (where.email)
         return Promise.resolve(this.usersByEmail.get(where.email) ?? null);
       return Promise.resolve(null);
+    },
+  };
+
+  // Сервис вызывает только findFirst — им же проверяется, что categoryId
+  // принадлежит салону вызывающего (см. assertCategoryInSalon в services.service.ts).
+  serviceCategory = {
+    findFirst: ({
+      where,
+    }: {
+      where: { id?: string; salonId?: string };
+    }): Promise<ServiceCategory | null> => {
+      const found = [...this.categoriesById.values()].find(
+        (c) =>
+          (!where.id || c.id === where.id) &&
+          (!where.salonId || c.salonId === where.salonId),
+      );
+      return Promise.resolve(found ?? null);
     },
   };
 
@@ -98,6 +116,10 @@ class FakePrismaService {
   seedService(service: Service) {
     this.servicesById.set(service.id, service);
   }
+
+  seedCategory(category: ServiceCategory) {
+    this.categoriesById.set(category.id, category);
+  }
 }
 
 describe('Services (e2e)', () => {
@@ -132,11 +154,26 @@ describe('Services (e2e)', () => {
       createdAt: new Date(),
     });
 
+    prisma.seedCategory({
+      id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      salonId: 'salon-1',
+      name: 'Маникюр/педикюр',
+      isDefault: true,
+      createdAt: new Date(),
+    });
+    prisma.seedCategory({
+      id: 'aaaaaaaa-0000-4000-8000-000000000002',
+      salonId: 'salon-2',
+      name: 'Массаж',
+      isDefault: true,
+      createdAt: new Date(),
+    });
+
     prisma.seedService({
       id: 'service-a',
       salonId: 'salon-1',
       name: 'Manicure',
-      category: ServiceCategory.MANICURE_PEDICURE,
+      categoryId: 'aaaaaaaa-0000-4000-8000-000000000001',
       durationMin: 60,
       price: 120 as unknown as Service['price'],
       createdAt: new Date(),
@@ -145,7 +182,7 @@ describe('Services (e2e)', () => {
       id: 'service-other-salon',
       salonId: 'salon-2',
       name: 'Massage elsewhere',
-      category: ServiceCategory.MASSAGE,
+      categoryId: 'aaaaaaaa-0000-4000-8000-000000000002',
       durationMin: 90,
       price: 200 as unknown as Service['price'],
       createdAt: new Date(),
@@ -193,7 +230,7 @@ describe('Services (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({
           name: 'Pedicure',
-          category: ServiceCategory.MANICURE_PEDICURE,
+          categoryId: 'aaaaaaaa-0000-4000-8000-000000000001',
           durationMin: 45,
           price: 100,
         })
@@ -213,7 +250,7 @@ describe('Services (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({
           name: 'Pedicure',
-          category: ServiceCategory.MANICURE_PEDICURE,
+          categoryId: 'aaaaaaaa-0000-4000-8000-000000000001',
           durationMin: 45,
           price: 100,
         })

@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{baseUrl}}/staff"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Ольга Мастерова",
+      "specialization": "маникюр/педикюр",
+      "isActive": true
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 201) {
+          const json = pm.response.json();
+          if (json.id) pm.collectionVariables.set('masterId', json.id);
+      }
+    language: text/javascript
+order: 2000

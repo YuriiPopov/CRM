@@ -1,0 +1,25 @@
+$kind: http-request
+url: "{{baseUrl}}/clients"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Maria Nowak",
+      "phone": "+48123456789",
+      "email": "maria@example.com",
+      "notes": "Аллергия на латекс",
+      "tags": ["vip"],
+      "gdprConsent": true
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 201) {
+          const json = pm.response.json();
+          if (json.id) pm.collectionVariables.set('clientId', json.id);
+      }
+    language: text/javascript
+order: 2000

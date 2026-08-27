@@ -5,9 +5,10 @@ import { StaffDetailPage } from './StaffDetailPage'
 import { useAuth } from '../auth/useAuth'
 import { assignService, getMaster, unassignService, updateMaster } from '../api/staff'
 import { listServices } from '../api/services'
+import { listServiceCategories } from '../api/serviceCategories'
 import type { AuthenticatedUser } from '../types/auth'
 import type { MasterDetail } from '../types/staff'
-import type { Service } from '../types/service'
+import type { Service, ServiceCategoryRef } from '../types/service'
 
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/staff', () => ({
@@ -17,6 +18,7 @@ vi.mock('../api/staff', () => ({
   updateMaster: vi.fn(),
 }))
 vi.mock('../api/services', () => ({ listServices: vi.fn() }))
+vi.mock('../api/serviceCategories', () => ({ listServiceCategories: vi.fn() }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetMaster = vi.mocked(getMaster)
@@ -24,6 +26,7 @@ const mockedAssignService = vi.mocked(assignService)
 const mockedUnassignService = vi.mocked(unassignService)
 const mockedUpdateMaster = vi.mocked(updateMaster)
 const mockedListServices = vi.mocked(listServices)
+const mockedListServiceCategories = vi.mocked(listServiceCategories)
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',
@@ -41,11 +44,37 @@ const masterUser: AuthenticatedUser = {
   masterId: 'master-1',
 }
 
+const spaCategory: ServiceCategoryRef = {
+  id: 'category-spa',
+  salonId: 'salon-1',
+  name: 'СПА',
+  isDefault: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+const massageCategory: ServiceCategoryRef = {
+  id: 'category-massage',
+  salonId: 'salon-1',
+  name: 'Массаж',
+  isDefault: false,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+const manicureCategory: ServiceCategoryRef = {
+  id: 'category-manicure',
+  salonId: 'salon-1',
+  name: 'Маникюр/педикюр',
+  isDefault: false,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+const categories: ServiceCategoryRef[] = [spaCategory, massageCategory, manicureCategory]
+
 const massageService: Service = {
   id: 'service-1',
   salonId: 'salon-1',
   name: 'Massage',
-  category: 'MASSAGE',
+  categoryId: 'category-massage',
   durationMin: 60,
   price: 150,
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -55,7 +84,7 @@ const manicureService: Service = {
   id: 'service-2',
   salonId: 'salon-1',
   name: 'Manicure',
-  category: 'MANICURE_PEDICURE',
+  categoryId: 'category-manicure',
   durationMin: 30,
   price: 80,
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -66,7 +95,7 @@ function makeMasterDetail(overrides: Partial<MasterDetail> = {}): MasterDetail {
     id: 'master-1',
     salonId: 'salon-1',
     name: 'Anna Kowalska',
-    specialization: 'SPA',
+    specializationCategoryIds: ['category-spa'],
     isActive: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     services: [massageService],
@@ -98,6 +127,7 @@ describe('StaffDetailPage', () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedGetMaster.mockResolvedValue(makeMasterDetail())
     mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
 
     renderPage()
 
@@ -108,10 +138,25 @@ describe('StaffDetailPage', () => {
     expect(within(row).getByText(/60 мин/)).toBeInTheDocument()
   })
 
+  it('joins multiple specialization names for a master with several categories', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedGetMaster.mockResolvedValue(
+      makeMasterDetail({ specializationCategoryIds: ['category-spa', 'category-massage'] }),
+    )
+    mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
+
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Anna Kowalska' })
+    expect(screen.getByText('СПА, Массаж')).toBeInTheDocument()
+  })
+
   it('shows Edit and service-management controls for ADMIN, offering only unattached services', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedGetMaster.mockResolvedValue(makeMasterDetail())
     mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
 
     renderPage()
 
@@ -126,6 +171,7 @@ describe('StaffDetailPage', () => {
   it('is read-only for MASTER viewing their own profile', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
     mockedGetMaster.mockResolvedValue(makeMasterDetail())
+    mockedListServiceCategories.mockResolvedValue(categories)
 
     renderPage()
 
@@ -142,6 +188,7 @@ describe('StaffDetailPage', () => {
       .mockResolvedValueOnce(makeMasterDetail())
       .mockResolvedValueOnce(makeMasterDetail({ services: [massageService, manicureService] }))
     mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
     mockedAssignService.mockResolvedValue(undefined)
 
     const user = userEvent.setup()
@@ -161,6 +208,7 @@ describe('StaffDetailPage', () => {
       .mockResolvedValueOnce(makeMasterDetail())
       .mockResolvedValueOnce(makeMasterDetail({ services: [] }))
     mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
     mockedUnassignService.mockResolvedValue(undefined)
 
     const user = userEvent.setup()
@@ -179,6 +227,7 @@ describe('StaffDetailPage', () => {
       .mockResolvedValueOnce(makeMasterDetail())
       .mockResolvedValueOnce(makeMasterDetail({ services: [] }))
     mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
     mockedUnassignService.mockRejectedValue(
       mockAxiosError(404, 'Service is not assigned to this master'),
     )
@@ -197,6 +246,7 @@ describe('StaffDetailPage', () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedGetMaster.mockResolvedValue(makeMasterDetail())
     mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
     mockedUpdateMaster.mockResolvedValue(makeMasterDetail())
 
     const user = userEvent.setup()
@@ -219,6 +269,7 @@ describe('StaffDetailPage', () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedGetMaster.mockRejectedValue(mockAxiosError(404, 'Master not found'))
     mockedListServices.mockResolvedValue([])
+    mockedListServiceCategories.mockResolvedValue(categories)
 
     renderPage()
 

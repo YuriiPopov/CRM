@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -9,26 +10,47 @@ import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.in
 import { CreateMasterDto } from './dto/create-master.dto';
 import { UpdateMasterDto } from './dto/update-master.dto';
 
+const masterInclude = {
+  services: { include: { service: true } },
+  specializations: true,
+} satisfies Prisma.MasterInclude;
+
+type MasterWithRelations = Prisma.MasterGetPayload<{
+  include: typeof masterInclude;
+}>;
+
 @Injectable()
 export class StaffService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateMasterDto, salonId: string) {
-    return this.prisma.master.create({
+  async create(dto: CreateMasterDto, salonId: string) {
+    await this.assertCategoriesInSalon(dto.specializationCategoryIds, salonId);
+
+    const master = await this.prisma.master.create({
       data: {
         salonId,
         name: dto.name,
-        specialization: dto.specialization,
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        specializations: {
+          create: dto.specializationCategoryIds.map((categoryId) => ({
+            categoryId,
+          })),
+        },
       },
+      include: masterInclude,
     });
+
+    return this.toMasterDetail(master);
   }
 
-  findAll(user: AuthenticatedUser) {
-    return this.prisma.master.findMany({
+  async findAll(user: AuthenticatedUser) {
+    const masters = await this.prisma.master.findMany({
       where: this.scopeWhere(user),
       orderBy: { createdAt: 'desc' },
+      include: masterInclude,
     });
+
+    return masters.map((master) => this.toMasterDetail(master));
   }
 
   async findOne(id: string, user: AuthenticatedUser) {
@@ -36,30 +58,58 @@ export class StaffService {
     // object-spread, which would let scopeWhere's `id` silently overwrite the requested one.
     const master = await this.prisma.master.findFirst({
       where: { AND: [{ id }, this.scopeWhere(user)] },
-      include: { services: { include: { service: true } } },
+      include: masterInclude,
     });
 
     if (!master) {
       throw new NotFoundException('Master not found');
     }
 
-    const { services, ...rest } = master;
-    return { ...rest, services: services.map((link) => link.service) };
+    return this.toMasterDetail(master);
   }
 
   async update(id: string, dto: UpdateMasterDto, salonId: string) {
     await this.assertExistsInSalon(id, salonId);
 
-    return this.prisma.master.update({
+    if (dto.specializationCategoryIds !== undefined) {
+      await this.assertCategoriesInSalon(
+        dto.specializationCategoryIds,
+        salonId,
+      );
+
+      const [, , master] = await this.prisma.$transaction([
+        this.prisma.masterSpecialization.deleteMany({
+          where: { masterId: id },
+        }),
+        this.prisma.masterSpecialization.createMany({
+          data: dto.specializationCategoryIds.map((categoryId) => ({
+            masterId: id,
+            categoryId,
+          })),
+        }),
+        this.prisma.master.update({
+          where: { id },
+          data: {
+            ...(dto.name !== undefined && { name: dto.name }),
+            ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+          },
+          include: masterInclude,
+        }),
+      ]);
+
+      return this.toMasterDetail(master);
+    }
+
+    const master = await this.prisma.master.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.specialization !== undefined && {
-          specialization: dto.specialization,
-        }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
+      include: masterInclude,
     });
+
+    return this.toMasterDetail(master);
   }
 
   async remove(id: string, salonId: string): Promise<void> {
@@ -112,6 +162,15 @@ export class StaffService {
     });
   }
 
+  private toMasterDetail(master: MasterWithRelations) {
+    const { services, specializations, ...rest } = master;
+    return {
+      ...rest,
+      services: services.map((link) => link.service),
+      specializationCategoryIds: specializations.map((s) => s.categoryId),
+    };
+  }
+
   private async assertExistsInSalon(
     id: string,
     salonId: string,
@@ -135,6 +194,29 @@ export class StaffService {
 
     if (!service) {
       throw new NotFoundException('Service not found');
+    }
+  }
+
+  // Валидирует набор categoryId разом: дубликаты запрещены явной ошибкой (иначе они бы
+  // тихо уронили createMany на composite PK master_specializations с P2002), а count()
+  // должен совпасть с числом id — иначе среди них есть чужой салон или несуществующий id.
+  private async assertCategoriesInSalon(
+    categoryIds: string[],
+    salonId: string,
+  ): Promise<void> {
+    const uniqueIds = new Set(categoryIds);
+    if (uniqueIds.size !== categoryIds.length) {
+      throw new BadRequestException(
+        'specializationCategoryIds must not contain duplicates',
+      );
+    }
+
+    const count = await this.prisma.serviceCategory.count({
+      where: { salonId, id: { in: categoryIds } },
+    });
+
+    if (count !== categoryIds.length) {
+      throw new BadRequestException('Invalid specializationCategoryIds');
     }
   }
 

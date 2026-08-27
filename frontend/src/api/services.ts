@@ -1,9 +1,9 @@
 import { apiClient } from './client'
-import type { Service, ServiceCategory } from '../types/service'
+import type { Service } from '../types/service'
 
 export interface CreateServiceInput {
   name: string
-  category: ServiceCategory
+  categoryId: string
   durationMin: number
   price: number
 }

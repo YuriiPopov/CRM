@@ -1,0 +1,5 @@
+$kind: http-request
+name: "GDPR: export client data"
+url: "{{baseUrl}}/clients/{{clientId}}/export"
+method: GET
+order: 6000

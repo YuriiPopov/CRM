@@ -1,6 +1,10 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, Role, ServiceCategory } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { StaffService } from './staff.service';
@@ -16,11 +20,17 @@ describe('StaffService', () => {
       delete: jest.Mock;
     };
     service: { findFirst: jest.Mock };
+    serviceCategory: { count: jest.Mock };
     masterService: {
       upsert: jest.Mock;
       findUnique: jest.Mock;
       delete: jest.Mock;
     };
+    masterSpecialization: {
+      deleteMany: jest.Mock;
+      createMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
 
   const admin: AuthenticatedUser = {
@@ -49,11 +59,17 @@ describe('StaffService', () => {
         delete: jest.fn(),
       },
       service: { findFirst: jest.fn() },
+      serviceCategory: { count: jest.fn() },
       masterService: {
         upsert: jest.fn(),
         findUnique: jest.fn(),
         delete: jest.fn(),
       },
+      masterSpecialization: {
+        deleteMany: jest.fn(),
+        createMany: jest.fn(),
+      },
+      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -64,34 +80,99 @@ describe('StaffService', () => {
   });
 
   describe('create', () => {
-    it('creates a master scoped to the salon', async () => {
-      prisma.master.create.mockResolvedValue({ id: 'master-1' });
+    it('creates a master scoped to the salon with its specializations', async () => {
+      prisma.serviceCategory.count.mockResolvedValue(2);
+      prisma.master.create.mockResolvedValue({
+        id: 'master-1',
+        salonId: 'salon-1',
+        name: 'Anna',
+        isActive: true,
+        createdAt: new Date(),
+        services: [],
+        specializations: [
+          { masterId: 'master-1', categoryId: 'cat-1' },
+          { masterId: 'master-1', categoryId: 'cat-2' },
+        ],
+      });
 
-      await service.create(
-        { name: 'Anna', specialization: ServiceCategory.SPA },
+      const result = await service.create(
+        { name: 'Anna', specializationCategoryIds: ['cat-1', 'cat-2'] },
         'salon-1',
       );
 
+      expect(prisma.serviceCategory.count).toHaveBeenCalledWith({
+        where: { salonId: 'salon-1', id: { in: ['cat-1', 'cat-2'] } },
+      });
       expect(prisma.master.create).toHaveBeenCalledWith({
         data: {
           salonId: 'salon-1',
           name: 'Anna',
-          specialization: ServiceCategory.SPA,
+          specializations: {
+            create: [{ categoryId: 'cat-1' }, { categoryId: 'cat-2' }],
+          },
+        },
+        include: {
+          services: { include: { service: true } },
+          specializations: true,
         },
       });
+      expect(result.specializationCategoryIds).toEqual(['cat-1', 'cat-2']);
+      expect(result.services).toEqual([]);
+    });
+
+    it('rejects duplicate category ids without querying the database', async () => {
+      await expect(
+        service.create(
+          { name: 'Anna', specializationCategoryIds: ['cat-1', 'cat-1'] },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.serviceCategory.count).not.toHaveBeenCalled();
+      expect(prisma.master.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a categoryId that does not belong to the salon', async () => {
+      prisma.serviceCategory.count.mockResolvedValue(1);
+
+      await expect(
+        service.create(
+          { name: 'Anna', specializationCategoryIds: ['cat-1', 'cat-2'] },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.master.create).not.toHaveBeenCalled();
     });
   });
 
   describe('findAll', () => {
-    it('scopes ADMIN to the whole staff of the salon', async () => {
-      prisma.master.findMany.mockResolvedValue([]);
+    it('scopes ADMIN to the whole staff of the salon and flattens relations', async () => {
+      prisma.master.findMany.mockResolvedValue([
+        {
+          id: 'master-1',
+          salonId: 'salon-1',
+          services: [],
+          specializations: [{ masterId: 'master-1', categoryId: 'cat-1' }],
+        },
+      ]);
 
-      await service.findAll(admin);
+      const result = await service.findAll(admin);
 
       expect(prisma.master.findMany).toHaveBeenCalledWith({
         where: { salonId: 'salon-1' },
         orderBy: { createdAt: 'desc' },
+        include: {
+          services: { include: { service: true } },
+          specializations: true,
+        },
       });
+      expect(result).toEqual([
+        {
+          id: 'master-1',
+          salonId: 'salon-1',
+          services: [],
+          specializationCategoryIds: ['cat-1'],
+        },
+      ]);
     });
 
     it('scopes MASTER to their own record only', async () => {
@@ -102,6 +183,10 @@ describe('StaffService', () => {
       expect(prisma.master.findMany).toHaveBeenCalledWith({
         where: { salonId: 'salon-1', id: 'master-rec-1' },
         orderBy: { createdAt: 'desc' },
+        include: {
+          services: { include: { service: true } },
+          specializations: true,
+        },
       });
     });
 
@@ -113,12 +198,16 @@ describe('StaffService', () => {
       expect(prisma.master.findMany).toHaveBeenCalledWith({
         where: { id: '__none__' },
         orderBy: { createdAt: 'desc' },
+        include: {
+          services: { include: { service: true } },
+          specializations: true,
+        },
       });
     });
   });
 
   describe('findOne', () => {
-    it('flattens the assigned services relation', async () => {
+    it('flattens both the assigned services and specializations relations', async () => {
       prisma.master.findFirst.mockResolvedValue({
         id: 'master-1',
         salonId: 'salon-1',
@@ -129,6 +218,7 @@ describe('StaffService', () => {
             service: { id: 'svc-1', name: 'Manicure' },
           },
         ],
+        specializations: [{ masterId: 'master-1', categoryId: 'cat-1' }],
       });
 
       const result = await service.findOne('master-1', admin);
@@ -137,6 +227,7 @@ describe('StaffService', () => {
         id: 'master-1',
         salonId: 'salon-1',
         services: [{ id: 'svc-1', name: 'Manicure' }],
+        specializationCategoryIds: ['cat-1'],
       });
     });
 
@@ -159,19 +250,83 @@ describe('StaffService', () => {
       expect(prisma.master.update).not.toHaveBeenCalled();
     });
 
-    it('updates only the provided fields', async () => {
+    it('updates only the provided fields when specializations are untouched', async () => {
       prisma.master.findFirst.mockResolvedValue({
         id: 'master-1',
         salonId: 'salon-1',
       });
-      prisma.master.update.mockResolvedValue({ id: 'master-1' });
+      prisma.master.update.mockResolvedValue({
+        id: 'master-1',
+        isActive: false,
+        services: [],
+        specializations: [],
+      });
 
       await service.update('master-1', { isActive: false }, 'salon-1');
 
       expect(prisma.master.update).toHaveBeenCalledWith({
         where: { id: 'master-1' },
         data: { isActive: false },
+        include: {
+          services: { include: { service: true } },
+          specializations: true,
+        },
       });
+      expect(prisma.masterSpecialization.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('replaces specializations in a transaction when specializationCategoryIds is provided', async () => {
+      prisma.master.findFirst.mockResolvedValue({
+        id: 'master-1',
+        salonId: 'salon-1',
+      });
+      prisma.serviceCategory.count.mockResolvedValue(1);
+      prisma.master.update.mockResolvedValue({
+        id: 'master-1',
+        services: [],
+        specializations: [{ masterId: 'master-1', categoryId: 'cat-2' }],
+      });
+
+      const result = await service.update(
+        'master-1',
+        { specializationCategoryIds: ['cat-2'] },
+        'salon-1',
+      );
+
+      expect(prisma.masterSpecialization.deleteMany).toHaveBeenCalledWith({
+        where: { masterId: 'master-1' },
+      });
+      expect(prisma.masterSpecialization.createMany).toHaveBeenCalledWith({
+        data: [{ masterId: 'master-1', categoryId: 'cat-2' }],
+      });
+      expect(prisma.master.update).toHaveBeenCalledWith({
+        where: { id: 'master-1' },
+        data: {},
+        include: {
+          services: { include: { service: true } },
+          specializations: true,
+        },
+      });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(result.specializationCategoryIds).toEqual(['cat-2']);
+    });
+
+    it('rejects an invalid categoryId in specializationCategoryIds', async () => {
+      prisma.master.findFirst.mockResolvedValue({
+        id: 'master-1',
+        salonId: 'salon-1',
+      });
+      prisma.serviceCategory.count.mockResolvedValue(0);
+
+      await expect(
+        service.update(
+          'master-1',
+          { specializationCategoryIds: ['cat-x'] },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 

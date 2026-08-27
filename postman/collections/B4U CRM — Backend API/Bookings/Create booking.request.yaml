@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{baseUrl}}/bookings"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "clientId": "{{clientId}}",
+      "masterId": "{{masterId}}",
+      "serviceId": "{{serviceId}}",
+      "startTime": "2026-08-25T10:00:00Z"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 201) {
+          const json = pm.response.json();
+          if (json.id) pm.collectionVariables.set('bookingId', json.id);
+      }
+    language: text/javascript
+order: 2000

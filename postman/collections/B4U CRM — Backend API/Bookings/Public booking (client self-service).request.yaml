@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/public/bookings"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "clientName": "Maria Nowak",
+      "clientPhone": "+48123456789",
+      "masterId": "{{masterId}}",
+      "serviceId": "{{serviceId}}",
+      "startTime": "2026-08-25T14:00:00Z",
+      "gdprConsent": true
+    }
+order: 3000

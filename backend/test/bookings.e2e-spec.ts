@@ -12,7 +12,6 @@ import {
   NotificationType,
   Role,
   Service,
-  ServiceCategory,
   User,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -319,7 +318,6 @@ describe('Bookings (e2e)', () => {
       id: MASTER_1_ID,
       salonId: 'salon-1',
       name: 'Anna',
-      specialization: ServiceCategory.SPA,
       isActive: true,
       createdAt: new Date(),
     });
@@ -327,7 +325,6 @@ describe('Bookings (e2e)', () => {
       id: MASTER_2_ID,
       salonId: 'salon-1',
       name: 'Boris',
-      specialization: ServiceCategory.MASSAGE,
       isActive: true,
       createdAt: new Date(),
     });
@@ -336,7 +333,7 @@ describe('Bookings (e2e)', () => {
       id: SERVICE_A_ID,
       salonId: 'salon-1',
       name: 'Massage',
-      category: ServiceCategory.MASSAGE,
+      categoryId: 'category-massage',
       durationMin: 60,
       price: 150 as unknown as Service['price'],
       createdAt: new Date(),

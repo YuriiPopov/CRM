@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -12,12 +13,14 @@ import { UpdateServiceDto } from './dto/update-service.dto';
 export class ServicesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateServiceDto, salonId: string) {
+  async create(dto: CreateServiceDto, salonId: string) {
+    await this.assertCategoryInSalon(dto.categoryId, salonId);
+
     return this.prisma.service.create({
       data: {
         salonId,
         name: dto.name,
-        category: dto.category,
+        categoryId: dto.categoryId,
         durationMin: dto.durationMin,
         price: dto.price,
       },
@@ -47,11 +50,15 @@ export class ServicesService {
   async update(id: string, dto: UpdateServiceDto, salonId: string) {
     await this.assertExistsInSalon(id, salonId);
 
+    if (dto.categoryId !== undefined) {
+      await this.assertCategoryInSalon(dto.categoryId, salonId);
+    }
+
     return this.prisma.service.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.category !== undefined && { category: dto.category }),
+        ...(dto.categoryId !== undefined && { categoryId: dto.categoryId }),
         ...(dto.durationMin !== undefined && { durationMin: dto.durationMin }),
         ...(dto.price !== undefined && { price: dto.price }),
       },
@@ -86,6 +93,19 @@ export class ServicesService {
 
     if (!service) {
       throw new NotFoundException('Service not found');
+    }
+  }
+
+  private async assertCategoryInSalon(
+    categoryId: string,
+    salonId: string,
+  ): Promise<void> {
+    const category = await this.prisma.serviceCategory.findFirst({
+      where: { id: categoryId, salonId },
+    });
+
+    if (!category) {
+      throw new BadRequestException('Invalid categoryId');
     }
   }
 }

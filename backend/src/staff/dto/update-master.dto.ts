@@ -1,9 +1,10 @@
-import { ServiceCategory } from '@prisma/client';
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
-  IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
 } from 'class-validator';
 
@@ -14,8 +15,10 @@ export class UpdateMasterDto {
   name?: string;
 
   @IsOptional()
-  @IsEnum(ServiceCategory)
-  specialization?: ServiceCategory;
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  specializationCategoryIds?: string[];
 
   @IsOptional()
   @IsBoolean()

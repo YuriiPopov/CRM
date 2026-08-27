@@ -1,0 +1,18 @@
+$kind: collection
+name: B4U CRM — Backend API
+description: "Коллекция для проверки backend API CRM beauty-салона B4U (MVP + вторая очередь). Составлена на основе ТЗ и документа архитектуры проекта. Endpoints — предполагаемые REST-маршруты по модулям: Auth, Clients, Staff, Services, Bookings, Payments, Inventory, Notifications. Перед использованием подставьте актуальный baseUrl и, при необходимости, скорректируйте пути под реальную реализацию бэкенда."
+variables:
+  baseUrl: http://localhost:3000/api
+  accessToken: ""
+  clientId: ""
+  masterId: ""
+  serviceId: ""
+  bookingId: ""
+  paymentId: ""
+  materialId: ""
+auth:
+  - id: 4672fa80-9704-40df-ab76-d22c5b8a1a26
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{accessToken}}"

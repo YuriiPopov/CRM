@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/services/{{serviceId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "price": 130.00
+    }
+order: 4000

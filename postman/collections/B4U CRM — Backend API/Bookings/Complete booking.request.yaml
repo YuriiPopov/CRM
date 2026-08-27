@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/bookings/{{bookingId}}/complete"
+method: PATCH
+order: 7000

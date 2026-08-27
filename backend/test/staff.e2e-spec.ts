@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   Master,
   MasterService,
+  MasterSpecialization,
   Prisma,
   Role,
   Service,
@@ -24,14 +25,22 @@ interface MasterWhere {
   AND?: MasterWhere[];
 }
 
-// Прогоняет реальные Staff-контроллер/сервис/guard'ы (включая привязку/отвязку услуг через MasterService)
-// через HTTP поверх настоящего Auth-модуля, с in-memory фейком PrismaService — реальная Postgres не нужна.
+type MasterWithRelations = Master & {
+  services: (MasterService & { service: Service })[];
+  specializations: MasterSpecialization[];
+};
+
+// Прогоняет реальные Staff-контроллер/сервис/guard'ы (включая привязку/отвязку услуг через MasterService
+// и назначение специализаций через MasterSpecialization) через HTTP поверх настоящего Auth-модуля,
+// с in-memory фейком PrismaService — реальная Postgres не нужна.
 class FakePrismaService {
   private usersById = new Map<string, User>();
   private usersByEmail = new Map<string, User>();
   private mastersById = new Map<string, Master>();
   private servicesById = new Map<string, Service>();
+  private categoriesById = new Map<string, ServiceCategory>();
   private masterServices: MasterService[] = [];
+  private masterSpecializations: MasterSpecialization[] = [];
   private nextMasterId = 1;
 
   user = {
@@ -53,45 +62,45 @@ class FakePrismaService {
       data,
     }: {
       data: Omit<Master, 'id' | 'createdAt' | 'isActive'> &
-        Partial<Pick<Master, 'isActive'>>;
-    }): Promise<Master> => {
+        Partial<Pick<Master, 'isActive'>> & {
+          specializations?: { create: { categoryId: string }[] };
+        };
+    }): Promise<MasterWithRelations> => {
+      const { specializations, ...masterData } = data;
       const master: Master = {
         id: `master-${this.nextMasterId++}`,
         createdAt: new Date(),
         isActive: true,
-        ...data,
+        ...masterData,
       };
       this.mastersById.set(master.id, master);
-      return Promise.resolve(master);
+
+      for (const { categoryId } of specializations?.create ?? []) {
+        this.masterSpecializations.push({ masterId: master.id, categoryId });
+      }
+
+      return Promise.resolve(this.withRelations(master));
     },
-    findMany: ({ where }: { where: MasterWhere }): Promise<Master[]> => {
+    findMany: ({
+      where,
+    }: {
+      where: MasterWhere;
+    }): Promise<MasterWithRelations[]> => {
       return Promise.resolve(
-        [...this.mastersById.values()].filter((m) => this.matches(m, where)),
+        [...this.mastersById.values()]
+          .filter((m) => this.matches(m, where))
+          .map((m) => this.withRelations(m)),
       );
     },
     findFirst: ({
       where,
-      include,
     }: {
       where: MasterWhere;
-      include?: { services?: unknown };
-    }): Promise<
-      (Master & { services?: (MasterService & { service: Service })[] }) | null
-    > => {
+    }): Promise<MasterWithRelations | null> => {
       const found = [...this.mastersById.values()].find((m) =>
         this.matches(m, where),
       );
-      if (!found) return Promise.resolve(null);
-      if (!include?.services) return Promise.resolve(found);
-
-      const links = this.masterServices
-        .filter((link) => link.masterId === found.id)
-        .map((link) => ({
-          ...link,
-          service: this.servicesById.get(link.serviceId)!,
-        }));
-
-      return Promise.resolve({ ...found, services: links });
+      return Promise.resolve(found ? this.withRelations(found) : null);
     },
     update: ({
       where,
@@ -99,12 +108,12 @@ class FakePrismaService {
     }: {
       where: { id: string };
       data: Partial<Master>;
-    }): Promise<Master> => {
+    }): Promise<MasterWithRelations> => {
       const existing = this.mastersById.get(where.id);
       if (!existing) throw new Error('not found');
       const updated = { ...existing, ...data };
       this.mastersById.set(where.id, updated);
-      return Promise.resolve(updated);
+      return Promise.resolve(this.withRelations(updated));
     },
     delete: ({ where }: { where: { id: string } }): Promise<Master> => {
       const existing = this.mastersById.get(where.id);
@@ -135,6 +144,25 @@ class FakePrismaService {
           (!where.salonId || s.salonId === where.salonId),
       );
       return Promise.resolve(found ?? null);
+    },
+  };
+
+  // Используется только count() — им же проверяется, что все specializationCategoryIds
+  // принадлежат салону вызывающего (см. assertCategoriesInSalon в staff.service.ts).
+  serviceCategory = {
+    count: ({
+      where,
+    }: {
+      where: { salonId?: string; id?: { in: string[] } };
+    }): Promise<number> => {
+      const ids = where.id?.in ?? [];
+      const matched = ids.filter((id) => {
+        const category = this.categoriesById.get(id);
+        return (
+          category && (!where.salonId || category.salonId === where.salonId)
+        );
+      });
+      return Promise.resolve(matched.length);
     },
   };
 
@@ -180,6 +208,45 @@ class FakePrismaService {
     },
   };
 
+  masterSpecialization = {
+    deleteMany: ({
+      where,
+    }: {
+      where: { masterId: string };
+    }): Promise<{ count: number }> => {
+      const before = this.masterSpecializations.length;
+      this.masterSpecializations = this.masterSpecializations.filter(
+        (s) => s.masterId !== where.masterId,
+      );
+      return Promise.resolve({
+        count: before - this.masterSpecializations.length,
+      });
+    },
+    createMany: ({
+      data,
+    }: {
+      data: MasterSpecialization[];
+    }): Promise<{ count: number }> => {
+      this.masterSpecializations.push(...data);
+      return Promise.resolve({ count: data.length });
+    },
+  };
+
+  $transaction = <T>(ops: Promise<T>[]): Promise<T[]> => Promise.all(ops);
+
+  private withRelations(master: Master): MasterWithRelations {
+    const services = this.masterServices
+      .filter((link) => link.masterId === master.id)
+      .map((link) => ({
+        ...link,
+        service: this.servicesById.get(link.serviceId)!,
+      }));
+    const specializations = this.masterSpecializations.filter(
+      (s) => s.masterId === master.id,
+    );
+    return { ...master, services, specializations };
+  }
+
   private matches(master: Master, where: MasterWhere): boolean {
     if (where.id && master.id !== where.id) return false;
     if (where.salonId && master.salonId !== where.salonId) return false;
@@ -202,8 +269,16 @@ class FakePrismaService {
     this.servicesById.set(service.id, service);
   }
 
+  seedCategory(category: ServiceCategory) {
+    this.categoriesById.set(category.id, category);
+  }
+
   seedMasterService(masterId: string, serviceId: string) {
     this.masterServices.push({ masterId, serviceId });
+  }
+
+  seedMasterSpecialization(masterId: string, categoryId: string) {
+    this.masterSpecializations.push({ masterId, categoryId });
   }
 }
 
@@ -250,36 +325,65 @@ describe('Staff (e2e)', () => {
       createdAt: new Date(),
     });
 
+    prisma.seedCategory({
+      id: 'bbbbbbbb-0000-4000-8000-000000000001',
+      salonId: 'salon-1',
+      name: 'СПА',
+      isDefault: true,
+      createdAt: new Date(),
+    });
+    prisma.seedCategory({
+      id: 'bbbbbbbb-0000-4000-8000-000000000002',
+      salonId: 'salon-1',
+      name: 'Массаж',
+      isDefault: false,
+      createdAt: new Date(),
+    });
+    prisma.seedCategory({
+      id: 'bbbbbbbb-0000-4000-8000-000000000003',
+      salonId: 'salon-2',
+      name: 'СПА',
+      isDefault: true,
+      createdAt: new Date(),
+    });
+    prisma.seedCategory({
+      id: 'bbbbbbbb-0000-4000-8000-000000000004',
+      salonId: 'salon-2',
+      name: 'Массаж',
+      isDefault: false,
+      createdAt: new Date(),
+    });
+
     prisma.seedMaster({
       id: 'master-rec-1',
       salonId: 'salon-1',
       name: 'Anna',
-      specialization: ServiceCategory.SPA,
       isActive: true,
       createdAt: new Date(),
     });
+    prisma.seedMasterSpecialization('master-rec-1', 'bbbbbbbb-0000-4000-8000-000000000001');
     prisma.seedMaster({
       id: 'master-rec-2',
       salonId: 'salon-1',
       name: 'Boris',
-      specialization: ServiceCategory.MASSAGE,
       isActive: true,
       createdAt: new Date(),
     });
+    prisma.seedMasterSpecialization('master-rec-2', 'bbbbbbbb-0000-4000-8000-000000000002');
     prisma.seedMaster({
       id: 'master-other-salon',
       salonId: 'salon-2',
       name: 'Someone else',
-      specialization: ServiceCategory.SPA,
       isActive: true,
       createdAt: new Date(),
     });
+    prisma.seedMasterSpecialization('master-other-salon', 'bbbbbbbb-0000-4000-8000-000000000003');
 
     prisma.seedService({
       id: 'service-a',
       salonId: 'salon-1',
       name: 'Massage',
-      category: ServiceCategory.MASSAGE,
+      categoryId: 'bbbbbbbb-0000-4000-8000-000000000002',
       durationMin: 60,
       price: 150 as unknown as Service['price'],
       createdAt: new Date(),
@@ -288,7 +392,7 @@ describe('Staff (e2e)', () => {
       id: 'service-other-salon',
       salonId: 'salon-2',
       name: 'Massage elsewhere',
-      category: ServiceCategory.MASSAGE,
+      categoryId: 'bbbbbbbb-0000-4000-8000-000000000004',
       durationMin: 60,
       price: 150 as unknown as Service['price'],
       createdAt: new Date(),
@@ -334,12 +438,16 @@ describe('Staff (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post('/staff')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'New Master', specialization: ServiceCategory.SPA })
+        .send({
+          name: 'New Master',
+          specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000001'],
+        })
         .expect(201);
 
       expect(response.body).toMatchObject({
         name: 'New Master',
         salonId: 'salon-1',
+        specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000001'],
       });
     });
 
@@ -349,8 +457,24 @@ describe('Staff (e2e)', () => {
       await request(app.getHttpServer())
         .post('/staff')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'New Master', specialization: ServiceCategory.SPA })
+        .send({
+          name: 'New Master',
+          specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000001'],
+        })
         .expect(403);
+    });
+
+    it('rejects a categoryId from another salon', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      await request(app.getHttpServer())
+        .post('/staff')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'New Master',
+          specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000003'],
+        })
+        .expect(400);
     });
   });
 
@@ -396,10 +520,15 @@ describe('Staff (e2e)', () => {
     it('returns the profile when a MASTER requests their own record', async () => {
       const token = await loginAs('master1@b4u.local', master1Password);
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .get('/staff/master-rec-1')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: 'master-rec-1',
+        specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000001'],
+      });
     });
 
     it('returns 404 for a master belonging to another salon', async () => {
@@ -435,6 +564,21 @@ describe('Staff (e2e)', () => {
       expect(response.body).toMatchObject({
         id: 'master-rec-1',
         name: 'Renamed',
+      });
+    });
+
+    it('replaces specializations when specializationCategoryIds is provided', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      const response = await request(app.getHttpServer())
+        .patch('/staff/master-rec-1')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000002'] })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: 'master-rec-1',
+        specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000002'],
       });
     });
   });

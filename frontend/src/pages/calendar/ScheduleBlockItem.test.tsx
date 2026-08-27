@@ -8,7 +8,7 @@ const master: Master = {
   id: 'master-1',
   salonId: 'salon-1',
   name: 'Анна',
-  specialization: 'MANICURE_PEDICURE',
+  specializationCategoryIds: ['category-manicure'],
   isActive: true,
   createdAt: '2026-01-01T00:00:00.000Z',
 }

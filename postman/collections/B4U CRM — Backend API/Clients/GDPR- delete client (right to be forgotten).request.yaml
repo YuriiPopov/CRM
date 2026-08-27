@@ -1,0 +1,5 @@
+$kind: http-request
+name: "GDPR: delete client (right to be forgotten)"
+url: "{{baseUrl}}/clients/{{clientId}}"
+method: DELETE
+order: 7000

@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{baseUrl}}/payments"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "bookingId": "{{bookingId}}",
+      "amount": 120.00,
+      "discount": 0,
+      "method": "card"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 201) {
+          const json = pm.response.json();
+          if (json.id) pm.collectionVariables.set('paymentId', json.id);
+      }
+    language: text/javascript
+order: 2000

@@ -1,10 +1,9 @@
 import { apiClient } from './client'
 import type { Master, MasterDetail, MasterServiceLink } from '../types/staff'
-import type { ServiceCategory } from '../types/service'
 
 export interface CreateMasterInput {
   name: string
-  specialization: ServiceCategory
+  specializationCategoryIds: string[]
   isActive?: boolean
 }
 

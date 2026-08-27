@@ -85,7 +85,7 @@ const master: Master = {
   id: 'master-1',
   salonId: 'salon-1',
   name: 'Master One',
-  specialization: 'SPA',
+  specializationCategoryIds: ['category-spa'],
   isActive: true,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
@@ -107,7 +107,7 @@ const service: Service = {
   id: 'service-1',
   salonId: 'salon-1',
   name: 'Massage',
-  category: 'MASSAGE',
+  categoryId: 'category-massage',
   durationMin: 60,
   price: 150,
   createdAt: '2026-01-01T00:00:00.000Z',

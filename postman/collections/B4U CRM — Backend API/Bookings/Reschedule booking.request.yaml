@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/bookings/{{bookingId}}/reschedule"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "startTime": "2026-08-26T11:00:00Z"
+    }
+order: 5000

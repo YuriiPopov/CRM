@@ -1,10 +1,10 @@
-import type { Service, ServiceCategory } from './service'
+import type { Service } from './service'
 
 export interface Master {
   id: string
   salonId: string
   name: string
-  specialization: ServiceCategory
+  specializationCategoryIds: string[]
   isActive: boolean
   createdAt: string
 }

@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/services/{{serviceId}}"
+method: DELETE
+order: 5000

@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{baseUrl}}/staff/{{masterId}}/schedule?date=2026-08-25"
+method: GET
+queryParams:
+  date: 2026-08-25
+order: 5000

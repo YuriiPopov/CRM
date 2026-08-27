@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/services/{{serviceId}}/materials"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "materialId": "{{materialId}}",
+      "quantityUsed": 5
+    }
+order: 4000

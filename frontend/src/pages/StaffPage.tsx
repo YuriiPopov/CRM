@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { listStaff } from '../api/staff'
+import { listServiceCategories } from '../api/serviceCategories'
 import { getApiErrorMessage } from '../api/errors'
 import { filterStaff } from './staff/filterStaff'
 import { CreateMasterModal } from './staff/CreateMasterModal'
-import { SERVICE_CATEGORY_LABELS } from '../types/service'
+import type { ServiceCategoryRef } from '../types/service'
 import type { Master } from '../types/staff'
 
 // ADMIN видит весь штат салона; MASTER — только свою карточку (уже скоуплено бэкендом, GET /staff)
@@ -14,6 +15,7 @@ export function StaffPage() {
   const isAdmin = user?.role === 'ADMIN'
 
   const [masters, setMasters] = useState<Master[]>([])
+  const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -22,9 +24,12 @@ export function StaffPage() {
   useEffect(() => {
     let cancelled = false
 
-    listStaff()
-      .then((data) => {
-        if (!cancelled) setMasters(data)
+    Promise.all([listStaff(), listServiceCategories()])
+      .then(([staff, loadedCategories]) => {
+        if (!cancelled) {
+          setMasters(staff)
+          setCategories(loadedCategories)
+        }
       })
       .catch((error: unknown) => {
         if (!cancelled) setLoadError(getApiErrorMessage(error, 'Не удалось загрузить мастеров'))
@@ -37,6 +42,11 @@ export function StaffPage() {
       cancelled = true
     }
   }, [])
+
+  const categoriesById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  )
 
   const filteredMasters = useMemo(() => filterStaff(masters, query), [masters, query])
 
@@ -75,7 +85,12 @@ export function StaffPage() {
             <li key={master.id}>
               <Link to={`/staff/${master.id}`} className="client-list-item">
                 <strong>{master.name}</strong>
-                <span>{SERVICE_CATEGORY_LABELS[master.specialization]}</span>
+                <span>
+                  {master.specializationCategoryIds
+                    .map((id) => categoriesById.get(id)?.name)
+                    .filter(Boolean)
+                    .join(', ')}
+                </span>
                 {!master.isActive && <span>Неактивен</span>}
               </Link>
             </li>

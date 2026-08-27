@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
 import { createMaster } from '../../api/staff'
 import { registerUser } from '../../api/auth'
+import { listServiceCategories } from '../../api/serviceCategories'
 import { getApiErrorMessage } from '../../api/errors'
-import { SERVICE_CATEGORY_LABELS } from '../../types/service'
-import type { ServiceCategory } from '../../types/service'
+import type { ServiceCategoryRef } from '../../types/service'
 import type { Master } from '../../types/staff'
 
 interface CreateMasterModalProps {
@@ -23,15 +23,45 @@ const MIN_PASSWORD_LENGTH = 8
 // email/паролем, а не создавал второго мастера-дубликата.
 export function CreateMasterModal({ onClose, onCreated }: CreateMasterModalProps) {
   const [name, setName] = useState('')
-  const [specialization, setSpecialization] = useState<ServiceCategory>('MANICURE_PEDICURE')
+  const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
+  const [specializationIds, setSpecializationIds] = useState<Set<string>>(new Set())
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [createdMaster, setCreatedMaster] = useState<Master | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    let cancelled = false
+    listServiceCategories()
+      .then((loaded) => {
+        if (!cancelled) setCategories(loaded)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(getApiErrorMessage(err, 'Не удалось загрузить категории'))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const toggleSpecialization = (categoryId: string) => {
+    setSpecializationIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(categoryId)) {
+        next.delete(categoryId)
+      } else {
+        next.add(categoryId)
+      }
+      return next
+    })
+  }
+
   const canSubmit =
-    Boolean(name.trim() && email.trim()) && password.length >= MIN_PASSWORD_LENGTH && !submitting
+    Boolean(name.trim() && email.trim()) &&
+    specializationIds.size > 0 &&
+    password.length >= MIN_PASSWORD_LENGTH &&
+    !submitting
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -41,7 +71,10 @@ export function CreateMasterModal({ onClose, onCreated }: CreateMasterModalProps
     try {
       let master = createdMaster
       if (!master) {
-        master = await createMaster({ name: name.trim(), specialization })
+        master = await createMaster({
+          name: name.trim(),
+          specializationCategoryIds: Array.from(specializationIds),
+        })
         setCreatedMaster(master)
         onCreated(master)
       }
@@ -80,21 +113,20 @@ export function CreateMasterModal({ onClose, onCreated }: CreateMasterModalProps
           />
         </label>
 
-        <label htmlFor="master-specialization">
-          Специализация
-          <select
-            id="master-specialization"
-            value={specialization}
-            onChange={(e) => setSpecialization(e.target.value as ServiceCategory)}
-            disabled={Boolean(createdMaster)}
-          >
-            {Object.entries(SERVICE_CATEGORY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset>
+          <legend>Специализация</legend>
+          {categories.map((category) => (
+            <label key={category.id} className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={specializationIds.has(category.id)}
+                onChange={() => toggleSpecialization(category.id)}
+                disabled={Boolean(createdMaster)}
+              />
+              {category.name}
+            </label>
+          ))}
+        </fieldset>
 
         <label htmlFor="master-email">
           Email для входа

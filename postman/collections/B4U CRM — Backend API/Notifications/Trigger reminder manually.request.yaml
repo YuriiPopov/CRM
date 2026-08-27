@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/notifications/send"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "bookingId": "{{bookingId}}",
+      "channel": "email"
+    }
+order: 2000

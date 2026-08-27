@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth'
 import { deleteService, listServices } from '../api/services'
+import { listServiceCategories } from '../api/serviceCategories'
 import { getApiErrorMessage } from '../api/errors'
 import { filterServices } from './services/filterServices'
 import { CreateServiceModal } from './services/CreateServiceModal'
 import { EditServiceModal } from './services/EditServiceModal'
+import { ManageServiceCategoriesModal } from './services/ManageServiceCategoriesModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { SERVICE_CATEGORY_LABELS } from '../types/service'
-import type { Service } from '../types/service'
+import type { Service, ServiceCategoryRef } from '../types/service'
 
 // Доступно и ADMIN, и MASTER (см. AppRoutes) — ADMIN получает CRUD, MASTER только читает каталог,
 // как и на бэкенде (GET /services не различает роли, изменяющие маршруты — ADMIN-only).
@@ -16,21 +17,24 @@ export function ServicesPage() {
   const isAdmin = user?.role === 'ADMIN'
 
   const [services, setServices] = useState<Service[]>([])
+  const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [categoriesModalOpen, setCategoriesModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Service | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Service | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(() => listServices().then(setServices), [])
+  const loadCategories = useCallback(() => listServiceCategories().then(setCategories), [])
 
   useEffect(() => {
     let cancelled = false
-    load()
+    Promise.all([load(), loadCategories()])
       .catch((error: unknown) => {
         if (!cancelled) setLoadError(getApiErrorMessage(error, 'Не удалось загрузить услуги'))
       })
@@ -40,7 +44,12 @@ export function ServicesPage() {
     return () => {
       cancelled = true
     }
-  }, [load])
+  }, [load, loadCategories])
+
+  const categoriesById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  )
 
   const filteredServices = useMemo(() => filterServices(services, query), [services, query])
 
@@ -76,9 +85,14 @@ export function ServicesPage() {
         </label>
 
         {isAdmin && (
-          <button type="button" onClick={() => setCreateModalOpen(true)}>
-            + Новая услуга
-          </button>
+          <>
+            <button type="button" onClick={() => setCreateModalOpen(true)}>
+              + Новая услуга
+            </button>
+            <button type="button" onClick={() => setCategoriesModalOpen(true)}>
+              Категории
+            </button>
+          </>
         )}
       </div>
 
@@ -95,7 +109,7 @@ export function ServicesPage() {
             <li key={service.id} className="booking-item">
               <div className="booking-item-details">
                 <strong>{service.name}</strong>
-                <span>{SERVICE_CATEGORY_LABELS[service.category]}</span>
+                <span>{categoriesById.get(service.categoryId)?.name ?? '—'}</span>
                 <span>
                   {service.durationMin} мин · {service.price}
                 </span>
@@ -123,6 +137,20 @@ export function ServicesPage() {
         <CreateServiceModal
           onClose={() => setCreateModalOpen(false)}
           onCreated={(service) => setServices((prev) => [service, ...prev])}
+        />
+      )}
+
+      {categoriesModalOpen && (
+        <ManageServiceCategoriesModal
+          onClose={() => setCategoriesModalOpen(false)}
+          onChanged={() => {
+            // Удаление/переименование категории может переносить services на другую
+            // categoryId на бэкенде (см. remove() в service-categories.service.ts) —
+            // без этого refetch уже загруженные Service объекты продолжат ссылаться
+            // на удалённую категорию и их название "теряется" (categoriesById.get не найдёт).
+            void loadCategories()
+            void load()
+          }}
         />
       )}
 

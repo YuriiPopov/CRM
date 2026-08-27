@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/inventory/materials/{{materialId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "stockQuantity": 480
+    }
+order: 3000

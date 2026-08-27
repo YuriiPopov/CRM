@@ -1,0 +1,16 @@
+$kind: http-request
+name: Register (admin/master)
+url: http://localhost:3000/auth/register
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Sergii-master",
+      "email": "Sergii-master@example.com",
+      "password": "StrongPass123!",
+      "role": "MASTER"
+    }
+order: 1000

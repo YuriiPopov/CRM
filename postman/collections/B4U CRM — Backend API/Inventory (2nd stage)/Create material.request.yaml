@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{baseUrl}}/inventory/materials"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "name": "Гель-лак прозрачный",
+      "unit": "мл",
+      "stockQuantity": 500
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 201) {
+          const json = pm.response.json();
+          if (json.id) pm.collectionVariables.set('materialId', json.id);
+      }
+    language: text/javascript
+order: 2000

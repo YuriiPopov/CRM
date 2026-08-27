@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
 import { updateService } from '../../api/services'
+import { listServiceCategories } from '../../api/serviceCategories'
 import { getApiErrorMessage } from '../../api/errors'
-import { SERVICE_CATEGORY_LABELS } from '../../types/service'
-import type { Service, ServiceCategory } from '../../types/service'
+import type { Service, ServiceCategoryRef } from '../../types/service'
 
 interface EditServiceModalProps {
   service: Service
@@ -14,13 +14,28 @@ interface EditServiceModalProps {
 
 export function EditServiceModal({ service, onClose, onUpdated }: EditServiceModalProps) {
   const [name, setName] = useState(service.name)
-  const [category, setCategory] = useState<ServiceCategory>(service.category)
+  const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
+  const [categoryId, setCategoryId] = useState(service.categoryId)
   const [durationMin, setDurationMin] = useState(String(service.durationMin))
   const [price, setPrice] = useState(String(service.price))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canSubmit = Boolean(name.trim() && durationMin && price) && !submitting
+  useEffect(() => {
+    let cancelled = false
+    listServiceCategories()
+      .then((loaded) => {
+        if (!cancelled) setCategories(loaded)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(getApiErrorMessage(err, 'Не удалось загрузить категории'))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const canSubmit = Boolean(name.trim() && categoryId && durationMin && price) && !submitting
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -30,7 +45,7 @@ export function EditServiceModal({ service, onClose, onUpdated }: EditServiceMod
     try {
       const updated = await updateService(service.id, {
         name: name.trim(),
-        category,
+        categoryId,
         durationMin: Number(durationMin),
         price: Number(price),
       })
@@ -60,12 +75,13 @@ export function EditServiceModal({ service, onClose, onUpdated }: EditServiceMod
           Категория
           <select
             id="edit-service-category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value as ServiceCategory)}
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            disabled={categories.length === 0}
           >
-            {Object.entries(SERVICE_CATEGORY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
               </option>
             ))}
           </select>

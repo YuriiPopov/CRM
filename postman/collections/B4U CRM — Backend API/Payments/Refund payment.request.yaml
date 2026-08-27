@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{baseUrl}}/payments/{{paymentId}}/refund"
+method: PATCH
+order: 4000

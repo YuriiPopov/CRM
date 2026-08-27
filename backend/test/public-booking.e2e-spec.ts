@@ -8,7 +8,6 @@ import {
   Master,
   MasterService,
   Service,
-  ServiceCategory,
 } from '@prisma/client';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -192,7 +191,6 @@ describe('Public booking (e2e)', () => {
       id: MASTER_ID,
       salonId: 'salon-1',
       name: 'Anna',
-      specialization: ServiceCategory.SPA,
       isActive: true,
       createdAt: new Date(),
     });
@@ -200,7 +198,6 @@ describe('Public booking (e2e)', () => {
       id: MASTER_INACTIVE_ID,
       salonId: 'salon-1',
       name: 'Retired Master',
-      specialization: ServiceCategory.SPA,
       isActive: false,
       createdAt: new Date(),
     });
@@ -208,7 +205,7 @@ describe('Public booking (e2e)', () => {
       id: SERVICE_ID,
       salonId: 'salon-1',
       name: 'Massage',
-      category: ServiceCategory.MASSAGE,
+      categoryId: 'category-massage',
       durationMin: 60,
       price: 150 as unknown as Service['price'],
       createdAt: new Date(),
@@ -217,7 +214,7 @@ describe('Public booking (e2e)', () => {
       id: SERVICE_OTHER_SALON_ID,
       salonId: 'salon-2',
       name: 'Massage elsewhere',
-      category: ServiceCategory.MASSAGE,
+      categoryId: 'category-massage-salon-2',
       durationMin: 60,
       price: 150 as unknown as Service['price'],
       createdAt: new Date(),
@@ -295,7 +292,7 @@ describe('Public booking (e2e)', () => {
         id: '66666666-6666-4666-8666-666666666666',
         salonId: 'salon-1',
         name: 'Unrelated service',
-        category: ServiceCategory.MANICURE_PEDICURE,
+        categoryId: 'category-manicure',
         durationMin: 30,
         price: 50 as unknown as Service['price'],
         createdAt: new Date(),

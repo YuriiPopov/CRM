@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/staff/{{masterId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "isActive": false
+    }
+order: 4000

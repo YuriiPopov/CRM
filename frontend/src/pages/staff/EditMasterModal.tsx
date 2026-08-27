@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Modal } from '../../components/Modal'
 import { updateMaster } from '../../api/staff'
+import { listServiceCategories } from '../../api/serviceCategories'
 import { getApiErrorMessage } from '../../api/errors'
-import { SERVICE_CATEGORY_LABELS } from '../../types/service'
-import type { ServiceCategory } from '../../types/service'
+import type { ServiceCategoryRef } from '../../types/service'
 import type { Master } from '../../types/staff'
 
 interface EditMasterModalProps {
@@ -15,12 +15,41 @@ interface EditMasterModalProps {
 
 export function EditMasterModal({ master, onClose, onUpdated }: EditMasterModalProps) {
   const [name, setName] = useState(master.name)
-  const [specialization, setSpecialization] = useState<ServiceCategory>(master.specialization)
+  const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
+  const [specializationIds, setSpecializationIds] = useState<Set<string>>(
+    new Set(master.specializationCategoryIds),
+  )
   const [isActive, setIsActive] = useState(master.isActive)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canSubmit = Boolean(name.trim()) && !submitting
+  useEffect(() => {
+    let cancelled = false
+    listServiceCategories()
+      .then((loaded) => {
+        if (!cancelled) setCategories(loaded)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(getApiErrorMessage(err, 'Не удалось загрузить категории'))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const toggleSpecialization = (categoryId: string) => {
+    setSpecializationIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(categoryId)) {
+        next.delete(categoryId)
+      } else {
+        next.add(categoryId)
+      }
+      return next
+    })
+  }
+
+  const canSubmit = Boolean(name.trim()) && specializationIds.size > 0 && !submitting
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -28,7 +57,11 @@ export function EditMasterModal({ master, onClose, onUpdated }: EditMasterModalP
     setError(null)
 
     try {
-      const updated = await updateMaster(master.id, { name: name.trim(), specialization, isActive })
+      const updated = await updateMaster(master.id, {
+        name: name.trim(),
+        specializationCategoryIds: Array.from(specializationIds),
+        isActive,
+      })
       onUpdated(updated)
       onClose()
     } catch (err) {
@@ -51,20 +84,19 @@ export function EditMasterModal({ master, onClose, onUpdated }: EditMasterModalP
           />
         </label>
 
-        <label htmlFor="edit-master-specialization">
-          Специализация
-          <select
-            id="edit-master-specialization"
-            value={specialization}
-            onChange={(e) => setSpecialization(e.target.value as ServiceCategory)}
-          >
-            {Object.entries(SERVICE_CATEGORY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset>
+          <legend>Специализация</legend>
+          {categories.map((category) => (
+            <label key={category.id} className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={specializationIds.has(category.id)}
+                onChange={() => toggleSpecialization(category.id)}
+              />
+              {category.name}
+            </label>
+          ))}
+        </fieldset>
 
         <label className="checkbox-label">
           <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />

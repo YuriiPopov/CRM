@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { ClientsModule } from './clients/clients.module';
 import { StaffModule } from './staff/staff.module';
 import { ServicesModule } from './services/services.module';
+import { ServiceCategoriesModule } from './service-categories/service-categories.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { PaymentsModule } from './payments/payments.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -22,6 +23,7 @@ import { MasterBlocksModule } from './master-blocks/master-blocks.module';
     ClientsModule,
     StaffModule,
     ServicesModule,
+    ServiceCategoriesModule,
     BookingsModule,
     PaymentsModule,
     InventoryModule,

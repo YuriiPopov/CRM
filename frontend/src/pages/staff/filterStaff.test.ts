@@ -6,7 +6,7 @@ function makeMaster(overrides: Partial<Master>): Master {
     id: 'master-1',
     salonId: 'salon-1',
     name: 'Anna Kowalska',
-    specialization: 'SPA',
+    specializationCategoryIds: ['category-spa'],
     isActive: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -16,7 +16,7 @@ function makeMaster(overrides: Partial<Master>): Master {
 describe('filterStaff', () => {
   const masters: Master[] = [
     makeMaster({ id: 'm-anna', name: 'Anna Kowalska' }),
-    makeMaster({ id: 'm-boris', name: 'Boris Nowak', specialization: 'MASSAGE' }),
+    makeMaster({ id: 'm-boris', name: 'Boris Nowak', specializationCategoryIds: ['category-massage'] }),
   ]
 
   it('returns every master when the query is empty', () => {

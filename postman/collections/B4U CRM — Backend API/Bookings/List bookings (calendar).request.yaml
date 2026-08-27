@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{baseUrl}}/bookings?dateFrom=2026-08-22&dateTo=2026-08-29&masterId={{masterId}}"
+method: GET
+queryParams:
+  dateFrom: 2026-08-22
+  dateTo: 2026-08-29
+  masterId: "{{masterId}}"
+order: 1000

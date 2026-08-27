@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/bookings/{{bookingId}}/cancel"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "reason": "Клиент отменил"
+    }
+order: 8000

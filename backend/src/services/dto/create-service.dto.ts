@@ -1,10 +1,9 @@
-import { ServiceCategory } from '@prisma/client';
 import {
-  IsEnum,
   IsInt,
   IsNumber,
   IsPositive,
   IsString,
+  IsUUID,
   Min,
   MinLength,
 } from 'class-validator';
@@ -14,8 +13,8 @@ export class CreateServiceDto {
   @MinLength(1)
   name!: string;
 
-  @IsEnum(ServiceCategory)
-  category!: ServiceCategory;
+  @IsUUID('4')
+  categoryId!: string;
 
   @IsInt()
   @IsPositive()

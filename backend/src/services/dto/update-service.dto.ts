@@ -1,11 +1,10 @@
-import { ServiceCategory } from '@prisma/client';
 import {
-  IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
+  IsUUID,
   Min,
   MinLength,
 } from 'class-validator';
@@ -17,8 +16,8 @@ export class UpdateServiceDto {
   name?: string;
 
   @IsOptional()
-  @IsEnum(ServiceCategory)
-  category?: ServiceCategory;
+  @IsUUID('4')
+  categoryId?: string;
 
   @IsOptional()
   @IsInt()

@@ -6,7 +6,7 @@ function makeService(overrides: Partial<Service>): Service {
     id: 'service-1',
     salonId: 'salon-1',
     name: 'Manicure',
-    category: 'MANICURE_PEDICURE',
+    categoryId: 'category-manicure',
     durationMin: 60,
     price: 100,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -17,7 +17,7 @@ function makeService(overrides: Partial<Service>): Service {
 describe('filterServices', () => {
   const services: Service[] = [
     makeService({ id: 's-manicure', name: 'Manicure' }),
-    makeService({ id: 's-massage', name: 'Relax Massage', category: 'MASSAGE' }),
+    makeService({ id: 's-massage', name: 'Relax Massage', categoryId: 'category-massage' }),
   ]
 
   it('returns every service when the query is empty', () => {
