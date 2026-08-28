@@ -26,6 +26,7 @@ interface CalendarGridViewProps {
   servicesById: Map<string, Service>
   paidBookingIds: Set<string>
   role: Role
+  currentMasterId: string | null
   // = isAdmin из CalendarPage — полностью выключает механизм переноса для MASTER: атрибуты
   // draggable и обработчики dragover/drop на ячейках вообще не навешиваются, а не просто
   // прячутся визуально (см. BookingGridCard — там та же логика на уровне карточки).
@@ -52,6 +53,7 @@ export function CalendarGridView({
   servicesById,
   paidBookingIds,
   role,
+  currentMasterId,
   canDragReschedule,
   busyBookingId,
   onReschedule,
@@ -141,6 +143,7 @@ export function CalendarGridView({
                     master={mastersById.get(booking.masterId)}
                     service={servicesById.get(booking.serviceId)}
                     role={role}
+                    currentMasterId={currentMasterId}
                     isPaid={paidBookingIds.has(booking.id)}
                     canDragReschedule={canDragReschedule}
                     isDragging={draggingBooking?.id === booking.id}

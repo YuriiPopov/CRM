@@ -32,7 +32,7 @@ const service: Service = {
 const master: Master = {
   id: 'master-1',
   salonId: 'salon-1',
-  name: 'Anna',
+  name: 'Anna Master',
   specializationCategoryIds: ['category-massage'],
   isActive: true,
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -57,7 +57,7 @@ function booking(overrides: Partial<Booking>): Booking {
 const noop = () => {}
 
 describe('BookingGridCard', () => {
-  it('renders time, client, service and the status badge', () => {
+  it('renders time and the status badge for both roles', () => {
     render(
       <ul>
         <BookingGridCard
@@ -66,6 +66,7 @@ describe('BookingGridCard', () => {
           master={master}
           service={service}
           role="ADMIN"
+          currentMasterId={null}
           isPaid={false}
           canDragReschedule
           isDragging={false}
@@ -78,9 +79,155 @@ describe('BookingGridCard', () => {
     )
 
     expect(screen.getByText('10:00')).toBeInTheDocument()
+    expect(screen.getByText('Создана')).toBeInTheDocument()
+  })
+
+  it('for ADMIN: shows service and master, not the client, in the card body', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({})}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByText('Massage')).toBeInTheDocument()
+    expect(screen.getByText('Anna Master')).toBeInTheDocument()
+    expect(screen.queryByText('Anna Client')).not.toBeInTheDocument()
+  })
+
+  it('for ADMIN: still surfaces the client in the title tooltip', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({})}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByRole('listitem')).toHaveAttribute('title', expect.stringContaining('Anna Client'))
+  })
+
+  it('for ADMIN: omits the master line instead of showing a "not found" fallback when master is unresolved', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({})}
+          client={client}
+          master={undefined}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.queryByText(/мастер не найден/i)).not.toBeInTheDocument()
+  })
+
+  it('for MASTER: shows client and service in the card body, not the master name', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({ masterId: 'master-other' })}
+          client={client}
+          master={master}
+          service={service}
+          role="MASTER"
+          currentMasterId="master-other"
+          isPaid={false}
+          canDragReschedule={false}
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
     expect(screen.getByText('Anna Client')).toBeInTheDocument()
     expect(screen.getByText('Massage')).toBeInTheDocument()
-    expect(screen.getByText('Создана')).toBeInTheDocument()
+    expect(screen.queryByText('Anna Master')).not.toBeInTheDocument()
+  })
+
+  it('for MASTER: shows "Это вы" on their own booking', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({ masterId: 'master-1' })}
+          client={client}
+          master={master}
+          service={service}
+          role="MASTER"
+          currentMasterId="master-1"
+          isPaid={false}
+          canDragReschedule={false}
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByText('Это вы')).toBeInTheDocument()
+  })
+
+  it('for MASTER: does not show "Это вы" on a booking that is not their own', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({ masterId: 'master-other' })}
+          client={client}
+          master={master}
+          service={service}
+          role="MASTER"
+          currentMasterId="master-1"
+          isPaid={false}
+          canDragReschedule={false}
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.queryByText('Это вы')).not.toBeInTheDocument()
   })
 
   it('is draggable for ADMIN when the booking can be rescheduled', () => {
@@ -92,6 +239,7 @@ describe('BookingGridCard', () => {
           master={master}
           service={service}
           role="ADMIN"
+          currentMasterId={null}
           isPaid={false}
           canDragReschedule
           isDragging={false}
@@ -115,6 +263,7 @@ describe('BookingGridCard', () => {
           master={master}
           service={service}
           role="ADMIN"
+          currentMasterId={null}
           isPaid={false}
           canDragReschedule={false}
           isDragging={false}
@@ -138,6 +287,7 @@ describe('BookingGridCard', () => {
           master={master}
           service={service}
           role="ADMIN"
+          currentMasterId={null}
           isPaid={false}
           canDragReschedule
           isDragging={false}
@@ -161,6 +311,7 @@ describe('BookingGridCard', () => {
           master={master}
           service={service}
           role="MASTER"
+          currentMasterId="master-1"
           isPaid={false}
           canDragReschedule={false}
           isDragging={false}
@@ -186,6 +337,7 @@ describe('BookingGridCard', () => {
           master={master}
           service={service}
           role="ADMIN"
+          currentMasterId={null}
           isPaid={false}
           canDragReschedule
           isDragging={false}

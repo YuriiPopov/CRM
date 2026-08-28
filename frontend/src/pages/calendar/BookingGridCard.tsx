@@ -14,6 +14,10 @@ interface BookingGridCardProps {
   master: Master | undefined
   service: Service | undefined
   role: Role
+  // Собственный masterId текущего пользователя (см. BookingListItem) — только для роли
+  // MASTER, чтобы показать "Это вы" вместо резолва через master (на /my-schedule master
+  // не резолвится, полный список мастеров не грузится, см. item17).
+  currentMasterId: string | null
   isPaid: boolean
   // = isAdmin из CalendarPage — полностью выключает draggable/кнопку "Перенести" для MASTER,
   // а не просто прячет их визуально (см. CalendarGridView: DnD-обработчики самих ячеек тоже
@@ -37,6 +41,7 @@ export function BookingGridCard({
   master,
   service,
   role,
+  currentMasterId,
   isPaid,
   canDragReschedule,
   isDragging,
@@ -49,6 +54,7 @@ export function BookingGridCard({
   // дублирует, а полностью выключает механизм переноса на уровне MASTER-страницы, независимо
   // от статуса конкретной записи (не переизобретаем правила статусной машины, см. её же).
   const canDrag = canDragReschedule && canReschedule(booking.status, role)
+  const isOwnBooking = role === 'MASTER' && booking.masterId === currentMasterId
 
   const title = [
     formatTimeRange(booking.startTime, booking.endTime),
@@ -76,8 +82,24 @@ export function BookingGridCard({
     >
       <div className="booking-grid-card-time">{formatTime(booking.startTime)}</div>
       <div className="booking-grid-card-details">
-        <strong>{client?.name ?? 'Клиент не найден'}</strong>
-        <span>{service?.name ?? 'Услуга не найдена'}</span>
+        {role === 'ADMIN' ? (
+          // В ячейке сетки смешаны записи разных мастеров одного дня — в отличие от колонки
+          // "По мастерам", где мастер и так ясен из заголовка (см. BookingListItem), здесь его
+          // нужно показывать явно. Клиент остаётся только в title-тултипе, а не в теле — мастер
+          // важнее для ADMIN, ориентирующегося по сетке дней. Пропускаем master, если он не
+          // резолвился, а не пишем "Мастер не найден" — тот самый fallback, который специально
+          // убрали из BookingListItem/ScheduleBlockItem (item16/17/18).
+          <>
+            <strong>{service?.name ?? 'Услуга не найдена'}</strong>
+            {master && <span>{master.name}</span>}
+          </>
+        ) : (
+          <>
+            <strong>{client?.name ?? 'Клиент не найден'}</strong>
+            <span>{service?.name ?? 'Услуга не найдена'}</span>
+            {isOwnBooking && <span>Это вы</span>}
+          </>
+        )}
       </div>
       <div className={`booking-grid-card-status ${getStatusBadgeClass(booking.status)}`}>
         {STATUS_LABELS[booking.status]}

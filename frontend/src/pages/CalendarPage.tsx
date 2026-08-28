@@ -459,6 +459,7 @@ export function CalendarPage() {
           servicesById={servicesById}
           paidBookingIds={paidBookingIds}
           role={user!.role}
+          currentMasterId={user?.masterId ?? null}
           canDragReschedule={isAdmin}
           busyBookingId={busyBookingId}
           onReschedule={(booking) => setRescheduleTarget(booking)}

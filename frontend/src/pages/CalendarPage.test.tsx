@@ -595,6 +595,40 @@ describe('CalendarPage', () => {
     expect(document.querySelectorAll('.calendar-grid-cell')).toHaveLength(42)
   })
 
+  it('shows the master name (not the client) to ADMIN and "Это вы" (not the master name) to MASTER in the week grid', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([booking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service])
+    mockedListPayments.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    const { unmount } = render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+
+    // "Master One" also appears as a <option> in the "Мастер" filter select, so scope the
+    // lookup to the grid cell (see CalendarGridView's data-date attribute).
+    const cell = (await screen.findByText('Massage')).closest('[data-date]')!
+    expect(within(cell as HTMLElement).getByText('Master One')).toBeInTheDocument()
+    expect(within(cell as HTMLElement).queryByText('Anna Client')).not.toBeInTheDocument()
+    unmount()
+
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([booking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListServices.mockResolvedValue([service])
+
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+
+    expect(await screen.findByText('Anna Client')).toBeInTheDocument()
+    expect(await screen.findByText('Это вы')).toBeInTheDocument()
+    expect(screen.queryByText('Master One')).not.toBeInTheDocument()
+  })
+
   it('drags a booking to another day in the week grid: calls rescheduleBooking with the new date and reloads', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListBookings
@@ -611,7 +645,8 @@ describe('CalendarPage', () => {
     await selectDate('2026-03-10')
     await user.click(screen.getByRole('button', { name: /^неделя$/i }))
 
-    const card = (await screen.findByText('Anna Client')).closest('li')!
+    // ADMIN card body shows service/master, not the client (see BookingGridCard).
+    const card = (await screen.findByText('Massage')).closest('li')!
     const targetCell = document.querySelector('[data-date="2026-03-12"]')!
     const dataTransfer = makeDataTransfer()
 
@@ -624,7 +659,7 @@ describe('CalendarPage', () => {
       masterId: 'master-1',
     })
     // Optimistic update moves the card to the target cell immediately, before the API resolves.
-    expect(within(targetCell as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
+    expect(within(targetCell as HTMLElement).getByText('Massage')).toBeInTheDocument()
 
     await waitFor(() => expect(mockedListBookings).toHaveBeenCalledTimes(2))
   })
@@ -643,7 +678,8 @@ describe('CalendarPage', () => {
     await selectDate('2026-03-10')
     await user.click(screen.getByRole('button', { name: /^неделя$/i }))
 
-    const card = (await screen.findByText('Anna Client')).closest('li')!
+    // ADMIN card body shows service/master, not the client (see BookingGridCard).
+    const card = (await screen.findByText('Massage')).closest('li')!
     const sourceCell = document.querySelector('[data-date="2026-03-10"]')!
     const targetCell = document.querySelector('[data-date="2026-03-12"]')!
     const dataTransfer = makeDataTransfer()
@@ -653,8 +689,8 @@ describe('CalendarPage', () => {
     fireEvent.drop(targetCell, { dataTransfer })
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/нельзя перенести/i)
-    expect(within(sourceCell as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
-    expect(within(targetCell as HTMLElement).queryByText('Anna Client')).not.toBeInTheDocument()
+    expect(within(sourceCell as HTMLElement).getByText('Massage')).toBeInTheDocument()
+    expect(within(targetCell as HTMLElement).queryByText('Massage')).not.toBeInTheDocument()
   })
 
   it('renders no draggable cards for MASTER in the week grid', async () => {

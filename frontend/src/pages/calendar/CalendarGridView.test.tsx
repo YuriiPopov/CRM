@@ -80,6 +80,7 @@ describe('CalendarGridView', () => {
         servicesById={new Map()}
         paidBookingIds={new Set()}
         role="ADMIN"
+        currentMasterId={null}
         canDragReschedule
         busyBookingId={null}
         onReschedule={noop}
@@ -101,6 +102,7 @@ describe('CalendarGridView', () => {
         servicesById={new Map()}
         paidBookingIds={new Set()}
         role="ADMIN"
+        currentMasterId={null}
         canDragReschedule
         busyBookingId={null}
         onReschedule={noop}
@@ -126,6 +128,7 @@ describe('CalendarGridView', () => {
         servicesById={new Map([[service.id, service]])}
         paidBookingIds={new Set()}
         role="ADMIN"
+        currentMasterId={null}
         canDragReschedule
         busyBookingId={null}
         onReschedule={noop}
@@ -133,8 +136,10 @@ describe('CalendarGridView', () => {
       />,
     )
 
-    expect(within(getCell('2026-03-09')).getByText('Anna Client')).toBeInTheDocument()
-    expect(within(getCell('2026-03-10')).queryByText('Anna Client')).not.toBeInTheDocument()
+    // ADMIN card body shows service/master, not the client (see BookingGridCard) — service
+    // name is present for both roles, so it's a role-agnostic way to check cell placement.
+    expect(within(getCell('2026-03-09')).getByText('Massage')).toBeInTheDocument()
+    expect(within(getCell('2026-03-10')).queryByText('Massage')).not.toBeInTheDocument()
   })
 
   it('marks the today cell and other-period cells with the right classes', () => {
@@ -151,6 +156,7 @@ describe('CalendarGridView', () => {
         servicesById={new Map()}
         paidBookingIds={new Set()}
         role="ADMIN"
+        currentMasterId={null}
         canDragReschedule
         busyBookingId={null}
         onReschedule={noop}
@@ -181,6 +187,7 @@ describe('CalendarGridView', () => {
         servicesById={new Map([[service.id, service]])}
         paidBookingIds={new Set()}
         role="ADMIN"
+        currentMasterId={null}
         canDragReschedule
         busyBookingId={null}
         onReschedule={noop}
@@ -216,6 +223,7 @@ describe('CalendarGridView', () => {
         servicesById={new Map([[service.id, service]])}
         paidBookingIds={new Set()}
         role="ADMIN"
+        currentMasterId={null}
         canDragReschedule
         busyBookingId={null}
         onReschedule={noop}
@@ -251,6 +259,7 @@ describe('CalendarGridView', () => {
         servicesById={new Map([[service.id, service]])}
         paidBookingIds={new Set()}
         role="MASTER"
+        currentMasterId="master-1"
         canDragReschedule={false}
         busyBookingId={null}
         onReschedule={noop}
