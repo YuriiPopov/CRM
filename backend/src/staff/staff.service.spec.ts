@@ -344,7 +344,7 @@ describe('StaffService', () => {
       expect(prisma.booking.findFirst).toHaveBeenCalledWith({
         where: {
           masterId: 'master-1',
-          startTime: { gte: expect.any(Date) },
+          startTime: { gte: expect.any(Date) as Date },
           status: { in: ['CREATED', 'CONFIRMED'] },
         },
       });
