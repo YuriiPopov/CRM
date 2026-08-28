@@ -18,6 +18,7 @@ import {
   TIMELINE_START_HOUR,
 } from './dashboard/timeline'
 import { getMasterColor } from './dashboard/masterColor'
+import { WeekTimelineView } from './dashboard/WeekTimelineView'
 import { masterBlockCreatedByLabel } from './calendar/masterBlockCreatedBy'
 import type { Booking, BookingStatus } from '../types/booking'
 import type { Client } from '../types/client'
@@ -241,6 +242,16 @@ export function DashboardPage() {
           </div>
         </div>
       )}
+
+      <h2>Таймлайн на неделю</h2>
+      <WeekTimelineView
+        bookings={bookings}
+        masters={masters}
+        masterBlocks={masterBlocks}
+        clients={clients}
+        services={services}
+        isAdmin={isAdmin}
+      />
 
       <h2>Ближайшие записи</h2>
       {upcoming.length === 0 ? (

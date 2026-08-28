@@ -515,6 +515,84 @@
   color: var(--text-h);
 }
 
+/* Недельный таймлайн загрузки мастеров (ниже дневного, см. DashboardPage/WeekTimeline.tsx) */
+
+.dashboard-week-timeline {
+  margin: 20px 0 24px;
+}
+
+.dashboard-week-timeline-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.dashboard-week-timeline-label {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 160px;
+  text-align: center;
+}
+
+.dashboard-week-timeline-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.dashboard-week-day {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  min-width: 88px;
+}
+
+/* Рамка "сегодня" — гаснет при листании на другую неделю, где сегодня физически отсутствует
+   (см. groupBookingsByDayAndMaster: isToday сравнивается с реальной датой, не с положением в сетке). */
+.dashboard-week-day-today {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: 5px;
+}
+
+.dashboard-week-day-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.dashboard-week-day-bars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 14px;
+}
+
+/* Полосочки-счётчики загрузки — все одного фиксированного размера (не пропорциональны времени),
+   цвет по мастеру, см. masterColor.ts. */
+.dashboard-week-bar {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.dashboard-week-bar-unavailable {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--unavailable-stripe),
+    var(--unavailable-stripe) 3px,
+    var(--unavailable-bg) 3px,
+    var(--unavailable-bg) 6px
+  );
+  border: 1px solid var(--unavailable-border);
+}
+
 /* Финансы */
 
 .finance-table {

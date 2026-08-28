@@ -272,7 +272,7 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     const rowLabels = timeline.querySelectorAll('.dashboard-timeline-row-label')
     expect(Array.from(rowLabels).map((label) => label.textContent)).toEqual(['Master One', 'Master Two'])
 
@@ -306,7 +306,7 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     const rows = Array.from(timeline.querySelectorAll('.dashboard-timeline-row'))
     expect(rows).toHaveLength(2)
     expect(within(rows[0] as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
@@ -322,7 +322,7 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     expect(within(timeline).getByText('Anna Client')).toBeInTheDocument()
     expect(timeline.querySelectorAll('.dashboard-timeline-row')).toHaveLength(1)
     expect(timeline.querySelector('.dashboard-timeline-row-label')).not.toBeInTheDocument()
@@ -347,7 +347,7 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     expect(within(timeline).getByText('Anna Client')).toBeInTheDocument()
     expect(within(timeline).queryByText('Boris Client')).not.toBeInTheDocument()
   })
@@ -362,7 +362,7 @@ describe('DashboardPage', () => {
     renderPage()
 
     expect(await screen.findByText(/на сегодня активных записей и блокировок времени нет/i)).toBeInTheDocument()
-    expect(screen.queryByRole('img', { name: /таймлайн/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /таймлайн активных записей/i })).not.toBeInTheDocument()
   })
 
   it('shows a master’s time block on the timeline (Backlog п.11), even without bookings today', async () => {
@@ -385,7 +385,7 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     expect(within(timeline).getByText('Обед')).toBeInTheDocument()
     expect(within(timeline).getByText('Master One')).toBeInTheDocument()
   })
@@ -411,7 +411,7 @@ describe('DashboardPage', () => {
 
     renderPage()
 
-    const timeline = await screen.findByRole('img', { name: /таймлайн/i })
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     expect(within(timeline).getByText('Недоступен')).toBeInTheDocument()
   })
 })
