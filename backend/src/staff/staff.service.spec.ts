@@ -20,6 +20,7 @@ describe('StaffService', () => {
       delete: jest.Mock;
     };
     service: { findFirst: jest.Mock };
+    booking: { findFirst: jest.Mock };
     serviceCategory: { count: jest.Mock };
     masterService: {
       upsert: jest.Mock;
@@ -59,6 +60,7 @@ describe('StaffService', () => {
         delete: jest.fn(),
       },
       service: { findFirst: jest.fn() },
+      booking: { findFirst: jest.fn() },
       serviceCategory: { count: jest.fn() },
       masterService: {
         upsert: jest.fn(),
@@ -327,6 +329,63 @@ describe('StaffService', () => {
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects deactivation when the master has an upcoming CREATED/CONFIRMED booking', async () => {
+      prisma.master.findFirst.mockResolvedValue({
+        id: 'master-1',
+        salonId: 'salon-1',
+      });
+      prisma.booking.findFirst.mockResolvedValue({ id: 'booking-1' });
+
+      await expect(
+        service.update('master-1', { isActive: false }, 'salon-1'),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.findFirst).toHaveBeenCalledWith({
+        where: {
+          masterId: 'master-1',
+          startTime: { gte: expect.any(Date) },
+          status: { in: ['CREATED', 'CONFIRMED'] },
+        },
+      });
+      expect(prisma.master.update).not.toHaveBeenCalled();
+    });
+
+    it('allows deactivation when the master has no upcoming CREATED/CONFIRMED bookings', async () => {
+      prisma.master.findFirst.mockResolvedValue({
+        id: 'master-1',
+        salonId: 'salon-1',
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.master.update.mockResolvedValue({
+        id: 'master-1',
+        isActive: false,
+        services: [],
+        specializations: [],
+      });
+
+      await expect(
+        service.update('master-1', { isActive: false }, 'salon-1'),
+      ).resolves.toBeDefined();
+      expect(prisma.master.update).toHaveBeenCalled();
+    });
+
+    it('allows reactivation without checking for bookings', async () => {
+      prisma.master.findFirst.mockResolvedValue({
+        id: 'master-1',
+        salonId: 'salon-1',
+      });
+      prisma.master.update.mockResolvedValue({
+        id: 'master-1',
+        isActive: true,
+        services: [],
+        specializations: [],
+      });
+
+      await service.update('master-1', { isActive: true }, 'salon-1');
+
+      expect(prisma.booking.findFirst).not.toHaveBeenCalled();
+      expect(prisma.master.update).toHaveBeenCalled();
     });
   });
 

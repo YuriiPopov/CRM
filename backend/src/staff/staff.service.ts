@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { BookingStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreateMasterDto } from './dto/create-master.dto';
@@ -70,6 +70,10 @@ export class StaffService {
 
   async update(id: string, dto: UpdateMasterDto, salonId: string) {
     await this.assertExistsInSalon(id, salonId);
+
+    if (dto.isActive === false) {
+      await this.assertNoUpcomingBookings(id);
+    }
 
     if (dto.specializationCategoryIds !== undefined) {
       await this.assertCategoriesInSalon(
@@ -181,6 +185,24 @@ export class StaffService {
 
     if (!master) {
       throw new NotFoundException('Master not found');
+    }
+  }
+
+  // Деактивация не должна молча оставлять клиентов без мастера на подтверждённую запись —
+  // сначала админ обязан отменить или перенести будущие записи на другого мастера.
+  private async assertNoUpcomingBookings(masterId: string): Promise<void> {
+    const upcomingBooking = await this.prisma.booking.findFirst({
+      where: {
+        masterId,
+        startTime: { gte: new Date() },
+        status: { in: [BookingStatus.CREATED, BookingStatus.CONFIRMED] },
+      },
+    });
+
+    if (upcomingBooking) {
+      throw new ConflictException(
+        'Нельзя деактивировать мастера с активными записями — сначала отмените или перенесите их',
+      );
     }
   }
 

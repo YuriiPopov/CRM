@@ -64,7 +64,7 @@ describe('filterServicesForMaster', () => {
 })
 
 describe('filterMastersForService', () => {
-  it('returns every master when no service is selected', () => {
+  it('returns every active master when no service is selected', () => {
     expect(filterMastersForService(masters, links, '')).toEqual(masters)
   })
 
@@ -78,6 +78,16 @@ describe('filterMastersForService', () => {
 
   it('returns an empty array for a serviceId not present in the links at all', () => {
     expect(filterMastersForService(masters, links, 'service-unknown')).toEqual([])
+  })
+
+  it('excludes a deactivated master even when no service is selected', () => {
+    const inactiveMaster = makeMaster({ id: 'master-3', name: 'Carla', isActive: false })
+    expect(filterMastersForService([...masters, inactiveMaster], links, '')).toEqual(masters)
+  })
+
+  it('excludes a deactivated master even if they are linked to the selected service', () => {
+    const inactiveMaster = makeMaster({ id: 'master-2', name: 'Boris', isActive: false })
+    expect(filterMastersForService([masterOne, inactiveMaster], links, 'service-2')).toEqual([])
   })
 })
 

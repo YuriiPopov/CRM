@@ -15,18 +15,20 @@ export function filterServicesForMaster(
   return services.filter((service) => allowedServiceIds.has(service.id))
 }
 
-// Пустой serviceId ("ничего не выбрано") — сужения нет, отдаём список мастеров как есть.
+// Деактивированный мастер не должен предлагаться для новой записи независимо от того,
+// выбрана ли услуга — сужаем по isActive всегда, а по serviceId только когда он задан.
 export function filterMastersForService(
   masters: Master[],
   links: MasterServiceLink[],
   serviceId: string,
 ): Master[] {
-  if (!serviceId) return masters
+  const activeMasters = masters.filter((master) => master.isActive)
+  if (!serviceId) return activeMasters
 
   const allowedMasterIds = new Set(
     links.filter((link) => link.serviceId === serviceId).map((link) => link.masterId),
   )
-  return masters.filter((master) => allowedMasterIds.has(master.id))
+  return activeMasters.filter((master) => allowedMasterIds.has(master.id))
 }
 
 // Используется формой создания записи, чтобы решить, нужно ли сбросить ранее выбранного
