@@ -267,6 +267,147 @@
   font-size: 13px;
 }
 
+/* Недельная/месячная сетка календаря записей (ячейка = день, без почасовой шкалы —
+   в отличие от .dashboard-timeline выше) + drag-and-drop перенос между днями. */
+
+.calendar-grid-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.calendar-grid {
+  margin-bottom: 24px;
+}
+
+.calendar-grid-weekday-header,
+.calendar-grid-cells {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.calendar-grid-weekday-header {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.calendar-grid-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.calendar-grid--week .calendar-grid-cell {
+  min-height: 140px;
+}
+
+.calendar-grid--month .calendar-grid-cell {
+  min-height: 96px;
+}
+
+/* Рамка "сегодня" — тот же приём, что и .dashboard-week-day-today. */
+.calendar-grid-cell--today {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: 5px;
+}
+
+.calendar-grid-cell--other-period {
+  opacity: 0.45;
+}
+
+.calendar-grid-cell--drag-over {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.calendar-grid-cell-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.calendar-grid-cell-more {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.calendar-grid-cell-bookings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.booking-grid-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--code-bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.booking-grid-card[draggable='true'] {
+  cursor: grab;
+}
+
+/* Приглушение источника переноса, пока карточка летит над сеткой. */
+.booking-grid-card--dragging {
+  opacity: 0.4;
+}
+
+.booking-grid-card-time {
+  font-weight: 600;
+}
+
+.booking-grid-card-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.booking-grid-card-status {
+  font-size: 11px;
+}
+
+.booking-grid-card-reschedule {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
+/* Компактная альтернатива .schedule-block-item внутри ячейки сетки — та же штриховка
+   недоступности, что и .dashboard-timeline-block-unavailable, без полноценной карточки. */
+.calendar-grid-block-chip {
+  padding: 1px 6px;
+  border: 1px solid var(--unavailable-border);
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--unavailable-stripe),
+    var(--unavailable-stripe) 3px,
+    var(--unavailable-bg) 3px,
+    var(--unavailable-bg) 6px
+  );
+  color: var(--text-h);
+  font-size: 11px;
+}
+
 /* Модальные формы (создание/перенос записи) */
 
 .modal-backdrop {

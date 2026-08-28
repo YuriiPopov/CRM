@@ -25,3 +25,16 @@ export function isBlockOnDay(block: MasterBlock, date: string): boolean {
   const dayEnd = `${date}T23:59:59.999Z`
   return block.startTime <= dayEnd && block.endTime >= dayStart
 }
+
+// Тот же приём, что и filterBlocksForDay, но для набора дат сразу — недельная/месячная сетка
+// календаря показывает несколько дней одновременно, а не один выбранный.
+export function filterBlocksForRange(
+  blocks: MasterBlock[],
+  dates: string[],
+  masterId: string = ALL_MASTERS,
+): MasterBlock[] {
+  return blocks
+    .filter((block) => dates.some((date) => isBlockOnDay(block, date)))
+    .filter((block) => masterId === ALL_MASTERS || block.masterId === masterId)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+}

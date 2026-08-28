@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth'
-import { listBookings, updateBookingStatus } from '../api/bookings'
+import { listBookings, rescheduleBooking, updateBookingStatus } from '../api/bookings'
 import { listClients } from '../api/clients'
 import { listMasterServiceLinks, listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { listPayments } from '../api/payments'
 import { listMasterBlocks, deleteMasterBlock } from '../api/masterBlocks'
 import { getApiErrorMessage } from '../api/errors'
-import { ALL_MASTERS, filterBookingsForDay } from './calendar/filterBookings'
-import { filterBlocksForDay } from './calendar/filterBlocksForDay'
+import { ALL_MASTERS, filterBookingsForDay, filterBookingsForRange } from './calendar/filterBookings'
+import { filterBlocksForDay, filterBlocksForRange } from './calendar/filterBlocksForDay'
 import { groupBlocksByMaster } from './calendar/groupBlocksByMaster'
+import { groupBookingsByDay } from './calendar/groupBookingsByDay'
+import { groupBlocksByDay } from './calendar/groupBlocksByDay'
+import { getMonthGridDays, getWeekGridDays, navigateGridAnchor } from './calendar/calendarGrid'
 import { ALL_BOOKING_STATUSES, filterBookingsByVisibility } from './calendar/bookingVisibilityFilter'
-import { todayDateOnly } from './calendar/dateUtils'
+import { shiftIsoToDateOnly, todayDateOnly } from './calendar/dateUtils'
 import { STATUS_LABELS } from './calendar/statusTransitions'
 import { BookingListItem } from './calendar/BookingListItem'
 import { ScheduleBlockItem } from './calendar/ScheduleBlockItem'
 import { MasterColumnsView } from './calendar/MasterColumnsView'
+import { CalendarGridView } from './calendar/CalendarGridView'
 import { CreateBookingModal } from './calendar/CreateBookingModal'
 import { BlockTimeModal } from './calendar/BlockTimeModal'
 import { RescheduleModal } from './calendar/RescheduleModal'
@@ -37,7 +41,7 @@ export function CalendarPage() {
 
   const [selectedDate, setSelectedDate] = useState(todayDateOnly)
   const [selectedMasterId, setSelectedMasterId] = useState<string>(ALL_MASTERS)
-  const [viewMode, setViewMode] = useState<'list' | 'byMaster'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'byMaster' | 'week' | 'month'>('list')
   // Намеренно НЕ сбрасываем при смене даты — фильтр статуса/оплаты обычно листают вместе
   // с датами (например, "показывать только отменённые" при просмотре нескольких дней подряд).
   const [selectedStatuses, setSelectedStatuses] = useState<Set<BookingStatus>>(
@@ -122,15 +126,12 @@ export function CalendarPage() {
 
   // В режиме "По мастерам" фильтр одного мастера теряет смысл (там и так одна колонка на
   // каждого мастера), поэтому он игнорируется, пока viewMode === 'byMaster', и снова
-  // применяется при возврате к "Список" — без сброса самого selectedMasterId.
+  // применяется при возврате к "Список"/"Неделя"/"Месяц" — без сброса самого selectedMasterId.
+  const effectiveMasterFilter = isAdmin && viewMode !== 'byMaster' ? selectedMasterId : ALL_MASTERS
+
   const dayBookings = useMemo(
-    () =>
-      filterBookingsForDay(
-        bookings,
-        selectedDate,
-        isAdmin && viewMode === 'list' ? selectedMasterId : ALL_MASTERS,
-      ),
-    [bookings, selectedDate, selectedMasterId, isAdmin, viewMode],
+    () => filterBookingsForDay(bookings, selectedDate, effectiveMasterFilter),
+    [bookings, selectedDate, effectiveMasterFilter],
   )
 
   const clientsById = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
@@ -139,13 +140,50 @@ export function CalendarPage() {
   const paidBookingIds = useMemo(() => new Set(payments.map((p) => p.bookingId)), [payments])
 
   // Резервирование времени мастера (Backlog п.9) — те же правила видимости, что у записей:
-  // в режиме "Список" ADMIN может дополнительно сузить до одного мастера, MASTER и так видит
-  // только свои блоки (бэкенд их скоупит), "По мастерам" использует собственную группировку.
+  // в режимах "Список"/"Неделя"/"Месяц" ADMIN может дополнительно сузить до одного мастера,
+  // MASTER и так видит только свои блоки (бэкенд их скоупит), "По мастерам" использует
+  // собственную группировку.
   const dayBlocks = useMemo(
-    () => filterBlocksForDay(blocks, selectedDate, isAdmin && viewMode === 'list' ? selectedMasterId : ALL_MASTERS),
-    [blocks, selectedDate, selectedMasterId, isAdmin, viewMode],
+    () => filterBlocksForDay(blocks, selectedDate, effectiveMasterFilter),
+    [blocks, selectedDate, effectiveMasterFilter],
   )
   const blocksByMasterId = useMemo(() => groupBlocksByMaster(blocks, selectedDate), [blocks, selectedDate])
+
+  // Недельная/месячная сетка: те же дни, что рендерит CalendarGridView, только для list/byMaster
+  // это дешёвый no-op (пустой массив, ниже по цепочке — пустые Map).
+  const gridDays = useMemo(() => {
+    if (viewMode === 'week') return getWeekGridDays(selectedDate)
+    if (viewMode === 'month') return getMonthGridDays(selectedDate)
+    return []
+  }, [viewMode, selectedDate])
+  const gridDates = useMemo(() => gridDays.map((day) => day.date), [gridDays])
+
+  const rangeBookings = useMemo(
+    () => filterBookingsForRange(bookings, gridDates, effectiveMasterFilter),
+    [bookings, gridDates, effectiveMasterFilter],
+  )
+  // Сетка обязана уважать те же фильтры статуса/оплаты, что и список — та же
+  // filterBookingsByVisibility, без изменений.
+  const visibleRangeBookings = useMemo(
+    () =>
+      filterBookingsByVisibility(
+        rangeBookings,
+        selectedStatuses,
+        paidBookingIds,
+        isAdmin ? paymentFilter : { showPaid: true, showUnpaid: true },
+      ),
+    [rangeBookings, selectedStatuses, paidBookingIds, paymentFilter, isAdmin],
+  )
+  const bookingsByDay = useMemo(
+    () => groupBookingsByDay(visibleRangeBookings, gridDates),
+    [visibleRangeBookings, gridDates],
+  )
+
+  const rangeBlocks = useMemo(
+    () => filterBlocksForRange(blocks, gridDates, effectiveMasterFilter),
+    [blocks, gridDates, effectiveMasterFilter],
+  )
+  const blocksByDay = useMemo(() => groupBlocksByDay(rangeBlocks, gridDates), [rangeBlocks, gridDates])
 
   // Фильтр "Оплачено/Не оплачено" виден только ADMIN (только для него грузятся payments —
   // см. эффект выше), поэтому для MASTER он всегда пропускает всё, как будто оба чекбокса включены.
@@ -184,6 +222,30 @@ export function CalendarPage() {
       await reloadBookings()
     } catch (error) {
       setActionError(getApiErrorMessage(error, 'Не удалось изменить статус записи'))
+    } finally {
+      setBusyBookingId(null)
+    }
+  }
+
+  // Перенос по дате из недельной/месячной сетки (drag-and-drop) — время суток и мастер
+  // сохраняются, меняется только день (см. shiftIsoToDateOnly). Тот же rescheduleBooking,
+  // что уже использует RescheduleModal, никакой новой ручки не нужно. Оптимистичное
+  // обновление с откатом — по образцу handleStatusChange/handleDeleteBlock выше.
+  const handleGridReschedule = async (booking: Booking, newDate: string) => {
+    setActionError(null)
+    setBusyBookingId(booking.id)
+    const newStartTime = shiftIsoToDateOnly(booking.startTime, newDate)
+    const newEndTime = shiftIsoToDateOnly(booking.endTime, newDate)
+    const previousBookings = bookings
+    setBookings((prev) =>
+      prev.map((b) => (b.id === booking.id ? { ...b, startTime: newStartTime, endTime: newEndTime } : b)),
+    )
+    try {
+      await rescheduleBooking(booking.id, { startTime: newStartTime, masterId: booking.masterId })
+      await reloadBookings()
+    } catch (error) {
+      setBookings(previousBookings)
+      setActionError(getApiErrorMessage(error, 'Не удалось перенести запись'))
     } finally {
       setBusyBookingId(null)
     }
@@ -255,7 +317,7 @@ export function CalendarPage() {
           />
         </label>
 
-        {isAdmin && viewMode === 'list' && (
+        {isAdmin && viewMode !== 'byMaster' && (
           <label htmlFor="calendar-master-filter">
             Мастер
             <select
@@ -281,16 +343,35 @@ export function CalendarPage() {
         </button>
       </div>
 
-      {isAdmin && (
-        <div className="view-mode-toggle" role="group" aria-label="Режим отображения">
-          <button
-            type="button"
-            aria-pressed={viewMode === 'list'}
-            className={viewMode === 'list' ? 'active' : undefined}
-            onClick={() => setViewMode('list')}
-          >
-            Список
-          </button>
+      {/* "Неделя"/"Месяц" доступны и ADMIN, и MASTER (для MASTER — read-only обзор своего
+          расписания, см. canDragReschedule=isAdmin ниже); "По мастерам" остаётся ADMIN-only,
+          как и раньше. */}
+      <div className="view-mode-toggle" role="group" aria-label="Режим отображения">
+        <button
+          type="button"
+          aria-pressed={viewMode === 'list'}
+          className={viewMode === 'list' ? 'active' : undefined}
+          onClick={() => setViewMode('list')}
+        >
+          Список
+        </button>
+        <button
+          type="button"
+          aria-pressed={viewMode === 'week'}
+          className={viewMode === 'week' ? 'active' : undefined}
+          onClick={() => setViewMode('week')}
+        >
+          Неделя
+        </button>
+        <button
+          type="button"
+          aria-pressed={viewMode === 'month'}
+          className={viewMode === 'month' ? 'active' : undefined}
+          onClick={() => setViewMode('month')}
+        >
+          Месяц
+        </button>
+        {isAdmin && (
           <button
             type="button"
             aria-pressed={viewMode === 'byMaster'}
@@ -298,6 +379,28 @@ export function CalendarPage() {
             onClick={() => setViewMode('byMaster')}
           >
             По мастерам
+          </button>
+        )}
+      </div>
+
+      {(viewMode === 'week' || viewMode === 'month') && (
+        <div className="calendar-grid-nav">
+          <button
+            type="button"
+            aria-label="Предыдущий период"
+            onClick={() => setSelectedDate((prev) => navigateGridAnchor(prev, viewMode, -1))}
+          >
+            ‹
+          </button>
+          <button type="button" onClick={() => setSelectedDate(todayDateOnly())}>
+            Сегодня
+          </button>
+          <button
+            type="button"
+            aria-label="Следующий период"
+            onClick={() => setSelectedDate((prev) => navigateGridAnchor(prev, viewMode, 1))}
+          >
+            ›
           </button>
         </div>
       )}
@@ -345,6 +448,22 @@ export function CalendarPage() {
 
       {loading ? (
         <p>Загрузка…</p>
+      ) : viewMode === 'week' || viewMode === 'month' ? (
+        <CalendarGridView
+          days={gridDays}
+          layout={viewMode}
+          bookingsByDay={bookingsByDay}
+          blocksByDay={blocksByDay}
+          clientsById={clientsById}
+          mastersById={mastersById}
+          servicesById={servicesById}
+          paidBookingIds={paidBookingIds}
+          role={user!.role}
+          canDragReschedule={isAdmin}
+          busyBookingId={busyBookingId}
+          onReschedule={(booking) => setRescheduleTarget(booking)}
+          onDropBooking={(booking, newDate) => void handleGridReschedule(booking, newDate)}
+        />
       ) : viewMode === 'byMaster' ? (
         masters.some((master) => master.isActive) ? (
           <MasterColumnsView

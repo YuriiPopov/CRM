@@ -16,3 +16,17 @@ export function filterBookingsForDay(
     .filter((booking) => masterId === ALL_MASTERS || booking.masterId === masterId)
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
 }
+
+// Тот же приём, что и filterBookingsForDay, но для набора дат сразу — недельная/месячная
+// сетка календаря показывает несколько дней одновременно, а не один выбранный.
+export function filterBookingsForRange(
+  bookings: Booking[],
+  dates: string[],
+  masterId: string = ALL_MASTERS,
+): Booking[] {
+  const dateSet = new Set(dates)
+  return bookings
+    .filter((booking) => dateSet.has(toDateOnly(booking.startTime)))
+    .filter((booking) => masterId === ALL_MASTERS || booking.masterId === masterId)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+}

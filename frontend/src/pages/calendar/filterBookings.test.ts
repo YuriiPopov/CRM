@@ -1,4 +1,4 @@
-import { filterBookingsForDay } from './filterBookings'
+import { filterBookingsForDay, filterBookingsForRange } from './filterBookings'
 import type { Booking } from '../../types/booking'
 
 function makeBooking(overrides: Partial<Booking>): Booking {
@@ -62,5 +62,55 @@ describe('filterBookingsForDay', () => {
   it('returns every master when masterId is "all" (default)', () => {
     const result = filterBookingsForDay(bookings, '2026-03-10', 'all')
     expect(result.map((b) => b.id)).toEqual(['b-early', 'b-late'])
+  })
+})
+
+describe('filterBookingsForRange', () => {
+  const bookings: Booking[] = [
+    makeBooking({
+      id: 'b-day1',
+      masterId: 'master-1',
+      startTime: '2026-03-09T09:00:00.000Z',
+      endTime: '2026-03-09T09:30:00.000Z',
+    }),
+    makeBooking({
+      id: 'b-day2-early',
+      masterId: 'master-2',
+      startTime: '2026-03-10T09:00:00.000Z',
+      endTime: '2026-03-10T09:30:00.000Z',
+    }),
+    makeBooking({
+      id: 'b-day2-late',
+      masterId: 'master-1',
+      startTime: '2026-03-10T14:00:00.000Z',
+      endTime: '2026-03-10T14:30:00.000Z',
+    }),
+    makeBooking({
+      id: 'b-outside-range',
+      masterId: 'master-1',
+      startTime: '2026-03-15T09:00:00.000Z',
+      endTime: '2026-03-15T09:30:00.000Z',
+    }),
+  ]
+  const dates = ['2026-03-09', '2026-03-10']
+
+  it('keeps only bookings whose day is in the given range', () => {
+    const result = filterBookingsForRange(bookings, dates)
+    expect(result.map((b) => b.id)).toEqual(['b-day1', 'b-day2-early', 'b-day2-late'])
+  })
+
+  it('returns an empty list when the range has no bookings', () => {
+    expect(filterBookingsForRange(bookings, ['2026-04-01', '2026-04-02'])).toEqual([])
+  })
+
+  it('sorts results chronologically across days', () => {
+    const shuffled = [bookings[2], bookings[0], bookings[1]]
+    const result = filterBookingsForRange(shuffled, dates)
+    expect(result.map((b) => b.id)).toEqual(['b-day1', 'b-day2-early', 'b-day2-late'])
+  })
+
+  it('further narrows to a single master when masterId is given', () => {
+    const result = filterBookingsForRange(bookings, dates, 'master-1')
+    expect(result.map((b) => b.id)).toEqual(['b-day1', 'b-day2-late'])
   })
 })

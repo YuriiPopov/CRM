@@ -20,3 +20,13 @@ export function formatTime(iso: string): string {
 export function formatTimeRange(startIso: string, endIso: string): string {
   return `${formatTime(startIso)}–${formatTime(endIso)}`
 }
+
+// Перенос записи в сетке недели/месяца двигает только день — время суток и длительность
+// сохраняются как есть, меняются лишь год/месяц/день исходного момента (UTC, как и весь
+// остальной таймлайн — см. комментарий выше про единые часы работы без per-salon таймзоны).
+export function shiftIsoToDateOnly(iso: string, targetDateOnly: string): string {
+  const [year, month, day] = targetDateOnly.split('-').map(Number)
+  const date = new Date(iso)
+  date.setUTCFullYear(year, month - 1, day)
+  return date.toISOString()
+}

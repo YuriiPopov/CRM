@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CalendarPage } from './CalendarPage'
 import { useAuth } from '../auth/useAuth'
-import { listBookings, updateBookingStatus } from '../api/bookings'
+import { listBookings, rescheduleBooking, updateBookingStatus } from '../api/bookings'
 import { listClients } from '../api/clients'
 import { listMasterServiceLinks, listStaff } from '../api/staff'
 import { listServices } from '../api/services'
@@ -19,6 +19,7 @@ vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/bookings', () => ({
   listBookings: vi.fn(),
   updateBookingStatus: vi.fn(),
+  rescheduleBooking: vi.fn(),
 }))
 vi.mock('../api/clients', () => ({ listClients: vi.fn() }))
 vi.mock('../api/staff', () => ({ listStaff: vi.fn(), listMasterServiceLinks: vi.fn() }))
@@ -36,6 +37,7 @@ vi.mock('../api/masterBlocks', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListBookings = vi.mocked(listBookings)
 const mockedUpdateBookingStatus = vi.mocked(updateBookingStatus)
+const mockedRescheduleBooking = vi.mocked(rescheduleBooking)
 const mockedListClients = vi.mocked(listClients)
 const mockedListStaff = vi.mocked(listStaff)
 const mockedListMasterServiceLinks = vi.mocked(listMasterServiceLinks)
@@ -159,6 +161,12 @@ function mockAxiosError(status: number, message: string) {
 async function selectDate(value: string) {
   const dateInput = await screen.findByLabelText(/дата/i)
   fireEvent.change(dateInput, { target: { value } })
+}
+
+// jsdom's DragEvent has no working dataTransfer — the standard RTL workaround for native
+// HTML5 DnD (@testing-library/user-event doesn't fully support it either).
+function makeDataTransfer() {
+  return { effectAllowed: '', dropEffect: '', setData: () => {}, getData: () => '' }
 }
 
 describe('CalendarPage', () => {
@@ -567,5 +575,101 @@ describe('CalendarPage', () => {
     const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest<HTMLElement>('.master-column')!
     expect(within(masterTwoColumn).queryByText('Anna Client')).not.toBeInTheDocument()
     expect(within(masterTwoColumn).getByText(/по выбранным фильтрам/i)).toBeInTheDocument()
+  })
+
+  it('offers "Неделя"/"Месяц" to both ADMIN and MASTER, switching to either renders the grid', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([booking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListServices.mockResolvedValue([service])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findByText('Anna Client')
+
+    await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+    expect(document.querySelectorAll('.calendar-grid-cell')).toHaveLength(7)
+
+    await user.click(screen.getByRole('button', { name: /^месяц$/i }))
+    expect(document.querySelectorAll('.calendar-grid-cell')).toHaveLength(42)
+  })
+
+  it('drags a booking to another day in the week grid: calls rescheduleBooking with the new date and reloads', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings
+      .mockResolvedValueOnce([booking])
+      .mockResolvedValueOnce([{ ...booking, startTime: '2026-03-12T10:00:00.000Z', endTime: '2026-03-12T11:00:00.000Z' }])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service])
+    mockedListPayments.mockResolvedValue([])
+    mockedRescheduleBooking.mockResolvedValue({ ...booking, startTime: '2026-03-12T10:00:00.000Z' })
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+
+    const card = (await screen.findByText('Anna Client')).closest('li')!
+    const targetCell = document.querySelector('[data-date="2026-03-12"]')!
+    const dataTransfer = makeDataTransfer()
+
+    fireEvent.dragStart(card, { dataTransfer })
+    fireEvent.dragOver(targetCell, { dataTransfer })
+    fireEvent.drop(targetCell, { dataTransfer })
+
+    expect(mockedRescheduleBooking).toHaveBeenCalledWith('booking-1', {
+      startTime: '2026-03-12T10:00:00.000Z',
+      masterId: 'master-1',
+    })
+    // Optimistic update moves the card to the target cell immediately, before the API resolves.
+    expect(within(targetCell as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
+
+    await waitFor(() => expect(mockedListBookings).toHaveBeenCalledTimes(2))
+  })
+
+  it('rolls the booking back to its original day and shows actionError when the grid reschedule is rejected', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([booking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service])
+    mockedListPayments.mockResolvedValue([])
+    mockedRescheduleBooking.mockRejectedValue(mockAxiosError(409, 'Cannot reschedule this booking'))
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+
+    const card = (await screen.findByText('Anna Client')).closest('li')!
+    const sourceCell = document.querySelector('[data-date="2026-03-10"]')!
+    const targetCell = document.querySelector('[data-date="2026-03-12"]')!
+    const dataTransfer = makeDataTransfer()
+
+    fireEvent.dragStart(card, { dataTransfer })
+    fireEvent.dragOver(targetCell, { dataTransfer })
+    fireEvent.drop(targetCell, { dataTransfer })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/нельзя перенести/i)
+    expect(within(sourceCell as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
+    expect(within(targetCell as HTMLElement).queryByText('Anna Client')).not.toBeInTheDocument()
+  })
+
+  it('renders no draggable cards for MASTER in the week grid', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([booking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListServices.mockResolvedValue([service])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+
+    const card = (await screen.findByText('Anna Client')).closest('li')!
+    expect(card).toHaveAttribute('draggable', 'false')
+    expect(screen.queryByRole('button', { name: /перенести/i })).not.toBeInTheDocument()
   })
 })
