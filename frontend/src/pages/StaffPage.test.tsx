@@ -103,14 +103,39 @@ describe('StaffPage', () => {
     expect(within(link).getByText('СПА, Массаж')).toBeInTheDocument()
   })
 
-  it('flags an inactive master', async () => {
+  it('hides inactive masters by default', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListStaff.mockResolvedValue([makeMaster({ isActive: false })])
     mockedListServiceCategories.mockResolvedValue(categories)
 
     renderPage()
 
-    expect(await screen.findByText('Неактивен')).toBeInTheDocument()
+    expect(await screen.findByText('Ничего не найдено')).toBeInTheDocument()
+    expect(screen.queryByText('Anna Kowalska')).not.toBeInTheDocument()
+  })
+
+  it('shows and flags an inactive master once "Показывать неактивных" is checked, alongside active ones', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListStaff.mockResolvedValue([
+      makeMaster({ id: 'm-anna', name: 'Anna Kowalska', isActive: true }),
+      makeMaster({ id: 'm-boris', name: 'Boris Nowak', isActive: false }),
+    ])
+    mockedListServiceCategories.mockResolvedValue(categories)
+
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Anna Kowalska')
+    expect(screen.queryByText('Boris Nowak')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Показывать неактивных' }))
+
+    expect(screen.getByText('Anna Kowalska')).toBeInTheDocument()
+    const inactiveLink = await screen.findByRole('link', { name: /boris nowak/i })
+    expect(within(inactiveLink).getByText('Неактивен')).toBeInTheDocument()
+    expect(inactiveLink).toHaveClass('client-list-item--inactive')
+
+    const activeLink = screen.getByRole('link', { name: /anna kowalska/i })
+    expect(activeLink).not.toHaveClass('client-list-item--inactive')
   })
 
   it('filters the list via the search box', async () => {

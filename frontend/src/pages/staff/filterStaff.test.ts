@@ -64,4 +64,31 @@ describe('filterStaff', () => {
     const result = filterStaff([...masters, multi], '', new Set(['category-nails']))
     expect(result.map((m) => m.id)).toEqual(['m-carla'])
   })
+
+  describe('includeInactive', () => {
+    const withInactive: Master[] = [
+      ...masters,
+      makeMaster({ id: 'm-inactive', name: 'Inactive Master', isActive: false }),
+    ]
+
+    it('hides inactive masters by default', () => {
+      const result = filterStaff(withInactive, '')
+      expect(result.map((m) => m.id).sort()).toEqual(['m-anna', 'm-boris'])
+    })
+
+    it('hides inactive masters when includeInactive is explicitly false', () => {
+      const result = filterStaff(withInactive, '', new Set(), false)
+      expect(result.map((m) => m.id).sort()).toEqual(['m-anna', 'm-boris'])
+    })
+
+    it('adds inactive masters to the active ones when includeInactive is true (not a switch)', () => {
+      const result = filterStaff(withInactive, '', new Set(), true)
+      expect(result.map((m) => m.id).sort()).toEqual(['m-anna', 'm-boris', 'm-inactive'])
+    })
+
+    it('still applies the name query and category filter together with includeInactive', () => {
+      const result = filterStaff(withInactive, 'inactive', new Set(), true)
+      expect(result.map((m) => m.id)).toEqual(['m-inactive'])
+    })
+  })
 })

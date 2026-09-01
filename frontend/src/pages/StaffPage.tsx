@@ -18,6 +18,7 @@ export function StaffPage() {
   const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
   const [query, setQuery] = useState('')
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set())
+  const [includeInactive, setIncludeInactive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -50,8 +51,8 @@ export function StaffPage() {
   )
 
   const filteredMasters = useMemo(
-    () => filterStaff(masters, query, selectedCategoryIds),
-    [masters, query, selectedCategoryIds],
+    () => filterStaff(masters, query, selectedCategoryIds, includeInactive),
+    [masters, query, selectedCategoryIds, includeInactive],
   )
 
   const toggleCategoryFilter = (categoryId: string) => {
@@ -89,8 +90,8 @@ export function StaffPage() {
         )}
       </div>
 
-      {categories.length > 0 && (
-        <div className="calendar-filters">
+      <div className="calendar-filters">
+        {categories.length > 0 && (
           <fieldset>
             <legend>Категории</legend>
             {categories.map((category) => (
@@ -104,8 +105,17 @@ export function StaffPage() {
               </label>
             ))}
           </fieldset>
-        </div>
-      )}
+        )}
+
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={includeInactive}
+            onChange={(event) => setIncludeInactive(event.target.checked)}
+          />
+          Показывать неактивных
+        </label>
+      </div>
 
       {loadError && <p role="alert">{loadError}</p>}
 
@@ -117,7 +127,12 @@ export function StaffPage() {
         <ul className="client-list">
           {filteredMasters.map((master) => (
             <li key={master.id}>
-              <Link to={`/staff/${master.id}`} className="client-list-item">
+              <Link
+                to={`/staff/${master.id}`}
+                className={
+                  master.isActive ? 'client-list-item' : 'client-list-item client-list-item--inactive'
+                }
+              >
                 <strong>{master.name}</strong>
                 <span>
                   {master.specializationCategoryIds

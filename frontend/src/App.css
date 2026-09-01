@@ -510,6 +510,12 @@
   color: inherit;
 }
 
+/* Неактивный мастер среди показанных по чекбоксу «Показывать неактивных» (item30) —
+   приглушаем строку, чтобы было видно с первого взгляда, не читая текст "Неактивен". */
+.client-list-item--inactive {
+  opacity: 0.55;
+}
+
 .client-card {
   display: grid;
   grid-template-columns: max-content 1fr;
