@@ -361,7 +361,10 @@ describe('Staff (e2e)', () => {
       isActive: true,
       createdAt: new Date(),
     });
-    prisma.seedMasterSpecialization('master-rec-1', 'bbbbbbbb-0000-4000-8000-000000000001');
+    prisma.seedMasterSpecialization(
+      'master-rec-1',
+      'bbbbbbbb-0000-4000-8000-000000000001',
+    );
     prisma.seedMaster({
       id: 'master-rec-2',
       salonId: 'salon-1',
@@ -369,7 +372,10 @@ describe('Staff (e2e)', () => {
       isActive: true,
       createdAt: new Date(),
     });
-    prisma.seedMasterSpecialization('master-rec-2', 'bbbbbbbb-0000-4000-8000-000000000002');
+    prisma.seedMasterSpecialization(
+      'master-rec-2',
+      'bbbbbbbb-0000-4000-8000-000000000002',
+    );
     prisma.seedMaster({
       id: 'master-other-salon',
       salonId: 'salon-2',
@@ -377,7 +383,10 @@ describe('Staff (e2e)', () => {
       isActive: true,
       createdAt: new Date(),
     });
-    prisma.seedMasterSpecialization('master-other-salon', 'bbbbbbbb-0000-4000-8000-000000000003');
+    prisma.seedMasterSpecialization(
+      'master-other-salon',
+      'bbbbbbbb-0000-4000-8000-000000000003',
+    );
 
     prisma.seedService({
       id: 'service-a',
@@ -573,7 +582,9 @@ describe('Staff (e2e)', () => {
       const response = await request(app.getHttpServer())
         .patch('/staff/master-rec-1')
         .set('Authorization', `Bearer ${token}`)
-        .send({ specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000002'] })
+        .send({
+          specializationCategoryIds: ['bbbbbbbb-0000-4000-8000-000000000002'],
+        })
         .expect(200);
 
       expect(response.body).toMatchObject({

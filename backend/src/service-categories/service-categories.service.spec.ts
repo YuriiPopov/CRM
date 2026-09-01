@@ -65,10 +65,7 @@ describe('ServiceCategoriesService', () => {
         isDefault: false,
       });
 
-      const result = await service.create(
-        { name: 'Брови' },
-        'salon-1',
-      );
+      const result = await service.create({ name: 'Брови' }, 'salon-1');
 
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(prisma.serviceCategory.create).toHaveBeenCalledWith({
@@ -176,9 +173,9 @@ describe('ServiceCategoriesService', () => {
         isDefault: true,
       });
 
-      await expect(
-        service.remove('cat-1', 'salon-1'),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.remove('cat-1', 'salon-1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
@@ -237,7 +234,9 @@ describe('ServiceCategoriesService', () => {
           { masterId: 'm-1', categoryId: 'cat-1' },
           { masterId: 'm-2', categoryId: 'cat-1' },
         ])
-        .mockResolvedValueOnce([{ masterId: 'm-1', categoryId: 'cat-default' }]);
+        .mockResolvedValueOnce([
+          { masterId: 'm-1', categoryId: 'cat-default' },
+        ]);
 
       await service.remove('cat-1', 'salon-1');
 
@@ -253,9 +252,9 @@ describe('ServiceCategoriesService', () => {
     it('throws NotFoundException for a category in another salon', async () => {
       prisma.serviceCategory.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.remove('cat-1', 'salon-1'),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.remove('cat-1', 'salon-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 });

@@ -111,17 +111,13 @@ export class ServiceCategoriesService {
     const affected = await this.prisma.masterSpecialization.findMany({
       where: { categoryId: id },
     });
-    const alreadyHasDefault = await this.prisma.masterSpecialization.findMany(
-      {
-        where: {
-          categoryId: defaultCategory.id,
-          masterId: { in: affected.map((a) => a.masterId) },
-        },
+    const alreadyHasDefault = await this.prisma.masterSpecialization.findMany({
+      where: {
+        categoryId: defaultCategory.id,
+        masterId: { in: affected.map((a) => a.masterId) },
       },
-    );
-    const alreadyHasDefaultMasterIds = alreadyHasDefault.map(
-      (a) => a.masterId,
-    );
+    });
+    const alreadyHasDefaultMasterIds = alreadyHasDefault.map((a) => a.masterId);
 
     await this.prisma.$transaction([
       this.prisma.service.updateMany({
