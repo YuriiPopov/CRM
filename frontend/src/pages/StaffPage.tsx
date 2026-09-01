@@ -17,6 +17,7 @@ export function StaffPage() {
   const [masters, setMasters] = useState<Master[]>([])
   const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
   const [query, setQuery] = useState('')
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -48,7 +49,22 @@ export function StaffPage() {
     [categories],
   )
 
-  const filteredMasters = useMemo(() => filterStaff(masters, query), [masters, query])
+  const filteredMasters = useMemo(
+    () => filterStaff(masters, query, selectedCategoryIds),
+    [masters, query, selectedCategoryIds],
+  )
+
+  const toggleCategoryFilter = (categoryId: string) => {
+    setSelectedCategoryIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(categoryId)) {
+        next.delete(categoryId)
+      } else {
+        next.add(categoryId)
+      }
+      return next
+    })
+  }
 
   return (
     <section>
@@ -72,6 +88,24 @@ export function StaffPage() {
           </button>
         )}
       </div>
+
+      {categories.length > 0 && (
+        <div className="calendar-filters">
+          <fieldset>
+            <legend>Категории</legend>
+            {categories.map((category) => (
+              <label key={category.id} className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={selectedCategoryIds.has(category.id)}
+                  onChange={() => toggleCategoryFilter(category.id)}
+                />
+                {category.name}
+              </label>
+            ))}
+          </fieldset>
+        </div>
+      )}
 
       {loadError && <p role="alert">{loadError}</p>}
 

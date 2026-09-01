@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { StaffPage } from './StaffPage'
@@ -86,8 +86,8 @@ describe('StaffPage', () => {
 
     renderPage()
 
-    expect(await screen.findByText('Anna Kowalska')).toBeInTheDocument()
-    expect(screen.getByText('СПА')).toBeInTheDocument()
+    const link = await screen.findByRole('link', { name: /anna kowalska/i })
+    expect(within(link).getByText('СПА')).toBeInTheDocument()
   })
 
   it('joins multiple specialization names for a master with several categories', async () => {
@@ -99,7 +99,8 @@ describe('StaffPage', () => {
 
     renderPage()
 
-    expect(await screen.findByText('СПА, Массаж')).toBeInTheDocument()
+    const link = await screen.findByRole('link', { name: /anna kowalska/i })
+    expect(within(link).getByText('СПА, Массаж')).toBeInTheDocument()
   })
 
   it('flags an inactive master', async () => {
@@ -128,6 +129,32 @@ describe('StaffPage', () => {
 
     expect(screen.queryByText('Anna Kowalska')).not.toBeInTheDocument()
     expect(screen.getByText('Boris Nowak')).toBeInTheDocument()
+  })
+
+  it('filters the list via category checkboxes (OR across selected categories)', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListStaff.mockResolvedValue([
+      makeMaster({ id: 'm-anna', name: 'Anna Kowalska', specializationCategoryIds: ['category-spa'] }),
+      makeMaster({ id: 'm-boris', name: 'Boris Nowak', specializationCategoryIds: ['category-massage'] }),
+      makeMaster({ id: 'm-carla', name: 'Carla Silva', specializationCategoryIds: ['category-spa', 'category-massage'] }),
+    ])
+    mockedListServiceCategories.mockResolvedValue(categories)
+
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Anna Kowalska')
+
+    await user.click(screen.getByRole('checkbox', { name: 'СПА' }))
+
+    expect(screen.getByText('Anna Kowalska')).toBeInTheDocument()
+    expect(screen.getByText('Carla Silva')).toBeInTheDocument()
+    expect(screen.queryByText('Boris Nowak')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Массаж' }))
+
+    expect(screen.getByText('Anna Kowalska')).toBeInTheDocument()
+    expect(screen.getByText('Boris Nowak')).toBeInTheDocument()
+    expect(screen.getByText('Carla Silva')).toBeInTheDocument()
   })
 
   it('shows "+ Новый мастер" for ADMIN but not for MASTER (own profile only, read-only)', async () => {
