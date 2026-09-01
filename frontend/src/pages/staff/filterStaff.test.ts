@@ -91,4 +91,92 @@ describe('filterStaff', () => {
       expect(result.map((m) => m.id)).toEqual(['m-inactive'])
     })
   })
+
+  describe('sorting active masters before inactive ones (item32)', () => {
+    it('moves all inactive masters after all active ones, regardless of input order', () => {
+      const mixed: Master[] = [
+        makeMaster({ id: 'm-1-inactive', name: 'One', isActive: false }),
+        makeMaster({ id: 'm-2-active', name: 'Two', isActive: true }),
+        makeMaster({ id: 'm-3-inactive', name: 'Three', isActive: false }),
+        makeMaster({ id: 'm-4-active', name: 'Four', isActive: true }),
+      ]
+
+      const result = filterStaff(mixed, '', new Set(), true)
+
+      expect(result.map((m) => m.id)).toEqual([
+        'm-2-active',
+        'm-4-active',
+        'm-1-inactive',
+        'm-3-inactive',
+      ])
+    })
+
+    it('preserves the relative order within the active group and within the inactive group', () => {
+      const mixed: Master[] = [
+        makeMaster({ id: 'm-inactive-first', name: 'Z', isActive: false }),
+        makeMaster({ id: 'm-active-first', name: 'Y', isActive: true }),
+        makeMaster({ id: 'm-inactive-second', name: 'X', isActive: false }),
+        makeMaster({ id: 'm-active-second', name: 'W', isActive: true }),
+      ]
+
+      const result = filterStaff(mixed, '', new Set(), true)
+
+      // Активные — в исходном относительном порядке, затем неактивные — тоже в исходном.
+      expect(result.map((m) => m.id)).toEqual([
+        'm-active-first',
+        'm-active-second',
+        'm-inactive-first',
+        'm-inactive-second',
+      ])
+    })
+
+    it('does not change order when includeInactive is false (no inactive masters left to move)', () => {
+      const mixed: Master[] = [
+        makeMaster({ id: 'm-b', name: 'B', isActive: true }),
+        makeMaster({ id: 'm-a', name: 'A', isActive: true }),
+      ]
+
+      expect(filterStaff(mixed, '').map((m) => m.id)).toEqual(['m-b', 'm-a'])
+      expect(filterStaff(mixed, '', new Set(), false).map((m) => m.id)).toEqual(['m-b', 'm-a'])
+    })
+
+    it('sorts active-before-inactive together with the name query filter', () => {
+      const mixed: Master[] = [
+        makeMaster({ id: 'm-anna-inactive', name: 'Anna Smith', isActive: false }),
+        makeMaster({ id: 'm-anna-active', name: 'Anna Jones', isActive: true }),
+        makeMaster({ id: 'm-other-active', name: 'Other', isActive: true }),
+      ]
+
+      const result = filterStaff(mixed, 'anna', new Set(), true)
+
+      expect(result.map((m) => m.id)).toEqual(['m-anna-active', 'm-anna-inactive'])
+    })
+
+    it('sorts active-before-inactive together with the category filter', () => {
+      const mixed: Master[] = [
+        makeMaster({
+          id: 'm-cat-inactive',
+          name: 'X',
+          isActive: false,
+          specializationCategoryIds: ['category-spa'],
+        }),
+        makeMaster({
+          id: 'm-cat-active',
+          name: 'Y',
+          isActive: true,
+          specializationCategoryIds: ['category-spa'],
+        }),
+        makeMaster({
+          id: 'm-other-category',
+          name: 'Z',
+          isActive: true,
+          specializationCategoryIds: ['category-massage'],
+        }),
+      ]
+
+      const result = filterStaff(mixed, '', new Set(['category-spa']), true)
+
+      expect(result.map((m) => m.id)).toEqual(['m-cat-active', 'm-cat-inactive'])
+    })
+  })
 })

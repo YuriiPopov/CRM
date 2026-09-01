@@ -5,6 +5,8 @@ import type { Master } from '../../types/staff'
 // Иначе — мастер проходит, если у него есть хотя бы одна из выбранных категорий (условие ИЛИ).
 // includeInactive — дополняющий фильтр (не переключатель): false оставляет только активных,
 // true добавляет к ним неактивных, а не заменяет одних другими (item30).
+// Финальная сортировка держит неактивных в конце списка (item32); Array.prototype.sort
+// стабилен (ES2019+), так что порядок внутри каждой группы (активные/неактивные) не ломается.
 export function filterStaff(
   masters: Master[],
   query: string,
@@ -21,4 +23,5 @@ export function filterStaff(
         categoryIds.size === 0 ||
         master.specializationCategoryIds.some((id) => categoryIds.has(id)),
     )
+    .sort((a, b) => Number(!a.isActive) - Number(!b.isActive))
 }
