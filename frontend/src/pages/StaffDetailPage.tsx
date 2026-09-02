@@ -7,6 +7,7 @@ import { listServices } from '../api/services'
 import { listServiceCategories } from '../api/serviceCategories'
 import { getApiErrorMessage } from '../api/errors'
 import { EditMasterModal } from './staff/EditMasterModal'
+import { MasterScheduleModal } from './staff/MasterScheduleModal'
 import type { Service, ServiceCategoryRef } from '../types/service'
 import type { MasterDetail } from '../types/staff'
 
@@ -23,6 +24,7 @@ export function StaffDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [serviceToAssign, setServiceToAssign] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [detachingServiceId, setDetachingServiceId] = useState<string | null>(null)
@@ -148,6 +150,9 @@ export function StaffDetailPage() {
           <button type="button" onClick={() => setEditModalOpen(true)}>
             Редактировать
           </button>
+          <button type="button" onClick={() => setScheduleModalOpen(true)}>
+            График работы
+          </button>
         </div>
       )}
 
@@ -212,6 +217,10 @@ export function StaffDetailPage() {
           onClose={() => setEditModalOpen(false)}
           onUpdated={() => void load()}
         />
+      )}
+
+      {scheduleModalOpen && (
+        <MasterScheduleModal master={master} onClose={() => setScheduleModalOpen(false)} />
       )}
     </section>
   )

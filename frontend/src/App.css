@@ -470,6 +470,81 @@
   gap: 8px;
 }
 
+/* Настройка регулярного графика мастера (item28, подзадача №34) — модалка со StaffDetailPage */
+
+.master-schedule-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.master-schedule-day-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 50svh;
+  overflow-y: auto;
+}
+
+.master-schedule-day {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* 'unset' — ещё не размечен администратором, нейтральный/приглушённый вид,
+   не совпадающий ни с рабочим, ни с выходным днём. */
+.master-schedule-day--unset {
+  opacity: 0.6;
+}
+
+.master-schedule-day-number {
+  min-width: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.master-schedule-day-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+.master-schedule-day-toggle button.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.master-schedule-day-hours {
+  display: flex;
+  gap: 8px;
+}
+
+.master-schedule-day-hours label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.master-schedule-conflicts {
+  margin-bottom: 12px;
+}
+
+.master-schedule-conflicts ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
 .slot-picker-list {
   list-style: none;
   margin: 0;

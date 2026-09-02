@@ -6,6 +6,7 @@ import { useAuth } from '../auth/useAuth'
 import { assignService, getMaster, unassignService, updateMaster } from '../api/staff'
 import { listServices } from '../api/services'
 import { listServiceCategories } from '../api/serviceCategories'
+import { getMasterSchedule } from '../api/masterSchedules'
 import type { AuthenticatedUser } from '../types/auth'
 import type { MasterDetail } from '../types/staff'
 import type { Service, ServiceCategoryRef } from '../types/service'
@@ -19,6 +20,11 @@ vi.mock('../api/staff', () => ({
 }))
 vi.mock('../api/services', () => ({ listServices: vi.fn() }))
 vi.mock('../api/serviceCategories', () => ({ listServiceCategories: vi.fn() }))
+vi.mock('../api/masterSchedules', () => ({
+  getMasterSchedule: vi.fn(),
+  upsertMasterSchedule: vi.fn(),
+  findMasterScheduleConflicts: vi.fn(),
+}))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetMaster = vi.mocked(getMaster)
@@ -27,6 +33,7 @@ const mockedUnassignService = vi.mocked(unassignService)
 const mockedUpdateMaster = vi.mocked(updateMaster)
 const mockedListServices = vi.mocked(listServices)
 const mockedListServiceCategories = vi.mocked(listServiceCategories)
+const mockedGetMasterSchedule = vi.mocked(getMasterSchedule)
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',
@@ -162,6 +169,7 @@ describe('StaffDetailPage', () => {
 
     expect(await screen.findByRole('button', { name: /редактировать/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /отвязать/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /график работы/i })).toBeInTheDocument()
 
     const select = screen.getByLabelText(/привязать услугу/i)
     expect(within(select).queryByText('Massage')).not.toBeInTheDocument()
@@ -178,8 +186,26 @@ describe('StaffDetailPage', () => {
     await screen.findByRole('heading', { name: 'Anna Kowalska' })
     expect(screen.queryByRole('button', { name: /редактировать/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /отвязать/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /график работы/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/привязать услугу/i)).not.toBeInTheDocument()
     expect(mockedListServices).not.toHaveBeenCalled()
+  })
+
+  it('opens the schedule modal for ADMIN via the "График работы" button', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedGetMaster.mockResolvedValue(makeMasterDetail())
+    mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
+    mockedGetMasterSchedule.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: 'Anna Kowalska' })
+
+    await user.click(screen.getByRole('button', { name: /график работы/i }))
+
+    expect(await screen.findByRole('dialog', { name: /график работы: anna kowalska/i })).toBeInTheDocument()
+    expect(mockedGetMasterSchedule).toHaveBeenCalledWith('master-1', expect.any(Number), expect.any(Number))
   })
 
   it('attaches a service and refreshes the attached list', async () => {
