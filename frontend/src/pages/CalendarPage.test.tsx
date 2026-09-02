@@ -8,6 +8,7 @@ import { listMasterServiceLinks, listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { createPayment, listPayments } from '../api/payments'
 import { listMasterBlocks } from '../api/masterBlocks'
+import { getMasterSchedule } from '../api/masterSchedules'
 import type { AuthenticatedUser } from '../types/auth'
 import type { Booking } from '../types/booking'
 import type { Client } from '../types/client'
@@ -33,6 +34,11 @@ vi.mock('../api/masterBlocks', () => ({
   createMasterBlock: vi.fn(),
   deleteMasterBlock: vi.fn(),
 }))
+vi.mock('../api/masterSchedules', () => ({
+  getMasterSchedule: vi.fn(),
+  upsertMasterSchedule: vi.fn(),
+  findMasterScheduleConflicts: vi.fn(),
+}))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListBookings = vi.mocked(listBookings)
@@ -45,6 +51,7 @@ const mockedListServices = vi.mocked(listServices)
 const mockedListPayments = vi.mocked(listPayments)
 const mockedCreatePayment = vi.mocked(createPayment)
 const mockedListMasterBlocks = vi.mocked(listMasterBlocks)
+const mockedGetMasterSchedule = vi.mocked(getMasterSchedule)
 
 // CalendarPage грузит связки мастер↔услуга только для формы создания записи (см.
 // masterServiceFilter.ts) — сами тесты этого файла её не открывают, поэтому достаточно
@@ -53,6 +60,9 @@ mockedListMasterServiceLinks.mockResolvedValue([])
 // Блокировки грузятся безусловно (и для ADMIN, и для MASTER) при каждом монтировании
 // CalendarPage — сами тесты этого файла блокировки не открывают, безобидный дефолт.
 mockedListMasterBlocks.mockResolvedValue([])
+// График мастера (item28, подзадача №35) догружается при недельной/месячной сетке и в режиме
+// "По мастерам" — безобидный дефолт "график не настроен" для тестов, которые не проверяют его.
+mockedGetMasterSchedule.mockResolvedValue([])
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',
@@ -708,5 +718,131 @@ describe('CalendarPage', () => {
     const card = (await screen.findByText('Anna Client')).closest('li')!
     expect(card).toHaveAttribute('draggable', 'false')
     expect(screen.queryByRole('button', { name: /перенести/i })).not.toBeInTheDocument()
+  })
+
+  // Регулярный график работы мастера (Backlog item28, подзадача №35).
+  describe('master schedule availability', () => {
+    it('darkens and blocks a non-working day in the week grid once ADMIN filters to a specific master', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([booking]) // master-1, 2026-03-10
+      mockedListClients.mockResolvedValue([client])
+      mockedListStaff.mockResolvedValue([master])
+      mockedListServices.mockResolvedValue([service])
+      mockedListPayments.mockResolvedValue([])
+      mockedGetMasterSchedule.mockResolvedValue([
+        {
+          id: 'schedule-1',
+          salonId: 'salon-1',
+          masterId: 'master-1',
+          date: '2026-03-11T00:00:00.000Z',
+          isWorking: false,
+          startTime: null,
+          endTime: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ])
+
+      const user = userEvent.setup()
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findByLabelText(/^мастер$/i)
+
+      // "Все мастера" (по умолчанию) — график не запрашивается, ячейка ничем не выделяется.
+      await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+      expect(document.querySelectorAll('.calendar-grid-cell')).toHaveLength(7)
+      expect(mockedGetMasterSchedule).not.toHaveBeenCalled()
+
+      await user.selectOptions(screen.getByLabelText(/^мастер$/i), 'master-1')
+
+      const blockedCell = await waitFor(() => {
+        const cell = document.querySelector('[data-date="2026-03-11"]')!
+        expect(cell.className).toContain('calendar-grid-cell--schedule-blocked')
+        return cell as HTMLElement
+      })
+      expect(mockedGetMasterSchedule).toHaveBeenCalledWith('master-1', 2026, 3)
+
+      const otherCell = document.querySelector('[data-date="2026-03-12"]')!
+      expect(otherCell.className).not.toContain('calendar-grid-cell--schedule-blocked')
+
+      // Перенос на заблокированный день не должен даже вызывать rescheduleBooking.
+      const card = await screen.findByText('Massage')
+      const dataTransfer = makeDataTransfer()
+      fireEvent.dragStart(card.closest('li')!, { dataTransfer })
+      fireEvent.dragOver(blockedCell, { dataTransfer })
+      fireEvent.drop(blockedCell, { dataTransfer })
+
+      expect(mockedRescheduleBooking).not.toHaveBeenCalled()
+    })
+
+    it('darkens a MASTER\'s own non-working day on "Моё расписание" without any master filter', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([])
+      mockedListClients.mockResolvedValue([client])
+      mockedListServices.mockResolvedValue([service])
+      mockedGetMasterSchedule.mockResolvedValue([
+        {
+          id: 'schedule-1',
+          salonId: 'salon-1',
+          masterId: 'master-1',
+          date: '2026-03-11T00:00:00.000Z',
+          isWorking: false,
+          startTime: null,
+          endTime: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ])
+
+      const user = userEvent.setup()
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+
+      expect(mockedGetMasterSchedule).toHaveBeenCalledWith('master-1', 2026, 3)
+      const blockedCell = await waitFor(() => {
+        const cell = document.querySelector('[data-date="2026-03-11"]')!
+        expect(cell.className).toContain('calendar-grid-cell--schedule-blocked')
+        return cell
+      })
+      expect(blockedCell).toBeTruthy()
+    })
+
+    it('hides a master\'s column entirely in "По мастерам" on their non-working day, but shows it when the day is not configured', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([booking])
+      mockedListClients.mockResolvedValue([client])
+      mockedListStaff.mockResolvedValue([master, masterTwo])
+      mockedListServices.mockResolvedValue([service])
+      mockedListPayments.mockResolvedValue([])
+      mockedGetMasterSchedule.mockImplementation((masterId) =>
+        Promise.resolve(
+          masterId === 'master-1'
+            ? [
+                {
+                  id: 'schedule-1',
+                  salonId: 'salon-1',
+                  masterId: 'master-1',
+                  date: '2026-03-10T00:00:00.000Z',
+                  isWorking: false,
+                  startTime: null,
+                  endTime: null,
+                  createdAt: '2026-01-01T00:00:00.000Z',
+                },
+              ]
+            : [], // master-2: график не настроен ("не размечено") — колонка не скрывается
+        ),
+      )
+
+      const user = userEvent.setup()
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findByText('Anna Client')
+
+      await user.click(screen.getByRole('button', { name: /по мастерам/i }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('heading', { name: 'Master One' })).not.toBeInTheDocument()
+      })
+      expect(screen.getByRole('heading', { name: 'Master Two' })).toBeInTheDocument()
+    })
   })
 })

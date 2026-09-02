@@ -339,6 +339,20 @@
   background: var(--accent-bg);
 }
 
+/* Нерабочий день мастера по графику (item28, подзадача №35) — затемнение + перенос запрещён
+   (onDragOver/onDrop на эту ячейку не навешиваются, см. CalendarGridView). Только когда сетка
+   скоуплена на одного мастера (см. blockedDates в CalendarGridViewProps). */
+.calendar-grid-cell--schedule-blocked {
+  opacity: 0.5;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--border),
+    var(--border) 4px,
+    transparent 4px,
+    transparent 10px
+  );
+}
+
 .calendar-grid-cell-date {
   font-size: 12px;
   font-weight: 600;

@@ -31,6 +31,12 @@ interface CalendarGridViewProps {
   // draggable и обработчики dragover/drop на ячейках вообще не навешиваются, а не просто
   // прячутся визуально (см. BookingGridCard — там та же логика на уровне карточки).
   canDragReschedule: boolean
+  // Дни, нерабочие (isWorking: false) для мастера, на которого сейчас скоуплена сетка — только
+  // ADMIN с выбранным конкретным мастером в фильтре, либо MASTER на "Моё расписание" (когда
+  // сетка однозначно про одного мастера); пустой Set при "Все мастера" — затемнение и запрет
+  // переноса по графику не имеют смысла без единственного мастера на ячейку (см. CalendarPage,
+  // scheduleMasterId). Дни без записи в графике ("не размечено") сюда не попадают.
+  blockedDates: Set<string>
   busyBookingId: string | null
   onReschedule: (booking: Booking) => void
   onDropBooking: (booking: Booking, newDate: string) => void
@@ -55,6 +61,7 @@ export function CalendarGridView({
   role,
   currentMasterId,
   canDragReschedule,
+  blockedDates,
   busyBookingId,
   onReschedule,
   onDropBooking,
@@ -98,11 +105,14 @@ export function CalendarGridView({
           const visibleBookings =
             layout === 'month' ? dayBookings.slice(0, MAX_MONTH_CELL_BOOKINGS) : dayBookings
           const hiddenCount = dayBookings.length - visibleBookings.length
+          const isScheduleBlocked = blockedDates.has(day.date)
+          const canDropHere = canDragReschedule && !isScheduleBlocked
 
           const cellClassNames = [
             'calendar-grid-cell',
             day.isToday && 'calendar-grid-cell--today',
             !day.isCurrentPeriod && 'calendar-grid-cell--other-period',
+            isScheduleBlocked && 'calendar-grid-cell--schedule-blocked',
             hoveredDate === day.date && 'calendar-grid-cell--drag-over',
           ]
             .filter(Boolean)
@@ -113,8 +123,8 @@ export function CalendarGridView({
               key={day.date}
               className={cellClassNames}
               data-date={day.date}
-              onDragOver={canDragReschedule ? (event) => handleCellDragOver(event, day.date) : undefined}
-              onDrop={canDragReschedule ? (event) => handleCellDrop(event, day.date) : undefined}
+              onDragOver={canDropHere ? (event) => handleCellDragOver(event, day.date) : undefined}
+              onDrop={canDropHere ? (event) => handleCellDrop(event, day.date) : undefined}
             >
               <div className="calendar-grid-cell-date">{formatCellDayNumber(day.date)}</div>
 

@@ -83,6 +83,7 @@ describe('CalendarGridView', () => {
         role="ADMIN"
         currentMasterId={null}
         canDragReschedule
+        blockedDates={new Set()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}
@@ -105,6 +106,7 @@ describe('CalendarGridView', () => {
         role="ADMIN"
         currentMasterId={null}
         canDragReschedule
+        blockedDates={new Set()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}
@@ -131,6 +133,7 @@ describe('CalendarGridView', () => {
         role="ADMIN"
         currentMasterId={null}
         canDragReschedule
+        blockedDates={new Set()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}
@@ -159,6 +162,7 @@ describe('CalendarGridView', () => {
         role="ADMIN"
         currentMasterId={null}
         canDragReschedule
+        blockedDates={new Set()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}
@@ -190,6 +194,7 @@ describe('CalendarGridView', () => {
         role="ADMIN"
         currentMasterId={null}
         canDragReschedule
+        blockedDates={new Set()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={onDropBooking}
@@ -226,6 +231,7 @@ describe('CalendarGridView', () => {
         role="ADMIN"
         currentMasterId={null}
         canDragReschedule
+        blockedDates={new Set()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={onDropBooking}
@@ -262,6 +268,7 @@ describe('CalendarGridView', () => {
         role="MASTER"
         currentMasterId="master-1"
         canDragReschedule={false}
+        blockedDates={new Set()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={onDropBooking}
@@ -276,5 +283,101 @@ describe('CalendarGridView', () => {
     fireEvent.drop(targetCell, { dataTransfer })
 
     expect(onDropBooking).not.toHaveBeenCalled()
+  })
+
+  // Регулярный график работы мастера (item28, подзадача №35) — дни, нерабочие для мастера,
+  // на которого скоуплена сетка (см. CalendarPage.scheduleMasterId).
+  describe('schedule-blocked days', () => {
+    it('darkens a cell whose date is in blockedDates', () => {
+      const days = getWeekGridDays('2026-03-12')
+
+      render(
+        <CalendarGridView
+          days={days}
+          layout="week"
+          bookingsByDay={new Map()}
+          blocksByDay={new Map()}
+          clientsById={new Map()}
+          mastersById={new Map()}
+          servicesById={new Map()}
+          paidBookingIds={new Set()}
+          role="ADMIN"
+          currentMasterId={null}
+          canDragReschedule
+          blockedDates={new Set(['2026-03-11'])}
+          busyBookingId={null}
+          onReschedule={noop}
+          onDropBooking={noop}
+        />,
+      )
+
+      expect(getCell('2026-03-11').className).toContain('calendar-grid-cell--schedule-blocked')
+      expect(getCell('2026-03-12').className).not.toContain('calendar-grid-cell--schedule-blocked')
+    })
+
+    it('does not darken any cell when blockedDates is empty ("not yet configured" or "Все мастера")', () => {
+      const days = getWeekGridDays('2026-03-12')
+
+      render(
+        <CalendarGridView
+          days={days}
+          layout="week"
+          bookingsByDay={new Map()}
+          blocksByDay={new Map()}
+          clientsById={new Map()}
+          mastersById={new Map()}
+          servicesById={new Map()}
+          paidBookingIds={new Set()}
+          role="ADMIN"
+          currentMasterId={null}
+          canDragReschedule
+          blockedDates={new Set()}
+          busyBookingId={null}
+          onReschedule={noop}
+          onDropBooking={noop}
+        />,
+      )
+
+      for (const day of days) {
+        expect(getCell(day.date).className).not.toContain('calendar-grid-cell--schedule-blocked')
+      }
+    })
+
+    it('does not call onDropBooking when dropping onto a schedule-blocked cell', () => {
+      const days = getWeekGridDays('2026-03-12')
+      const booking = makeBooking({ id: 'b-1', startTime: '2026-03-09T10:00:00.000Z', endTime: '2026-03-09T11:00:00.000Z' })
+      const bookingsByDay = new Map(days.map((d) => [d.date, d.date === '2026-03-09' ? [booking] : []]))
+      const onDropBooking = vi.fn()
+
+      render(
+        <CalendarGridView
+          days={days}
+          layout="week"
+          bookingsByDay={bookingsByDay}
+          blocksByDay={new Map()}
+          clientsById={new Map([[client.id, client]])}
+          mastersById={new Map([[master.id, master]])}
+          servicesById={new Map([[service.id, service]])}
+          paidBookingIds={new Set()}
+          role="ADMIN"
+          currentMasterId={null}
+          canDragReschedule
+          blockedDates={new Set(['2026-03-11'])}
+          busyBookingId={null}
+          onReschedule={noop}
+          onDropBooking={onDropBooking}
+        />,
+      )
+
+      const card = screen.getByRole('listitem')
+      const blockedCell = getCell('2026-03-11')
+      const dataTransfer = makeDataTransfer()
+
+      fireEvent.dragStart(card, { dataTransfer })
+      fireEvent.dragOver(blockedCell, { dataTransfer })
+      fireEvent.drop(blockedCell, { dataTransfer })
+
+      expect(onDropBooking).not.toHaveBeenCalled()
+    })
   })
 })

@@ -59,6 +59,7 @@ export class BookingsService {
     const endTime = addMinutes(startTime, service.durationMin);
 
     await this.assertNoOverlap(masterId, startTime, endTime);
+    await this.assertScheduleAllows(masterId, startTime, endTime);
 
     const booking = await this.prisma.booking.create({
       data: {
@@ -126,6 +127,7 @@ export class BookingsService {
     const endTime = addMinutes(startTime, service!.durationMin);
 
     await this.assertNoOverlap(masterId, startTime, endTime, id);
+    await this.assertScheduleAllows(masterId, startTime, endTime);
 
     const updated = await this.prisma.booking.update({
       where: { id },
@@ -256,6 +258,41 @@ export class BookingsService {
       throw new ConflictException(
         'Master is unavailable at this time (schedule blocked)',
       );
+    }
+  }
+
+  // Регулярный график работы мастера (Backlog item28, подзадача №35) — если день явно размечен
+  // нерабочим, или рабочим, но с часами, в которые бронирование не укладывается, запись
+  // запрещена. Отсутствие записи в MasterSchedule на эту дату — "график ещё не настроен",
+  // а не "мастер недоступен", поэтому в этом случае проверка ничего не блокирует
+  // (см. MasterSchedulesService — та же семантика на стороне самого графика).
+  private async assertScheduleAllows(
+    masterId: string,
+    startTime: Date,
+    endTime: Date,
+  ): Promise<void> {
+    const dateOnly = startTime.toISOString().slice(0, 10);
+    const schedule = await this.prisma.masterSchedule.findFirst({
+      where: { masterId, date: new Date(`${dateOnly}T00:00:00.000Z`) },
+    });
+
+    if (!schedule) {
+      return;
+    }
+
+    if (!schedule.isWorking) {
+      throw new ConflictException('Master does not work on this day');
+    }
+
+    if (schedule.startTime && schedule.endTime) {
+      const workStart = new Date(`${dateOnly}T${schedule.startTime}:00.000Z`);
+      const workEnd = new Date(`${dateOnly}T${schedule.endTime}:00.000Z`);
+
+      if (startTime < workStart || endTime > workEnd) {
+        throw new ConflictException(
+          "Booking time is outside the master's working hours for this day",
+        );
+      }
     }
   }
 

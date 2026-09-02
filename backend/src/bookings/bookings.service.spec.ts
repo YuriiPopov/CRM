@@ -24,6 +24,7 @@ describe('BookingsService', () => {
       update: jest.Mock;
     };
     masterBlock: { findFirst: jest.Mock };
+    masterSchedule: { findFirst: jest.Mock };
   };
   let notifications: {
     notifyBookingConfirmed: jest.Mock;
@@ -59,10 +60,14 @@ describe('BookingsService', () => {
         update: jest.fn(),
       },
       masterBlock: { findFirst: jest.fn() },
+      masterSchedule: { findFirst: jest.fn() },
     };
     // По умолчанию блокировок нет — тесты, которым нужен конфликт с MasterBlock,
     // переопределяют это значение явно (см. describe('MasterBlock overlap')).
     prisma.masterBlock.findFirst.mockResolvedValue(null);
+    // По умолчанию график не настроен ("не размечено") — не блокирует; тесты на график
+    // (см. describe('MasterSchedule availability')) переопределяют это значение явно.
+    prisma.masterSchedule.findFirst.mockResolvedValue(null);
     notifications = {
       notifyBookingConfirmed: jest.fn().mockResolvedValue(undefined),
       notifyBookingRescheduled: jest.fn().mockResolvedValue(undefined),
@@ -573,6 +578,157 @@ describe('BookingsService', () => {
         durationMin: 60,
       });
       prisma.masterBlock.findFirst.mockResolvedValue({ id: 'block-1' });
+
+      await expect(
+        service.reschedule(
+          'booking-1',
+          { startTime: '2026-01-10T10:00:00.000Z' },
+          'salon-1',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // Регулярный график работы мастера (Backlog item28, подзадача №35) — MasterSchedule.
+  describe('MasterSchedule availability', () => {
+    it('rejects creating a booking on a day explicitly marked as non-working', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.masterSchedule.findFirst.mockResolvedValue({
+        id: 'schedule-1',
+        masterId: 'master-rec-1',
+        date: new Date('2026-01-10T00:00:00.000Z'),
+        isWorking: false,
+        startTime: null,
+        endTime: null,
+      });
+
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+      expect(prisma.masterSchedule.findFirst).toHaveBeenCalledWith({
+        where: {
+          masterId: 'master-rec-1',
+          date: new Date('2026-01-10T00:00:00.000Z'),
+        },
+      });
+    });
+
+    it('rejects creating a booking outside the working hours of a working day', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.masterSchedule.findFirst.mockResolvedValue({
+        id: 'schedule-1',
+        masterId: 'master-rec-1',
+        date: new Date('2026-01-10T00:00:00.000Z'),
+        isWorking: true,
+        startTime: '11:00',
+        endTime: '18:00',
+      });
+
+      // baseCreateDto.startTime = '2026-01-10T10:00:00.000Z' — раньше начала рабочего дня (11:00)
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a booking that ends after the working day is over', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 90,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.masterSchedule.findFirst.mockResolvedValue({
+        id: 'schedule-1',
+        masterId: 'master-rec-1',
+        date: new Date('2026-01-10T00:00:00.000Z'),
+        isWorking: true,
+        startTime: '09:00',
+        endTime: '11:00',
+      });
+
+      // 10:00 + 90 мин = 11:30, за пределами конца рабочего дня (11:00)
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('allows a booking within the working hours of a working day', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.booking.create.mockResolvedValue({ id: 'booking-1' });
+      prisma.masterSchedule.findFirst.mockResolvedValue({
+        id: 'schedule-1',
+        masterId: 'master-rec-1',
+        date: new Date('2026-01-10T00:00:00.000Z'),
+        isWorking: true,
+        startTime: '09:00',
+        endTime: '18:00',
+      });
+
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).resolves.toEqual({ id: 'booking-1' });
+    });
+
+    it('does not block a day with no schedule record at all ("not yet configured")', async () => {
+      prisma.client.findFirst.mockResolvedValue({ id: 'client-1' });
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.booking.create.mockResolvedValue({ id: 'booking-1' });
+      prisma.masterSchedule.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create({ ...baseCreateDto, masterId: 'master-rec-1' }, admin),
+      ).resolves.toEqual({ id: 'booking-1' });
+    });
+
+    it('rejects rescheduling a booking onto a non-working day', async () => {
+      prisma.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'booking-1',
+          status: BookingStatus.CREATED,
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+        })
+        .mockResolvedValueOnce(null);
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.masterSchedule.findFirst.mockResolvedValue({
+        id: 'schedule-1',
+        masterId: 'master-rec-1',
+        date: new Date('2026-01-10T00:00:00.000Z'),
+        isWorking: false,
+        startTime: null,
+        endTime: null,
+      });
 
       await expect(
         service.reschedule(

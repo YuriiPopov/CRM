@@ -6,12 +6,18 @@ import { listMasterServiceLinks, listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { listPayments } from '../api/payments'
 import { listMasterBlocks, deleteMasterBlock } from '../api/masterBlocks'
+import { getMasterSchedule } from '../api/masterSchedules'
 import { getApiErrorMessage } from '../api/errors'
 import { ALL_MASTERS, filterBookingsForDay, filterBookingsForRange } from './calendar/filterBookings'
 import { filterBlocksForDay, filterBlocksForRange } from './calendar/filterBlocksForDay'
 import { groupBlocksByMaster } from './calendar/groupBlocksByMaster'
 import { groupBookingsByDay } from './calendar/groupBookingsByDay'
 import { groupBlocksByDay } from './calendar/groupBlocksByDay'
+import {
+  buildBlockedDatesSet,
+  distinctYearMonths,
+  findMastersBlockedOnDate,
+} from './calendar/masterScheduleAvailability'
 import { getMonthGridDays, getWeekGridDays, navigateGridAnchor } from './calendar/calendarGrid'
 import { ALL_BOOKING_STATUSES, filterBookingsByVisibility } from './calendar/bookingVisibilityFilter'
 import { shiftIsoToDateOnly, todayDateOnly } from './calendar/dateUtils'
@@ -129,6 +135,14 @@ export function CalendarPage() {
   // применяется при возврате к "Список"/"Неделя"/"Месяц" — без сброса самого selectedMasterId.
   const effectiveMasterFilter = isAdmin && viewMode !== 'byMaster' ? selectedMasterId : ALL_MASTERS
 
+  // Регулярный график работы мастера (Backlog item28, подзадача №35) — недельная/месячная сетка
+  // умеет затемнять/блокировать нерабочие дни, только когда однозначно скоуплена на ОДНОГО
+  // мастера: для MASTER это всегда его собственный masterId ("Моё расписание" — по определению
+  // один мастер), для ADMIN — только если в фильтре выбран конкретный мастер (не "Все мастера",
+  // где на одну ячейку сетки может прийтись несколько разных мастеров с разными графиками).
+  const scheduleMasterId =
+    !isAdmin ? (user?.masterId ?? null) : selectedMasterId !== ALL_MASTERS ? selectedMasterId : null
+
   const dayBookings = useMemo(
     () => filterBookingsForDay(bookings, selectedDate, effectiveMasterFilter),
     [bookings, selectedDate, effectiveMasterFilter],
@@ -157,6 +171,72 @@ export function CalendarPage() {
     return []
   }, [viewMode, selectedDate])
   const gridDates = useMemo(() => gridDays.map((day) => day.date), [gridDays])
+
+  const [scheduleBlockedDates, setScheduleBlockedDates] = useState<Set<string>>(new Set())
+
+  // Догружает график scheduleMasterId на все месяцы, попавшие в видимую сетку (может быть 2,
+  // если неделя/месяц пересекает границу месяца — см. distinctYearMonths). Не блокирующий для
+  // остального экрана эффект: сбой запроса просто оставляет сетку без затемнения, а не роняет
+  // весь календарь — реальная защита всё равно на бэкенде (см. BookingsService.assertScheduleAllows).
+  useEffect(() => {
+    let cancelled = false
+
+    if (!scheduleMasterId || (viewMode !== 'week' && viewMode !== 'month') || gridDates.length === 0) {
+      // Условия сменились без ремаунта (см. зависимости эффекта) — сброс синхронизирует UI
+      // с тем, что для нового состояния запрос вообще не будет сделан.
+      // oxlint-disable-next-line react/set-state-in-effect
+      setScheduleBlockedDates(new Set())
+      return
+    }
+
+    Promise.all(
+      distinctYearMonths(gridDates).map(({ year, month }) => getMasterSchedule(scheduleMasterId, year, month)),
+    )
+      .then((results) => {
+        if (!cancelled) setScheduleBlockedDates(buildBlockedDatesSet(results.flat()))
+      })
+      .catch(() => {
+        if (!cancelled) setScheduleBlockedDates(new Set())
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [scheduleMasterId, viewMode, gridDates])
+
+  const [blockedMasterIdsForDay, setBlockedMasterIdsForDay] = useState<Set<string>>(new Set())
+
+  // Режим "По мастерам" (Backlog item28, подзадача №35) — колонка мастера скрывается целиком на
+  // дни, когда для него isWorking: false. Один день, все активные мастера — по одному запросу
+  // графика на каждого (см. findMastersBlockedOnDate); тот же "best-effort" приём, что и выше.
+  useEffect(() => {
+    let cancelled = false
+
+    const activeMasters = masters.filter((m) => m.isActive)
+    if (viewMode !== 'byMaster' || activeMasters.length === 0) {
+      // oxlint-disable-next-line react/set-state-in-effect
+      setBlockedMasterIdsForDay(new Set())
+      return
+    }
+
+    const [year, month] = selectedDate.split('-').map(Number)
+
+    Promise.all(
+      activeMasters.map((m) =>
+        getMasterSchedule(m.id, year, month).then((records) => [m.id, records] as const),
+      ),
+    )
+      .then((entries) => {
+        if (!cancelled) setBlockedMasterIdsForDay(findMastersBlockedOnDate(new Map(entries), selectedDate))
+      })
+      .catch(() => {
+        if (!cancelled) setBlockedMasterIdsForDay(new Set())
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [viewMode, selectedDate, masters])
 
   const rangeBookings = useMemo(
     () => filterBookingsForRange(bookings, gridDates, effectiveMasterFilter),
@@ -464,6 +544,7 @@ export function CalendarPage() {
           role={user!.role}
           currentMasterId={user?.masterId ?? null}
           canDragReschedule={isAdmin}
+          blockedDates={scheduleBlockedDates}
           busyBookingId={busyBookingId}
           onReschedule={(booking) => setRescheduleTarget(booking)}
           onDropBooking={(booking, newDate) => void handleGridReschedule(booking, newDate)}
@@ -471,7 +552,7 @@ export function CalendarPage() {
       ) : viewMode === 'byMaster' ? (
         masters.some((master) => master.isActive) ? (
           <MasterColumnsView
-            masters={masters}
+            masters={masters.filter((m) => !blockedMasterIdsForDay.has(m.id))}
             bookings={visibleBookings}
             unfilteredBookings={dayBookings}
             renderBooking={(booking) => renderBookingItem(booking, true)}
