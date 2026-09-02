@@ -22,6 +22,10 @@ interface BookingListItemProps {
   // MASTER, чтобы показать "Это вы" вместо резолва через master (см. Backlog item17: на
   // /my-schedule роль MASTER не грузит полный список мастеров, master всегда undefined).
   currentMasterId: string | null
+  // В колонках "По мастерам" (см. MasterColumnsView) мастер и так ясен из заголовка колонки —
+  // строка с его именем/"Это вы" избыточна и скрывается. В плоском списке остаётся как раньше
+  // (тот же приём, что и showMasterName у ScheduleBlockItem, см. CalendarPage).
+  groupedByMaster: boolean
   isPaid: boolean
   canCreatePayment: boolean
   onStatusChange: (status: BookingStatus) => void
@@ -37,6 +41,7 @@ export function BookingListItem({
   service,
   role,
   currentMasterId,
+  groupedByMaster,
   isPaid,
   canCreatePayment,
   onStatusChange,
@@ -55,9 +60,9 @@ export function BookingListItem({
     >
       <div className="booking-item-time">{formatTimeRange(booking.startTime, booking.endTime)}</div>
       <div className="booking-item-details">
-        <strong>{client?.name ?? 'Клиент не найден'}</strong>
-        <span>{service?.name ?? 'Услуга не найдена'}</span>
-        {isOwnBooking ? <span>Это вы</span> : master && <span>{master.name}</span>}
+        <strong>{service?.name ?? 'Услуга не найдена'}</strong>
+        <span>{client?.name ?? 'Клиент не найден'}</span>
+        {!groupedByMaster && (isOwnBooking ? <span>Это вы</span> : master && <span>{master.name}</span>)}
         {rescheduledLabel && <span className="booking-item-rescheduled">{rescheduledLabel}</span>}
       </div>
       <div className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>

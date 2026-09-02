@@ -283,8 +283,10 @@ export function CalendarPage() {
   )
 
   // Общий рендер карточки записи — используется и плоским списком, и колонками режима
-  // "По мастерам", чтобы обе раскладки показывали абсолютно одинаковую карточку.
-  const renderBookingItem = (booking: Booking) => (
+  // "По мастерам", чтобы обе раскладки показывали абсолютно одинаковую карточку. groupedByMaster
+  // прячет строку с именем мастера/"Это вы" внутри карточки — в колонках "По мастерам" он и так
+  // ясен из заголовка колонки (тот же приём, что и showMasterName у renderBlockItem ниже).
+  const renderBookingItem = (booking: Booking, groupedByMaster: boolean) => (
     <BookingListItem
       key={booking.id}
       booking={booking}
@@ -293,6 +295,7 @@ export function CalendarPage() {
       service={servicesById.get(booking.serviceId)}
       role={user!.role}
       currentMasterId={user?.masterId ?? null}
+      groupedByMaster={groupedByMaster}
       isPaid={paidBookingIds.has(booking.id)}
       canCreatePayment={isAdmin && booking.status === 'COMPLETED' && !paidBookingIds.has(booking.id)}
       busy={busyBookingId === booking.id}
@@ -471,7 +474,7 @@ export function CalendarPage() {
             masters={masters}
             bookings={visibleBookings}
             unfilteredBookings={dayBookings}
-            renderBooking={renderBookingItem}
+            renderBooking={(booking) => renderBookingItem(booking, true)}
             blocksByMasterId={blocksByMasterId}
             renderBlock={(block) => renderBlockItem(block, false)}
           />
@@ -485,7 +488,7 @@ export function CalendarPage() {
       ) : (
         <ul className="booking-list">
           {dayBlocks.map((block) => renderBlockItem(block, true))}
-          {visibleBookings.map((booking) => renderBookingItem(booking))}
+          {visibleBookings.map((booking) => renderBookingItem(booking, false))}
         </ul>
       )}
 

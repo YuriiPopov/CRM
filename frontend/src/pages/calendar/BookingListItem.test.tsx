@@ -71,6 +71,7 @@ describe('BookingListItem', () => {
           service={service}
           role="MASTER"
           currentMasterId="master-1"
+          groupedByMaster={false}
           isPaid={false}
           canCreatePayment={false}
           onStatusChange={vi.fn()}
@@ -95,6 +96,7 @@ describe('BookingListItem', () => {
           service={service}
           role="ADMIN"
           currentMasterId={null}
+          groupedByMaster={false}
           isPaid={false}
           canCreatePayment={false}
           onStatusChange={vi.fn()}
@@ -119,6 +121,7 @@ describe('BookingListItem', () => {
           service={service}
           role="ADMIN"
           currentMasterId={null}
+          groupedByMaster={false}
           isPaid={false}
           canCreatePayment={false}
           onStatusChange={vi.fn()}
@@ -143,6 +146,7 @@ describe('BookingListItem', () => {
           service={service}
           role="ADMIN"
           currentMasterId={null}
+          groupedByMaster={false}
           isPaid={false}
           canCreatePayment={false}
           onStatusChange={vi.fn()}
@@ -166,6 +170,7 @@ describe('BookingListItem', () => {
           service={service}
           role="ADMIN"
           currentMasterId={null}
+          groupedByMaster={false}
           isPaid={false}
           canCreatePayment={false}
           onStatusChange={vi.fn()}
@@ -177,5 +182,78 @@ describe('BookingListItem', () => {
     )
 
     expect(screen.queryByText(/перенесено/)).not.toBeInTheDocument()
+  })
+
+  it('shows the service name in bold and the client name as plain text', () => {
+    render(
+      <ul>
+        <BookingListItem
+          booking={booking({})}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          groupedByMaster={false}
+          isPaid={false}
+          canCreatePayment={false}
+          onStatusChange={vi.fn()}
+          onReschedule={noop}
+          onCreatePayment={noop}
+          busy={false}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByText('Massage').tagName).toBe('STRONG')
+    expect(screen.getByText('Anna Client').tagName).toBe('SPAN')
+  })
+
+  it('hides the master name when grouped by master (column header already shows it)', () => {
+    render(
+      <ul>
+        <BookingListItem
+          booking={booking({ masterId: 'master-1' })}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          groupedByMaster
+          isPaid={false}
+          canCreatePayment={false}
+          onStatusChange={vi.fn()}
+          onReschedule={noop}
+          onCreatePayment={noop}
+          busy={false}
+        />
+      </ul>,
+    )
+
+    expect(screen.queryByText('Anna')).not.toBeInTheDocument()
+  })
+
+  it('hides "Это вы" for MASTER on their own booking when grouped by master', () => {
+    render(
+      <ul>
+        <BookingListItem
+          booking={booking({ masterId: 'master-1' })}
+          client={client}
+          master={undefined}
+          service={service}
+          role="MASTER"
+          currentMasterId="master-1"
+          groupedByMaster
+          isPaid={false}
+          canCreatePayment={false}
+          onStatusChange={vi.fn()}
+          onReschedule={noop}
+          onCreatePayment={noop}
+          busy={false}
+        />
+      </ul>,
+    )
+
+    expect(screen.queryByText('Это вы')).not.toBeInTheDocument()
   })
 })
