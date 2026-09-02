@@ -1,6 +1,6 @@
 import type { DragEvent } from 'react'
 import { canReschedule, getStatusBadgeClass, STATUS_LABELS } from './statusTransitions'
-import { formatTime, formatTimeRange } from './dateUtils'
+import { formatRescheduledAt, formatTime, formatTimeRange } from './dateUtils'
 import { getMasterColor } from '../dashboard/masterColor'
 import type { Booking } from '../../types/booking'
 import type { Client } from '../../types/client'
@@ -55,6 +55,7 @@ export function BookingGridCard({
   // от статуса конкретной записи (не переизобретаем правила статусной машины, см. её же).
   const canDrag = canDragReschedule && canReschedule(booking.status, role)
   const isOwnBooking = role === 'MASTER' && booking.masterId === currentMasterId
+  const rescheduledLabel = formatRescheduledAt(booking.rescheduledAt)
 
   const title = [
     formatTimeRange(booking.startTime, booking.endTime),
@@ -100,6 +101,7 @@ export function BookingGridCard({
             {isOwnBooking && <span>Это вы</span>}
           </>
         )}
+        {rescheduledLabel && <span className="booking-item-rescheduled">{rescheduledLabel}</span>}
       </div>
       <div className={`booking-grid-card-status ${getStatusBadgeClass(booking.status)}`}>
         {STATUS_LABELS[booking.status]}

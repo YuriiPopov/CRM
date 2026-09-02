@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { formatTimeRange } from '../calendar/dateUtils'
+import { formatRescheduledAt, formatTimeRange } from '../calendar/dateUtils'
 import { masterBlockCreatedByLabel } from '../calendar/masterBlockCreatedBy'
 import { getMasterColor } from './masterColor'
 import { getIsoWeekRange, groupBookingsByDayAndMaster } from './weekTimeline'
@@ -85,15 +85,19 @@ export function WeekTimelineView({ bookings, masters, masterBlocks, clients, ser
               {column.bars.map((bar) => {
                 const client = clientsById.get(bar.booking.clientId)
                 const service = servicesById.get(bar.booking.serviceId)
+                const rescheduledLabel = formatRescheduledAt(bar.booking.rescheduledAt)
                 const title = [
                   formatTimeRange(bar.booking.startTime, bar.booking.endTime),
                   client?.name ?? 'Клиент не найден',
                   service?.name ?? 'Услуга не найдена',
-                ].join(' · ')
+                  rescheduledLabel,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
                 return (
                   <div
                     key={bar.booking.id}
-                    className="dashboard-week-bar"
+                    className={`dashboard-week-bar${rescheduledLabel ? ' dashboard-week-bar--rescheduled' : ''}`}
                     style={{ background: isAdmin ? getMasterColor(bar.masterId) : 'var(--accent)' }}
                     title={title}
                   />

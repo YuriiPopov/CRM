@@ -307,6 +307,7 @@ describe('Clients (e2e)', () => {
       status: BookingStatus.COMPLETED,
       source: BookingSource.ADMIN,
       createdAt: new Date(),
+      rescheduledAt: null,
     });
     prisma.seedPayment({
       id: 'payment-a1',
@@ -341,6 +342,7 @@ describe('Clients (e2e)', () => {
       status: BookingStatus.COMPLETED,
       source: BookingSource.ADMIN,
       createdAt: new Date(),
+      rescheduledAt: null,
     });
 
     prisma.seedClient({

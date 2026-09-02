@@ -18,6 +18,7 @@ function makeBooking(overrides: Partial<Booking>): Booking {
     status: 'CREATED',
     source: 'ADMIN',
     createdAt: '2026-03-01T00:00:00.000Z',
+    rescheduledAt: null,
     ...overrides,
   }
 }
@@ -93,6 +94,22 @@ describe('WeekTimelineView', () => {
     renderTimeline([makeBooking({ id: 'a', startTime: '2026-03-10T10:00:00.000Z', endTime: '2026-03-10T11:00:00.000Z' })])
     const grid = screen.getByRole('img', { name: /таймлайн загрузки мастеров по неделе/i })
     expect(grid.querySelectorAll('.dashboard-week-bar')).toHaveLength(1)
+  })
+
+  it('marks a rescheduled booking\'s bar and mentions it in the tooltip', () => {
+    renderTimeline([makeBooking({ id: 'a', rescheduledAt: '2026-03-10T09:00:00.000Z' })])
+    const grid = screen.getByRole('img', { name: /таймлайн загрузки мастеров по неделе/i })
+    const bar = grid.querySelector('.dashboard-week-bar')!
+    expect(bar).toHaveClass('dashboard-week-bar--rescheduled')
+    expect(bar).toHaveAttribute('title', expect.stringContaining('перенесено'))
+  })
+
+  it('does not mark the bar for a booking that was never rescheduled', () => {
+    renderTimeline([makeBooking({ id: 'a', rescheduledAt: null })])
+    const grid = screen.getByRole('img', { name: /таймлайн загрузки мастеров по неделе/i })
+    const bar = grid.querySelector('.dashboard-week-bar')!
+    expect(bar).not.toHaveClass('dashboard-week-bar--rescheduled')
+    expect(bar).not.toHaveAttribute('title', expect.stringContaining('перенесено'))
   })
 
   it('removes the today highlight after navigating to the next week, and no column becomes today instead', async () => {

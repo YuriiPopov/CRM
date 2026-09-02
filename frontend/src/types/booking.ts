@@ -12,4 +12,5 @@ export interface Booking {
   status: BookingStatus
   source: BookingSource
   createdAt: string
+  rescheduledAt: string | null
 }

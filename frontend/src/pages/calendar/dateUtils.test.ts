@@ -1,4 +1,4 @@
-import { shiftIsoToDateOnly } from './dateUtils'
+import { formatRescheduledAt, shiftIsoToDateOnly } from './dateUtils'
 
 describe('shiftIsoToDateOnly', () => {
   it('replaces the date while keeping the time of day', () => {
@@ -15,5 +15,15 @@ describe('shiftIsoToDateOnly', () => {
 
   it('is a no-op when the target date matches the current date', () => {
     expect(shiftIsoToDateOnly('2026-03-10T14:30:00.000Z', '2026-03-10')).toBe('2026-03-10T14:30:00.000Z')
+  })
+})
+
+describe('formatRescheduledAt', () => {
+  it('returns null when there was no reschedule', () => {
+    expect(formatRescheduledAt(null)).toBeNull()
+  })
+
+  it('formats a reschedule timestamp as day.month, HH:mm', () => {
+    expect(formatRescheduledAt('2026-08-24T14:30:00.000Z')).toBe('перенесено 24.08, 14:30')
   })
 })

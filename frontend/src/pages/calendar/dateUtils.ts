@@ -21,6 +21,20 @@ export function formatTimeRange(startIso: string, endIso: string): string {
   return `${formatTime(startIso)}–${formatTime(endIso)}`
 }
 
+// Отметка "перенесено" на карточках записи — null означает, что переноса не было
+// (см. Booking.rescheduledAt, проставляется только в BookingsService.reschedule()).
+export function formatRescheduledAt(iso: string | null): string | null {
+  if (!iso) return null
+
+  const datePart = new Date(iso).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'UTC',
+  })
+
+  return `перенесено ${datePart}, ${formatTime(iso)}`
+}
+
 // Перенос записи в сетке недели/месяца двигает только день — время суток и длительность
 // сохраняются как есть, меняются лишь год/месяц/день исходного момента (UTC, как и весь
 // остальной таймлайн — см. комментарий выше про единые часы работы без per-salon таймзоны).

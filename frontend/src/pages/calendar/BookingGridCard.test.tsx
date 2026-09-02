@@ -50,6 +50,7 @@ function booking(overrides: Partial<Booking>): Booking {
     status: 'CREATED',
     source: 'ADMIN',
     createdAt: '2026-03-01T00:00:00.000Z',
+    rescheduledAt: null,
     ...overrides,
   }
 }
@@ -351,5 +352,53 @@ describe('BookingGridCard', () => {
 
     await user.click(screen.getByRole('button', { name: /перенести/i }))
     expect(onReschedule).toHaveBeenCalled()
+  })
+
+  it('shows the reschedule mark when the booking was rescheduled', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({ rescheduledAt: '2026-08-24T14:30:00.000Z' })}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByText('перенесено 24.08, 14:30')).toBeInTheDocument()
+  })
+
+  it('shows no reschedule mark when the booking was never rescheduled', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({ rescheduledAt: null })}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.queryByText(/перенесено/)).not.toBeInTheDocument()
   })
 })

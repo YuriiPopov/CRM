@@ -252,6 +252,7 @@ describe('Public booking (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
 
       const response = await request(app.getHttpServer())
@@ -388,6 +389,7 @@ describe('Public booking (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
 
       await request(app.getHttpServer())

@@ -250,6 +250,14 @@
   font-weight: 600;
 }
 
+/* Пометка последнего переноса записи (BookingListItem, BookingGridCard) — приглушённый текст,
+   не бейдж: это справочная деталь, а не статус, который требует внимания как "Оплачено". */
+.booking-item-rescheduled {
+  color: var(--text);
+  opacity: 0.65;
+  font-size: 12px;
+}
+
 .booking-item-actions {
   display: flex;
   gap: 8px;
@@ -647,6 +655,13 @@
   text-overflow: ellipsis;
 }
 
+/* Пометка переноса записи на дневном таймлайне дашборда — узкая полоса не резиновая под лишний
+   текст (см. комментарий про "Кем создано" выше), поэтому вместо текста значок в начале строки;
+   полный текст остаётся в title-тултипе (formatRescheduledAt). */
+.dashboard-timeline-block--rescheduled::before {
+  content: '↻ ';
+}
+
 /* Блокировка времени мастера (Backlog п.9/п.11) — диагональная штриховка вместо заливки,
    чтобы отличаться от блоков записей (обычная заливка цветом мастера/акцентом) при любой
    роли и любом мастере: это не "занят", а "недоступен". */
@@ -727,6 +742,19 @@
   height: 14px;
   border-radius: 3px;
   flex: 0 0 auto;
+}
+
+/* Пометка переноса записи на недельном таймлайне — полосочка 14x14px не резиновая под текст
+   (см. комментарий на .dashboard-week-bar выше), поэтому значок-точка в углу; полный текст
+   остаётся в title-тултипе (formatRescheduledAt). */
+.dashboard-week-bar--rescheduled::after {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  margin-left: auto;
 }
 
 .dashboard-week-bar-unavailable {

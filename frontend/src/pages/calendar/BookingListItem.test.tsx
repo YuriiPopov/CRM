@@ -50,6 +50,7 @@ function booking(overrides: Partial<Booking>): Booking {
     status: 'CREATED',
     source: 'ADMIN',
     createdAt: '2026-01-10T09:00:00.000Z',
+    rescheduledAt: null,
     ...overrides,
   }
 }
@@ -130,5 +131,51 @@ describe('BookingListItem', () => {
 
     expect(screen.queryByText('Мастер не найден')).not.toBeInTheDocument()
     expect(screen.queryByText('Это вы')).not.toBeInTheDocument()
+  })
+
+  it('shows the reschedule mark when the booking was rescheduled', () => {
+    render(
+      <ul>
+        <BookingListItem
+          booking={booking({ rescheduledAt: '2026-08-24T14:30:00.000Z' })}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canCreatePayment={false}
+          onStatusChange={vi.fn()}
+          onReschedule={noop}
+          onCreatePayment={noop}
+          busy={false}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByText('перенесено 24.08, 14:30')).toBeInTheDocument()
+  })
+
+  it('shows no reschedule mark when the booking was never rescheduled', () => {
+    render(
+      <ul>
+        <BookingListItem
+          booking={booking({ rescheduledAt: null })}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canCreatePayment={false}
+          onStatusChange={vi.fn()}
+          onReschedule={noop}
+          onCreatePayment={noop}
+          busy={false}
+        />
+      </ul>,
+    )
+
+    expect(screen.queryByText(/перенесено/)).not.toBeInTheDocument()
   })
 })

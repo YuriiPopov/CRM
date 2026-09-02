@@ -129,7 +129,7 @@ export class BookingsService {
 
     const updated = await this.prisma.booking.update({
       where: { id },
-      data: { masterId, startTime, endTime },
+      data: { masterId, startTime, endTime, rescheduledAt: new Date() },
     });
 
     await this.notifySafely(() =>

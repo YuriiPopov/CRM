@@ -461,6 +461,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
       const token = await loginAs('admin@b4u.local', adminPassword);
 
@@ -488,6 +489,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CANCELLED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
       const token = await loginAs('admin@b4u.local', adminPassword);
 
@@ -517,6 +519,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
       prisma.seedBooking({
         id: 'booking-master-2',
@@ -529,6 +532,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
     });
 
@@ -573,6 +577,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
     });
 
@@ -599,6 +604,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
     });
 
@@ -646,6 +652,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
       const token = await loginAs('admin@b4u.local', adminPassword);
 
@@ -668,6 +675,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CANCELLED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
       const token = await loginAs('admin@b4u.local', adminPassword);
 
@@ -692,6 +700,7 @@ describe('Bookings (e2e)', () => {
         status: BookingStatus.CREATED,
         source: BookingSource.ADMIN,
         createdAt: new Date(),
+        rescheduledAt: null,
       });
     });
 

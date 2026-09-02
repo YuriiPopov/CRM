@@ -234,6 +234,7 @@ describe('Payments (e2e)', () => {
       status: BookingStatus.COMPLETED,
       source: BookingSource.ADMIN,
       createdAt: new Date(),
+      rescheduledAt: null,
     });
     prisma.seedBooking({
       id: BOOKING_CONFIRMED_ID,
@@ -246,6 +247,7 @@ describe('Payments (e2e)', () => {
       status: BookingStatus.CONFIRMED,
       source: BookingSource.ADMIN,
       createdAt: new Date(),
+      rescheduledAt: null,
     });
     prisma.seedBooking({
       id: BOOKING_OTHER_MASTER_ID,
@@ -258,6 +260,7 @@ describe('Payments (e2e)', () => {
       status: BookingStatus.COMPLETED,
       source: BookingSource.ADMIN,
       createdAt: new Date(),
+      rescheduledAt: null,
     });
     prisma.seedBooking({
       id: BOOKING_ALREADY_PAID_ID,
@@ -270,6 +273,7 @@ describe('Payments (e2e)', () => {
       status: BookingStatus.COMPLETED,
       source: BookingSource.ADMIN,
       createdAt: new Date(),
+      rescheduledAt: null,
     });
     prisma.seedPayment({
       id: 'payment-existing',
@@ -291,6 +295,7 @@ describe('Payments (e2e)', () => {
       status: BookingStatus.COMPLETED,
       source: BookingSource.ADMIN,
       createdAt: new Date(),
+      rescheduledAt: null,
     });
 
     const moduleFixture: TestingModule = await Test.createTestingModule({

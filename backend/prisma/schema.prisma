@@ -192,6 +192,7 @@ model Booking {
   status    BookingStatus @default(CREATED)
   source    BookingSource @default(ADMIN)
   createdAt DateTime      @default(now())
+  rescheduledAt DateTime?
 
   payment       Payment?
   notifications Notification[]

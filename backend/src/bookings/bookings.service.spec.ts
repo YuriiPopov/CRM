@@ -322,11 +322,51 @@ describe('BookingsService', () => {
           masterId: 'master-rec-1',
           startTime: new Date('2026-01-10T12:00:00.000Z'),
           endTime: new Date('2026-01-10T12:45:00.000Z'),
+          rescheduledAt: expect.any(Date) as Date,
         },
       });
       expect(notifications.notifyBookingRescheduled).toHaveBeenCalledWith(
         'booking-1',
       );
+    });
+
+    // Отметка "перенесено" на карточках записи (см. formatRescheduledAt на фронтенде) —
+    // хранится только факт последнего переноса, истории не нужно (см. schema.prisma).
+    it('stamps rescheduledAt with the current time in the same update as the reschedule', async () => {
+      const now = new Date('2026-02-01T10:00:00.000Z');
+      jest.useFakeTimers().setSystemTime(now);
+
+      try {
+        prisma.booking.findFirst
+          .mockResolvedValueOnce({
+            id: 'booking-1',
+            salonId: 'salon-1',
+            masterId: 'master-rec-1',
+            serviceId: 'service-1',
+            status: BookingStatus.CREATED,
+          })
+          .mockResolvedValueOnce(null);
+        prisma.service.findFirst.mockResolvedValue({
+          id: 'service-1',
+          durationMin: 30,
+        });
+        prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+        await service.reschedule(
+          'booking-1',
+          { startTime: '2026-01-10T12:00:00.000Z' },
+          'salon-1',
+        );
+
+        expect(prisma.booking.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining() is typed `any` in @types/jest
+            data: expect.objectContaining({ rescheduledAt: now }),
+          }),
+        );
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('rejects reassigning to a master outside the salon', async () => {

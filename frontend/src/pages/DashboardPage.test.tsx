@@ -106,6 +106,7 @@ function makeBooking(overrides: Partial<Booking>): Booking {
     status: 'CREATED',
     source: 'ADMIN',
     createdAt: '2026-03-01T00:00:00.000Z',
+    rescheduledAt: null,
     ...overrides,
   }
 }
@@ -280,6 +281,40 @@ describe('DashboardPage', () => {
     const rows = timeline.querySelectorAll('.dashboard-timeline-row')
     expect(within(rows[0] as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
     expect(within(rows[1] as HTMLElement).getByText('Boris Client')).toBeInTheDocument()
+  })
+
+  it('marks a rescheduled booking\'s timeline block and mentions it in the tooltip', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([
+      makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1', rescheduledAt: '2026-03-10T09:00:00.000Z' }),
+    ])
+    mockedListClients.mockResolvedValue([client, clientTwo])
+    mockedListStaff.mockResolvedValue([master, masterTwo])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
+    const block = timeline.querySelector('.dashboard-timeline-block')!
+    expect(block).toHaveClass('dashboard-timeline-block--rescheduled')
+    expect(block).toHaveAttribute('title', expect.stringContaining('перенесено'))
+  })
+
+  it('does not mark the timeline block for a booking that was never rescheduled', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([
+      makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1', rescheduledAt: null }),
+    ])
+    mockedListClients.mockResolvedValue([client, clientTwo])
+    mockedListStaff.mockResolvedValue([master, masterTwo])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
+    const block = timeline.querySelector('.dashboard-timeline-block')!
+    expect(block).not.toHaveClass('dashboard-timeline-block--rescheduled')
+    expect(block).not.toHaveAttribute('title', expect.stringContaining('перенесено'))
   })
 
   it('puts overlapping bookings of two different masters on separate rows instead of overlapping visually', async () => {

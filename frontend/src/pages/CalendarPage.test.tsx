@@ -126,6 +126,7 @@ const booking: Booking = {
   status: 'CREATED',
   source: 'ADMIN',
   createdAt: '2026-03-01T00:00:00.000Z',
+  rescheduledAt: null,
 }
 
 const completedBooking: Booking = {
