@@ -14,6 +14,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PublicBookingModule } from './public-booking/public-booking.module';
 import { MasterBlocksModule } from './master-blocks/master-blocks.module';
+import { MasterSchedulesModule } from './master-schedules/master-schedules.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { MasterBlocksModule } from './master-blocks/master-blocks.module';
     NotificationsModule,
     PublicBookingModule,
     MasterBlocksModule,
+    MasterSchedulesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -61,6 +61,7 @@ model Salon {
   materials         Material[]
   staffUsers        User[]
   masterBlocks      MasterBlock[]
+  masterSchedules   MasterSchedule[]
 
   @@map("salons")
 }
@@ -117,6 +118,7 @@ model Master {
   specializations MasterSpecialization[]
   bookings        Booking[]
   blocks          MasterBlock[]
+  schedules       MasterSchedule[]
 
   @@index([salonId])
   @@map("masters")
@@ -225,6 +227,33 @@ model MasterBlock {
   @@index([salonId])
   @@index([masterId, startTime])
   @@map("master_blocks")
+}
+
+// Регулярный график работы мастера (Backlog item28, подзадача №33) — администратор помесячно
+// отмечает рабочие/нерабочие дни. Явная запись на КАЖДЫЙ день месяца (isWorking true/false), а не
+// только на рабочие: так "день ещё не размечен админом" (записи нет вовсе) отличимо от "день
+// размечен как выходной" — это важно для валидации переноса/бронирования в подзадаче №35, где
+// отсутствие графика не должно трактоваться как запрет. Часы работы — свои у каждого мастера/дня,
+// это отдельное окно от TIMELINE_END_HOUR/SALON_CLOSE_HOUR_UTC (см. item23) — то фиксированное окно
+// отображения на всех, это — per-мастер расписание. MasterBlock не трогается, это отдельный
+// механизм точечных исключений (отпуск/перерыв) поверх любого графика.
+model MasterSchedule {
+  id        String   @id @default(uuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id])
+  masterId  String
+  master    Master   @relation(fields: [masterId], references: [id])
+  date      DateTime @db.Date
+  isWorking Boolean
+  // Рабочие часы дня в формате "HH:mm"; null, если день нерабочий (см. MasterSchedulesService.upsertMonth —
+  // при isWorking=false часы всегда сбрасываются в null, чтобы не копить неактуальные значения).
+  startTime String?
+  endTime   String?
+  createdAt DateTime @default(now())
+
+  @@unique([masterId, date])
+  @@index([salonId])
+  @@map("master_schedules")
 }
 
 model Payment {
