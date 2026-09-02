@@ -40,7 +40,7 @@ function formatDayHeader(dateOnly: string): string {
 // Недельная загрузка мастеров ниже дневного таймлайна (см. DashboardPage) — переиспользует ту же
 // инфраструктуру (filterActiveTimelineBookings, masterColor.ts, ролевой скоуп записей уже
 // применён на уровне DashboardPage/бэкенда), просто раскладывая те же записи по 7 дням вместо
-// одной 09:00–20:00 полосы. Полосочки — счётчик загрузки, поэтому все одного размера, без
+// одной 09:00–19:00 полосы. Полосочки — счётчик загрузки, поэтому все одного размера, без
 // вычисления left/width в процентах, в отличие от дневного таймлайна.
 export function WeekTimelineView({ bookings, masters, masterBlocks, clients, services, isAdmin }: WeekTimelineProps) {
   const [weekStart, setWeekStart] = useState(() => getIsoWeekRange(new Date()).start)

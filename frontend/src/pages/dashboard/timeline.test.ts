@@ -92,8 +92,8 @@ describe('layoutBookingsOnTimeline', () => {
   })
 
   it('positions a booking exactly in the middle of the window at 50%', () => {
-    // Window is 09:00-20:00 (11h = 660min); a 1h booking starting at (09:00 + 330min) = 14:30
-    const booking = makeBooking({ startTime: '2026-03-10T14:30:00.000Z', endTime: '2026-03-10T15:30:00.000Z' })
+    // Window is 09:00-19:00 (10h = 600min); a 1h booking starting at (09:00 + 300min) = 14:00
+    const booking = makeBooking({ startTime: '2026-03-10T14:00:00.000Z', endTime: '2026-03-10T15:00:00.000Z' })
     const [block] = layoutBookingsOnTimeline([booking])
     expect(block.leftPercent).toBeCloseTo(50, 5)
   })
@@ -105,7 +105,19 @@ describe('layoutBookingsOnTimeline', () => {
   })
 
   it('clamps a booking that ends after the working window to the right edge', () => {
-    const booking = makeBooking({ startTime: '2026-03-10T19:30:00.000Z', endTime: '2026-03-10T21:00:00.000Z' })
+    const booking = makeBooking({
+      startTime: `2026-03-10T${String(TIMELINE_END_HOUR - 1).padStart(2, '0')}:30:00.000Z`,
+      endTime: `2026-03-10T${String(TIMELINE_END_HOUR + 1).padStart(2, '0')}:00:00.000Z`,
+    })
+    const [block] = layoutBookingsOnTimeline([booking])
+    expect(block.leftPercent + block.widthPercent).toBeCloseTo(100, 5)
+  })
+
+  it('does not clip a booking ending exactly at the working window boundary (19:00)', () => {
+    const booking = makeBooking({
+      startTime: `2026-03-10T${String(TIMELINE_END_HOUR - 1).padStart(2, '0')}:30:00.000Z`,
+      endTime: `2026-03-10T${String(TIMELINE_END_HOUR).padStart(2, '0')}:00:00.000Z`,
+    })
     const [block] = layoutBookingsOnTimeline([booking])
     expect(block.leftPercent + block.widthPercent).toBeCloseTo(100, 5)
   })

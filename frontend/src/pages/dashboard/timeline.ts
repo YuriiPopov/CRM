@@ -10,10 +10,10 @@ export function filterActiveTimelineBookings(bookings: Booking[]): Booking[] {
   return bookings.filter((booking) => ACTIVE_TIMELINE_STATUSES.includes(booking.status))
 }
 
-// Единая шкала рабочего дня салона — 09:00–20:00 UTC (см. комментарий в dateUtils.ts:
+// Единая шкала рабочего дня салона — 09:00–19:00 UTC (см. комментарий в dateUtils.ts:
 // backend MVP-упрощение, единые часы работы без per-salon таймзоны).
 export const TIMELINE_START_HOUR = 9
-export const TIMELINE_END_HOUR = 20
+export const TIMELINE_END_HOUR = 19
 
 // Минимальная ширина блока в процентах — иначе очень короткая запись (например, 5 минут)
 // выродилась бы в невидимую линию.
@@ -34,7 +34,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
 
-// Раскладывает записи на шкале 09:00–20:00 UTC в процентах от ширины полосы. Время за
+// Раскладывает записи на шкале 09:00–19:00 UTC в процентах от ширины полосы. Время за
 // пределами окна прижимается к его границе (а не "убегает" за пределы таймлайна) — запись,
 // начавшаяся до открытия или закончившаяся после закрытия, всё равно видна целиком в пределах
 // полосы. Порядок результата совпадает с порядком bookings на входе.
@@ -63,7 +63,7 @@ export interface TimelineUnavailableBlock {
   widthPercent: number
 }
 
-// Та же раскладка на шкале 09:00–20:00 UTC, что и layoutBookingsOnTimeline, но для блокировок
+// Та же раскладка на шкале 09:00–19:00 UTC, что и layoutBookingsOnTimeline, но для блокировок
 // времени мастера (Backlog п.9/п.11) — отдельная функция, а не переиспользование той же сигнатуры,
 // т.к. MasterBlock не является Booking (нет клиента/услуги/статуса).
 export function layoutMasterBlocksOnTimeline(blocks: MasterBlock[]): TimelineUnavailableBlock[] {

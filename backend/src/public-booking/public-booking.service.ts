@@ -20,7 +20,10 @@ import { CreatePublicBookingDto } from './dto/create-public-booking.dto';
 // (Master/Salon такой модели пока не несут — см. schema.prisma). Не блокирует добавление
 // per-salon/per-master расписания позже — вся логика инкапсулирована в этом сервисе.
 const SALON_OPEN_HOUR_UTC = 9;
-const SALON_CLOSE_HOUR_UTC = 20;
+// Реальные часы работы салона заканчиваются в 19:00, не в 20:00 — держим в синхроне с
+// TIMELINE_END_HOUR на фронтенде (frontend/src/pages/dashboard/timeline.ts), иначе клиент
+// смог бы забронировать слот, которые дашборд затем обрежет по неверной границе.
+const SALON_CLOSE_HOUR_UTC = 19;
 const SLOT_STEP_MINUTES = 15;
 
 export interface AvailableSlot {
