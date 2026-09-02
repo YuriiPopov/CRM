@@ -6,8 +6,10 @@ import {
   getMasterSchedule,
   upsertMasterSchedule,
 } from '../../api/masterSchedules'
+import { rescheduleBooking } from '../../api/bookings'
 import { buildMonthDates, daysInMonth, formatMonthLabel, shiftMonth } from './masterScheduleGrid'
 import type { Master } from '../../types/staff'
+import type { Service } from '../../types/service'
 import type { MasterScheduleRecord } from '../../types/masterSchedule'
 import type { Booking } from '../../types/booking'
 
@@ -16,10 +18,34 @@ vi.mock('../../api/masterSchedules', () => ({
   upsertMasterSchedule: vi.fn(),
   findMasterScheduleConflicts: vi.fn(),
 }))
+vi.mock('../../api/bookings', () => ({
+  rescheduleBooking: vi.fn(),
+}))
+// RescheduleModal переиспользуется как есть (item28, подзадача №36), но его собственная логика
+// (SlotPicker → публичный GET /public/booking/slots) уже вне зоны ответственности этого файла —
+// здесь важно только, что MasterScheduleModal его правильно открывает/закрывает и реагирует на
+// onRescheduled, поэтому подменяем его лёгким стабом без реального выбора времени.
+vi.mock('../calendar/RescheduleModal', () => ({
+  RescheduleModal: ({ onRescheduled, onClose }: { onRescheduled: () => void; onClose: () => void }) => (
+    <div>
+      <p>Перенос записи (стаб)</p>
+      <button
+        type="button"
+        onClick={() => {
+          onRescheduled()
+          onClose()
+        }}
+      >
+        Подтвердить перенос (стаб)
+      </button>
+    </div>
+  ),
+}))
 
 const mockedGetMasterSchedule = vi.mocked(getMasterSchedule)
 const mockedUpsertMasterSchedule = vi.mocked(upsertMasterSchedule)
 const mockedFindConflicts = vi.mocked(findMasterScheduleConflicts)
+const mockedRescheduleBooking = vi.mocked(rescheduleBooking)
 
 const master: Master = {
   id: 'master-1',
@@ -27,6 +53,25 @@ const master: Master = {
   name: 'Anna',
   specializationCategoryIds: [],
   isActive: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+const masterTwo: Master = {
+  id: 'master-2',
+  salonId: 'salon-1',
+  name: 'Boris',
+  specializationCategoryIds: [],
+  isActive: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+const service: Service = {
+  id: 'service-1',
+  salonId: 'salon-1',
+  name: 'Massage',
+  categoryId: 'category-massage',
+  durationMin: 60,
+  price: 150,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
 
@@ -53,6 +98,17 @@ const currentYear = now.getUTCFullYear()
 const currentMonth = now.getUTCMonth() + 1
 const currentMonthDates = buildMonthDates(currentYear, currentMonth)
 
+function renderModal(overrides: { masters?: Master[]; services?: Service[]; onClose?: () => void } = {}) {
+  return render(
+    <MasterScheduleModal
+      master={master}
+      masters={overrides.masters ?? [master, masterTwo]}
+      services={overrides.services ?? [service]}
+      onClose={overrides.onClose ?? vi.fn()}
+    />,
+  )
+}
+
 afterEach(() => {
   vi.clearAllMocks()
 })
@@ -74,7 +130,7 @@ describe('MasterScheduleModal', () => {
       }),
     ])
 
-    render(<MasterScheduleModal master={master} onClose={vi.fn()} />)
+    renderModal()
 
     expect(await screen.findByText(formatMonthLabel(currentYear, currentMonth))).toBeInTheDocument()
     expect(mockedGetMasterSchedule).toHaveBeenCalledWith('master-1', currentYear, currentMonth)
@@ -116,7 +172,7 @@ describe('MasterScheduleModal', () => {
     const onClose = vi.fn()
     const user = userEvent.setup()
 
-    render(<MasterScheduleModal master={master} onClose={onClose} />)
+    renderModal({ onClose })
 
     const dayList = await screen.findByRole('list')
     const items = within(dayList).getAllByRole('listitem')
@@ -148,7 +204,7 @@ describe('MasterScheduleModal', () => {
     mockedGetMasterSchedule.mockResolvedValue([])
     const user = userEvent.setup()
 
-    render(<MasterScheduleModal master={master} onClose={vi.fn()} />)
+    renderModal()
 
     const dayList = await screen.findByRole('list')
     const items = within(dayList).getAllByRole('listitem')
@@ -162,57 +218,11 @@ describe('MasterScheduleModal', () => {
     expect(startInput).toHaveValue('11:00')
   })
 
-  it('shows the conflicting bookings and does not save silently when conflicts are found', async () => {
-    mockedGetMasterSchedule.mockResolvedValue([])
-    const conflictingBooking: Booking = {
-      id: 'booking-1',
-      salonId: 'salon-1',
-      clientId: 'client-1',
-      masterId: 'master-1',
-      serviceId: 'service-1',
-      startTime: `${currentMonthDates[0]}T10:00:00.000Z`,
-      endTime: `${currentMonthDates[0]}T11:00:00.000Z`,
-      status: 'CONFIRMED',
-      source: 'ADMIN',
-      createdAt: '2026-02-01T00:00:00.000Z',
-      rescheduledAt: null,
-    }
-    mockedFindConflicts.mockResolvedValue([conflictingBooking])
-    const user = userEvent.setup()
-
-    render(<MasterScheduleModal master={master} onClose={vi.fn()} />)
-
-    const dayList = await screen.findByRole('list')
-    const items = within(dayList).getAllByRole('listitem')
-    await user.click(within(items[0]).getByRole('button', { name: 'Выходной' }))
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
-
-    expect(await screen.findByText(/уже есть записи клиентов \(1\)/)).toBeInTheDocument()
-    expect(mockedUpsertMasterSchedule).not.toHaveBeenCalled()
-
-    const confirmButton = screen.getByRole('button', { name: 'Сохранить, несмотря на конфликты' })
-    mockedUpsertMasterSchedule.mockResolvedValue([])
-    await user.click(confirmButton)
-
-    const expectedPayload = {
-      masterId: 'master-1',
-      year: currentYear,
-      month: currentMonth,
-      days: [{ date: currentMonthDates[0], isWorking: false }],
-    }
-
-    await waitFor(() => {
-      expect(mockedUpsertMasterSchedule).toHaveBeenCalledWith(expectedPayload)
-    })
-    // Второе сохранение больше не должно перепроверять конфликты — они уже подтверждены.
-    expect(mockedFindConflicts).toHaveBeenCalledTimes(1)
-  })
-
   it('navigates to the next month and reloads the schedule for it', async () => {
     mockedGetMasterSchedule.mockResolvedValue([])
     const user = userEvent.setup()
 
-    render(<MasterScheduleModal master={master} onClose={vi.fn()} />)
+    renderModal()
     await screen.findByText(formatMonthLabel(currentYear, currentMonth))
 
     await user.click(screen.getByRole('button', { name: 'Следующий месяц' }))
@@ -220,5 +230,133 @@ describe('MasterScheduleModal', () => {
     const next = shiftMonth(currentYear, currentMonth, 1)
     expect(await screen.findByText(formatMonthLabel(next.year, next.month))).toBeInTheDocument()
     expect(mockedGetMasterSchedule).toHaveBeenCalledWith('master-1', next.year, next.month)
+  })
+
+  // Разрешение конфликтов существующих записей (Backlog item28, подзадача №36).
+  describe('conflict resolution', () => {
+    function conflictBooking(overrides: Partial<Booking> = {}): Booking {
+      return {
+        id: 'booking-1',
+        salonId: 'salon-1',
+        clientId: 'client-1',
+        masterId: 'master-1',
+        serviceId: 'service-1',
+        startTime: `${currentMonthDates[0]}T10:00:00.000Z`,
+        endTime: `${currentMonthDates[0]}T11:00:00.000Z`,
+        status: 'CONFIRMED',
+        source: 'ADMIN',
+        createdAt: '2026-02-01T00:00:00.000Z',
+        rescheduledAt: null,
+        ...overrides,
+      }
+    }
+
+    async function markFirstDayOffAndSave(user: ReturnType<typeof userEvent.setup>) {
+      const dayList = await screen.findByRole('list')
+      const items = within(dayList).getAllByRole('listitem')
+      await user.click(within(items[0]).getByRole('button', { name: 'Выходной' }))
+      await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    }
+
+    it('shows each conflicting booking with resolution actions and blocks saving until all are resolved', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedFindConflicts.mockResolvedValue([conflictBooking()])
+      const user = userEvent.setup()
+
+      renderModal()
+      await markFirstDayOffAndSave(user)
+
+      expect(await screen.findByText(/уже есть записи клиентов \(1\)/)).toBeInTheDocument()
+      expect(screen.getByText('Massage')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Перенести' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Переназначить другому мастеру' })).toBeInTheDocument()
+
+      const saveButton = screen.getByRole('button', { name: 'Сохранить' })
+      expect(saveButton).toBeDisabled()
+      expect(screen.getByText('Сначала решите конфликты')).toBeInTheDocument()
+      expect(mockedUpsertMasterSchedule).not.toHaveBeenCalled()
+    })
+
+    it('resolves a conflict via "Перенести" (RescheduleModal) and unblocks saving', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedFindConflicts.mockResolvedValue([conflictBooking()])
+      mockedUpsertMasterSchedule.mockResolvedValue([])
+      const user = userEvent.setup()
+
+      renderModal()
+      await markFirstDayOffAndSave(user)
+      await screen.findByText(/уже есть записи клиентов/)
+
+      await user.click(screen.getByRole('button', { name: 'Перенести' }))
+      expect(screen.getByText('Перенос записи (стаб)')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Подтвердить перенос (стаб)' }))
+
+      expect(screen.queryByText(/уже есть записи клиентов/)).not.toBeInTheDocument()
+      expect(screen.queryByText('Перенос записи (стаб)')).not.toBeInTheDocument()
+
+      const saveButton = screen.getByRole('button', { name: 'Сохранить' })
+      expect(saveButton).toBeEnabled()
+
+      await user.click(saveButton)
+      await waitFor(() => expect(mockedUpsertMasterSchedule).toHaveBeenCalled())
+      // Конфликты уже разрешены локально — второй раз /conflicts не перезапрашивается.
+      expect(mockedFindConflicts).toHaveBeenCalledTimes(1)
+    })
+
+    it('resolves a conflict via "Переназначить другому мастеру" and unblocks saving', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedFindConflicts.mockResolvedValue([conflictBooking()])
+      mockedRescheduleBooking.mockResolvedValue(conflictBooking({ masterId: 'master-2' }))
+      mockedUpsertMasterSchedule.mockResolvedValue([])
+      const user = userEvent.setup()
+
+      renderModal()
+      await markFirstDayOffAndSave(user)
+      await screen.findByText(/уже есть записи клиентов/)
+
+      await user.click(screen.getByRole('button', { name: 'Переназначить другому мастеру' }))
+      const masterSelect = screen.getByLabelText('Новый мастер')
+      // Сам мастер, чей график меняется, не предлагается в качестве нового — переназначение
+      // ему самому не имеет смысла.
+      expect(within(masterSelect).queryByText('Anna')).not.toBeInTheDocument()
+      await user.selectOptions(masterSelect, 'master-2')
+      await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+
+      await waitFor(() => {
+        expect(mockedRescheduleBooking).toHaveBeenCalledWith('booking-1', {
+          startTime: conflictBooking().startTime,
+          masterId: 'master-2',
+        })
+      })
+      expect(screen.queryByText(/уже есть записи клиентов/)).not.toBeInTheDocument()
+
+      const saveButton = screen.getByRole('button', { name: 'Сохранить' })
+      expect(saveButton).toBeEnabled()
+      await user.click(saveButton)
+      await waitFor(() => expect(mockedUpsertMasterSchedule).toHaveBeenCalled())
+    })
+
+    it('shows a friendly error and keeps the conflict listed when reassignment fails', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedFindConflicts.mockResolvedValue([conflictBooking()])
+      mockedRescheduleBooking.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 409, data: { message: 'Master does not work on this day' } },
+      })
+      const user = userEvent.setup()
+
+      renderModal()
+      await markFirstDayOffAndSave(user)
+      await screen.findByText(/уже есть записи клиентов/)
+
+      await user.click(screen.getByRole('button', { name: 'Переназначить другому мастеру' }))
+      await user.selectOptions(screen.getByLabelText('Новый мастер'), 'master-2')
+      await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+
+      expect(await screen.findByText(/master does not work on this day/i)).toBeInTheDocument()
+      expect(screen.getByText(/уже есть записи клиентов \(1\)/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled()
+    })
   })
 })

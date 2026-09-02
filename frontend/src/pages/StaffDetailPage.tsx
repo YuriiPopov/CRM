@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { assignService, getMaster, unassignService } from '../api/staff'
+import { assignService, getMaster, listStaff, unassignService } from '../api/staff'
 import { listServices } from '../api/services'
 import { listServiceCategories } from '../api/serviceCategories'
 import { getApiErrorMessage } from '../api/errors'
 import { EditMasterModal } from './staff/EditMasterModal'
 import { MasterScheduleModal } from './staff/MasterScheduleModal'
 import type { Service, ServiceCategoryRef } from '../types/service'
-import type { MasterDetail } from '../types/staff'
+import type { Master, MasterDetail } from '../types/staff'
 
 export function StaffDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -17,6 +17,7 @@ export function StaffDetailPage() {
   const isAdmin = user?.role === 'ADMIN'
 
   const [master, setMaster] = useState<MasterDetail | null>(null)
+  const [allMasters, setAllMasters] = useState<Master[]>([])
   const [allServices, setAllServices] = useState<Service[]>([])
   const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,6 +46,9 @@ export function StaffDetailPage() {
     const requests: Promise<unknown>[] = [load(), listServiceCategories().then(setCategories)]
     if (isAdmin) {
       requests.push(listServices().then(setAllServices))
+      // Нужен для модалки графика (item28, подзадача №36) — перенос/переназначение
+      // конфликтующей записи другому мастеру требует полный список мастеров салона.
+      requests.push(listStaff().then(setAllMasters))
     }
 
     Promise.all(requests)
@@ -220,7 +224,12 @@ export function StaffDetailPage() {
       )}
 
       {scheduleModalOpen && (
-        <MasterScheduleModal master={master} onClose={() => setScheduleModalOpen(false)} />
+        <MasterScheduleModal
+          master={master}
+          masters={allMasters}
+          services={allServices}
+          onClose={() => setScheduleModalOpen(false)}
+        />
       )}
     </section>
   )

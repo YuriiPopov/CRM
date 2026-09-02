@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { StaffDetailPage } from './StaffDetailPage'
 import { useAuth } from '../auth/useAuth'
-import { assignService, getMaster, unassignService, updateMaster } from '../api/staff'
+import { assignService, getMaster, listStaff, unassignService, updateMaster } from '../api/staff'
 import { listServices } from '../api/services'
 import { listServiceCategories } from '../api/serviceCategories'
 import { getMasterSchedule } from '../api/masterSchedules'
@@ -14,6 +14,7 @@ import type { Service, ServiceCategoryRef } from '../types/service'
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/staff', () => ({
   getMaster: vi.fn(),
+  listStaff: vi.fn(),
   assignService: vi.fn(),
   unassignService: vi.fn(),
   updateMaster: vi.fn(),
@@ -28,12 +29,18 @@ vi.mock('../api/masterSchedules', () => ({
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetMaster = vi.mocked(getMaster)
+const mockedListStaff = vi.mocked(listStaff)
 const mockedAssignService = vi.mocked(assignService)
 const mockedUnassignService = vi.mocked(unassignService)
 const mockedUpdateMaster = vi.mocked(updateMaster)
 const mockedListServices = vi.mocked(listServices)
 const mockedListServiceCategories = vi.mocked(listServiceCategories)
 const mockedGetMasterSchedule = vi.mocked(getMasterSchedule)
+
+// Полный список мастеров грузится безусловно для ADMIN (нужен модалке графика — item28,
+// подзадача №36, перенос/переназначение конфликтующей записи) — безобидный дефолт для тестов,
+// которые сам список мастеров не проверяют.
+mockedListStaff.mockResolvedValue([])
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',
