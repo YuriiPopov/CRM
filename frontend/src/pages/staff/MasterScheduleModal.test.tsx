@@ -113,7 +113,37 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+// Ячейки сетки — кнопки с доступным именем "День N" (см. MasterScheduleModal); попап с
+// переключателями открывается по клику и живёт вне ячейки, поэтому в тестах ниже сначала
+// находится нужная ячейка по номеру дня, а затем контролы ищутся в открывшемся попапе.
+function getDayCell(dayNumber: number) {
+  return screen.getByRole('button', { name: `День ${dayNumber}` })
+}
+
+function getDayPopover() {
+  return screen.getByRole('dialog', { name: /настройки дня/i })
+}
+
 describe('MasterScheduleModal', () => {
+  it('renders one grid cell per day of the month, with a leading/trailing empty run to fill the 6x7 grid', async () => {
+    mockedGetMasterSchedule.mockResolvedValue([])
+    renderModal()
+
+    await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+
+    expect(document.querySelectorAll('.master-schedule-grid-cell')).toHaveLength(42)
+    expect(document.querySelectorAll('.master-schedule-grid-cell--empty')).toHaveLength(
+      42 - daysInMonth(currentYear, currentMonth),
+    )
+    // Ячейки соседних месяцев не кликабельны — это <div>, а не <button>.
+    for (const emptyCell of document.querySelectorAll('.master-schedule-grid-cell--empty')) {
+      expect(emptyCell.tagName).toBe('DIV')
+    }
+    expect(screen.getAllByRole('button', { name: /^День \d+$/ })).toHaveLength(
+      daysInMonth(currentYear, currentMonth),
+    )
+  })
+
   it('loads and displays the current month schedule, marking unmarked days as unset', async () => {
     mockedGetMasterSchedule.mockResolvedValue([
       scheduleRecord({
@@ -135,34 +165,35 @@ describe('MasterScheduleModal', () => {
     expect(await screen.findByText(formatMonthLabel(currentYear, currentMonth))).toBeInTheDocument()
     expect(mockedGetMasterSchedule).toHaveBeenCalledWith('master-1', currentYear, currentMonth)
 
-    const dayList = screen.getByRole('list')
-    const items = within(dayList).getAllByRole('listitem')
-    expect(items).toHaveLength(daysInMonth(currentYear, currentMonth))
+    const workingDayCell = getDayCell(2)
+    expect(workingDayCell).toHaveClass('master-schedule-grid-cell--working')
+    expect(within(workingDayCell).getByText('10:00–19:00')).toBeInTheDocument()
 
-    const workingDay = items[1]
-    expect(within(workingDay).getByRole('button', { name: 'Рабочий' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    expect(within(workingDay).getByLabelText('С')).toHaveValue('10:00')
-    expect(within(workingDay).getByLabelText('До')).toHaveValue('19:00')
+    const offDayCell = getDayCell(3)
+    expect(offDayCell).toHaveClass('master-schedule-grid-cell--off')
 
-    const offDay = items[2]
-    expect(within(offDay).getByRole('button', { name: 'Выходной' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    const unsetDayCell = getDayCell(4)
+    expect(unsetDayCell).toHaveClass('master-schedule-grid-cell--unset')
 
-    const unsetDay = items[3]
-    expect(within(unsetDay).getByRole('button', { name: 'Рабочий' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    )
-    expect(within(unsetDay).getByRole('button', { name: 'Выходной' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    )
-    expect(within(unsetDay).queryByLabelText('С')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /настройки дня/i })).not.toBeInTheDocument()
+  })
+
+  it('opens a popover with controls on cell click, and the toggles/hours in it reflect that day', async () => {
+    mockedGetMasterSchedule.mockResolvedValue([])
+    const user = userEvent.setup()
+
+    renderModal()
+    await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+
+    await user.click(getDayCell(1))
+    const popover = getDayPopover()
+    expect(within(popover).getByRole('button', { name: 'Рабочий' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(popover).getByRole('button', { name: 'Выходной' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(popover).queryByLabelText('С')).not.toBeInTheDocument()
+
+    // Клик по той же ячейке снова закрывает попап.
+    await user.click(getDayCell(1))
+    expect(screen.queryByRole('dialog', { name: /настройки дня/i })).not.toBeInTheDocument()
   })
 
   it('marks a day as off when the toggle is clicked, and saves it directly when there are no conflicts', async () => {
@@ -174,15 +205,14 @@ describe('MasterScheduleModal', () => {
 
     renderModal({ onClose })
 
-    const dayList = await screen.findByRole('list')
-    const items = within(dayList).getAllByRole('listitem')
-    const firstDay = items[0]
-
-    await user.click(within(firstDay).getByRole('button', { name: 'Выходной' }))
-    expect(within(firstDay).getByRole('button', { name: 'Выходной' })).toHaveAttribute(
+    await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+    await user.click(getDayCell(1))
+    await user.click(within(getDayPopover()).getByRole('button', { name: 'Выходной' }))
+    expect(within(getDayPopover()).getByRole('button', { name: 'Выходной' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
+    expect(getDayCell(1)).toHaveClass('master-schedule-grid-cell--off')
 
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
@@ -205,17 +235,17 @@ describe('MasterScheduleModal', () => {
     const user = userEvent.setup()
 
     renderModal()
+    await screen.findByText(formatMonthLabel(currentYear, currentMonth))
 
-    const dayList = await screen.findByRole('list')
-    const items = within(dayList).getAllByRole('listitem')
-    const firstDay = items[0]
-
-    await user.click(within(firstDay).getByRole('button', { name: 'Рабочий' }))
-    const startInput = within(firstDay).getByLabelText('С')
+    await user.click(getDayCell(1))
+    await user.click(within(getDayPopover()).getByRole('button', { name: 'Рабочий' }))
+    const startInput = within(getDayPopover()).getByLabelText('С')
     await user.clear(startInput)
     await user.type(startInput, '11:00')
 
     expect(startInput).toHaveValue('11:00')
+    expect(getDayCell(1)).toHaveClass('master-schedule-grid-cell--working')
+    expect(within(getDayCell(1)).getByText('11:00–18:00')).toBeInTheDocument()
   })
 
   it('navigates to the next month and reloads the schedule for it', async () => {
@@ -252,9 +282,9 @@ describe('MasterScheduleModal', () => {
     }
 
     async function markFirstDayOffAndSave(user: ReturnType<typeof userEvent.setup>) {
-      const dayList = await screen.findByRole('list')
-      const items = within(dayList).getAllByRole('listitem')
-      await user.click(within(items[0]).getByRole('button', { name: 'Выходной' }))
+      await screen.findByRole('button', { name: 'День 1' })
+      await user.click(getDayCell(1))
+      await user.click(within(getDayPopover()).getByRole('button', { name: 'Выходной' }))
       await user.click(screen.getByRole('button', { name: 'Сохранить' }))
     }
 

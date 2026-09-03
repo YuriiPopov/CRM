@@ -494,37 +494,110 @@
   margin-bottom: 12px;
 }
 
-.master-schedule-day-list {
-  list-style: none;
-  margin: 0 0 12px;
-  padding: 0;
+/* Календарная сетка месяца (item38) — та же раскладка 7 колонок, что и calendar-grid-weekday-header
+   /-cells в CalendarGridView, но со своими классами: это независимая от записей клиентов сетка
+   (график мастера), совмещать стили обеих сеток через общие классы смысла нет. */
+.master-schedule-grid {
+  margin-bottom: 12px;
+}
+
+.master-schedule-grid-weekdays,
+.master-schedule-grid-cells {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.master-schedule-grid-weekdays {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.master-schedule-grid-cell {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 50svh;
-  overflow-y: auto;
-}
-
-.master-schedule-day {
-  display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 6px 8px;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 4px;
   border: 1px solid var(--border);
   border-radius: 6px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
-/* 'unset' — ещё не размечен администратором, нейтральный/приглушённый вид,
-   не совпадающий ни с рабочим, ни с выходным днём. */
-.master-schedule-day--unset {
-  opacity: 0.6;
+/* Ячейки соседних месяцев — только заполнение сетки до 42 дней, как isCurrentPeriod=false
+   в CalendarGridView; не кнопки, кликнуть по ним нельзя. */
+.master-schedule-grid-cell--empty {
+  border: none;
+  background: none;
+  cursor: default;
 }
 
-.master-schedule-day-number {
-  min-width: 20px;
+.master-schedule-grid-cell--working {
+  background: var(--status-completed-bg);
+  border-color: var(--status-completed-border);
+}
+
+.master-schedule-grid-cell--off {
+  background: var(--status-cancelled-bg);
+  border-color: var(--status-cancelled-border);
+}
+
+/* 'unset' — ещё не размечен администратором. Та же штриховка, что и у
+   .calendar-grid-cell--schedule-blocked (item35, нерабочие дни мастера в календаре записей) —
+   нейтральное затемнение, отличное и от рабочего, и от выходного дня. */
+.master-schedule-grid-cell--unset {
+  opacity: 0.5;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--border),
+    var(--border) 4px,
+    transparent 4px,
+    transparent 10px
+  );
+}
+
+.master-schedule-grid-cell--selected {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: 3px;
+}
+
+.master-schedule-grid-cell-number {
+  font-size: 12px;
   font-weight: 600;
-  text-align: center;
+}
+
+.master-schedule-grid-cell-hours {
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* Попап с настройками выбранного дня — переиспользует разметку/классы бывшей строки списка
+   (.master-schedule-day-toggle, .master-schedule-day-hours) внутри новой обёртки. */
+.master-schedule-day-popover {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.master-schedule-day-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-transform: capitalize;
 }
 
 .master-schedule-day-toggle {

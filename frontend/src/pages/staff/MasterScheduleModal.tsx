@@ -9,6 +9,7 @@ import {
 } from '../../api/masterSchedules'
 import { RescheduleModal } from '../calendar/RescheduleModal'
 import { formatTimeRange, toDateOnly } from '../calendar/dateUtils'
+import { getMonthGridDays } from '../calendar/calendarGrid'
 import {
   buildDayStates,
   buildMonthDates,
@@ -22,6 +23,18 @@ import type { ScheduleDayState } from './masterScheduleGrid'
 import type { Master } from '../../types/staff'
 import type { Service } from '../../types/service'
 import type { Booking } from '../../types/booking'
+
+const WEEKDAY_HEADERS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+const UNSET_STATE: ScheduleDayState = { status: 'unset', startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME }
+
+// Заголовок попапа дня — краткая дата без года (сетка уже показывает месяц/год в шапке модалки).
+function formatDayHeading(date: string): string {
+  return new Date(`${date}T00:00:00.000Z`).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  })
+}
 
 interface MasterScheduleModalProps {
   master: Master
@@ -56,8 +69,14 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
   const [reassignMasterId, setReassignMasterId] = useState('')
   const [resolvingBookingId, setResolvingBookingId] = useState<string | null>(null)
   const [resolveError, setResolveError] = useState<string | null>(null)
+  // Дата, для которой сейчас открыт попап с переключателями "Рабочий"/"Выходной" и часами
+  // (item38) — null, когда попап закрыт. Ячейки соседних месяцев сюда никогда не попадают.
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
-  const dates = useMemo(() => buildMonthDates(year, month), [year, month])
+  const gridDays = useMemo(
+    () => getMonthGridDays(`${year}-${String(month).padStart(2, '0')}-01`),
+    [year, month],
+  )
   const servicesById = useMemo(() => new Map(services.map((service) => [service.id, service])), [services])
   const otherActiveMasters = useMemo(
     () => masters.filter((m) => m.isActive && m.id !== master.id),
@@ -72,6 +91,7 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
     setLoading(true)
     setLoadError(null)
     setConflicts(null)
+    setSelectedDate(null)
 
     getMasterSchedule(master.id, year, month)
       .then((records) => {
@@ -115,6 +135,7 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
   }
 
   const days = useMemo(() => buildUpsertDays(dayStates), [dayStates])
+  const selectedState = selectedDate ? dayStates.get(selectedDate) ?? UNSET_STATE : null
   const hasUnresolvedConflicts = (conflicts?.length ?? 0) > 0
   const canSave = days.length > 0 && !saving && !loading && !hasUnresolvedConflicts
 
@@ -193,64 +214,103 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
       {loading ? (
         <p>Загрузка…</p>
       ) : (
-        <ul className="master-schedule-day-list">
-          {dates.map((date) => {
-            const state: ScheduleDayState = dayStates.get(date) ?? {
-              status: 'unset',
-              startTime: DEFAULT_START_TIME,
-              endTime: DEFAULT_END_TIME,
-            }
-            const dayNumber = Number(date.slice(-2))
+        <div className="master-schedule-grid">
+          <div className="master-schedule-grid-weekdays">
+            {WEEKDAY_HEADERS.map((label) => (
+              <div key={label}>{label}</div>
+            ))}
+          </div>
 
-            return (
-              <li key={date} className={`master-schedule-day master-schedule-day--${state.status}`}>
-                <span className="master-schedule-day-number">{dayNumber}</span>
+          <div className="master-schedule-grid-cells">
+            {gridDays.map((day) => {
+              if (!day.isCurrentPeriod) {
+                return <div key={day.date} className="master-schedule-grid-cell master-schedule-grid-cell--empty" />
+              }
 
-                <div className="master-schedule-day-toggle">
-                  <button
-                    type="button"
-                    aria-pressed={state.status === 'working'}
-                    className={state.status === 'working' ? 'active' : undefined}
-                    onClick={() => setDayStatus(date, 'working')}
-                  >
-                    Рабочий
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={state.status === 'off'}
-                    className={state.status === 'off' ? 'active' : undefined}
-                    onClick={() => setDayStatus(date, 'off')}
-                  >
-                    Выходной
-                  </button>
-                </div>
+              const state: ScheduleDayState = dayStates.get(day.date) ?? UNSET_STATE
+              const dayNumber = Number(day.date.slice(-2))
+              const isSelected = day.date === selectedDate
 
-                {state.status === 'working' && (
-                  <div className="master-schedule-day-hours">
-                    <label htmlFor={`schedule-start-${date}`}>
-                      С
-                      <input
-                        id={`schedule-start-${date}`}
-                        type="time"
-                        value={state.startTime}
-                        onChange={(event) => setDayHours(date, 'startTime', event.target.value)}
-                      />
-                    </label>
-                    <label htmlFor={`schedule-end-${date}`}>
-                      До
-                      <input
-                        id={`schedule-end-${date}`}
-                        type="time"
-                        value={state.endTime}
-                        onChange={(event) => setDayHours(date, 'endTime', event.target.value)}
-                      />
-                    </label>
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  aria-label={`День ${dayNumber}`}
+                  aria-haspopup="dialog"
+                  aria-expanded={isSelected}
+                  className={[
+                    'master-schedule-grid-cell',
+                    `master-schedule-grid-cell--${state.status}`,
+                    isSelected && 'master-schedule-grid-cell--selected',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => setSelectedDate((prev) => (prev === day.date ? null : day.date))}
+                >
+                  <span className="master-schedule-grid-cell-number">{dayNumber}</span>
+                  {state.status === 'working' && (
+                    <span className="master-schedule-grid-cell-hours">
+                      {state.startTime}–{state.endTime}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {selectedDate && selectedState && (
+        <div className="master-schedule-day-popover" role="dialog" aria-label={`Настройки дня — ${formatDayHeading(selectedDate)}`}>
+          <div className="master-schedule-day-popover-header">
+            <strong>{formatDayHeading(selectedDate)}</strong>
+            <button type="button" aria-label="Закрыть" onClick={() => setSelectedDate(null)}>
+              ×
+            </button>
+          </div>
+
+          <div className="master-schedule-day-toggle">
+            <button
+              type="button"
+              aria-pressed={selectedState.status === 'working'}
+              className={selectedState.status === 'working' ? 'active' : undefined}
+              onClick={() => setDayStatus(selectedDate, 'working')}
+            >
+              Рабочий
+            </button>
+            <button
+              type="button"
+              aria-pressed={selectedState.status === 'off'}
+              className={selectedState.status === 'off' ? 'active' : undefined}
+              onClick={() => setDayStatus(selectedDate, 'off')}
+            >
+              Выходной
+            </button>
+          </div>
+
+          {selectedState.status === 'working' && (
+            <div className="master-schedule-day-hours">
+              <label htmlFor={`schedule-start-${selectedDate}`}>
+                С
+                <input
+                  id={`schedule-start-${selectedDate}`}
+                  type="time"
+                  value={selectedState.startTime}
+                  onChange={(event) => setDayHours(selectedDate, 'startTime', event.target.value)}
+                />
+              </label>
+              <label htmlFor={`schedule-end-${selectedDate}`}>
+                До
+                <input
+                  id={`schedule-end-${selectedDate}`}
+                  type="time"
+                  value={selectedState.endTime}
+                  onChange={(event) => setDayHours(selectedDate, 'endTime', event.target.value)}
+                />
+              </label>
+            </div>
+          )}
+        </div>
       )}
 
       {conflicts && conflicts.length > 0 && (
