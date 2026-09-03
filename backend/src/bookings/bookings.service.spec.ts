@@ -374,6 +374,84 @@ describe('BookingsService', () => {
       }
     });
 
+    // Исходное время до переноса (Backlog item39) — заполняется один раз, при первом
+    // reschedule(), и не трогается при последующих (см. schema.prisma).
+    it('stamps originalStartTime/originalEndTime with the pre-reschedule values on the first reschedule', async () => {
+      prisma.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'booking-1',
+          salonId: 'salon-1',
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+          status: BookingStatus.CREATED,
+          startTime: new Date('2026-01-10T09:00:00.000Z'),
+          endTime: new Date('2026-01-10T09:45:00.000Z'),
+          originalStartTime: null,
+          originalEndTime: null,
+        })
+        .mockResolvedValueOnce(null); // no overlap
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 45,
+      });
+      prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+      await service.reschedule(
+        'booking-1',
+        { startTime: '2026-01-10T12:00:00.000Z' },
+        'salon-1',
+      );
+
+      expect(prisma.booking.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining() is typed `any` in @types/jest
+          data: expect.objectContaining({
+            originalStartTime: new Date('2026-01-10T09:00:00.000Z'),
+            originalEndTime: new Date('2026-01-10T09:45:00.000Z'),
+          }),
+        }),
+      );
+    });
+
+    it('does not overwrite an already-set originalStartTime/originalEndTime on a second reschedule', async () => {
+      prisma.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'booking-1',
+          salonId: 'salon-1',
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+          status: BookingStatus.CREATED,
+          startTime: new Date('2026-01-10T12:00:00.000Z'),
+          endTime: new Date('2026-01-10T12:45:00.000Z'),
+          originalStartTime: new Date('2026-01-10T09:00:00.000Z'),
+          originalEndTime: new Date('2026-01-10T09:45:00.000Z'),
+        })
+        .mockResolvedValueOnce(null); // no overlap
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 45,
+      });
+      prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+      await service.reschedule(
+        'booking-1',
+        { startTime: '2026-01-10T15:00:00.000Z' },
+        'salon-1',
+      );
+
+      // rescheduledAt всё равно обновляется на каждый перенос (см. item26), а
+      // originalStartTime/originalEndTime в data не попадают вовсе — уже заполнены раньше.
+      expect(prisma.booking.update).toHaveBeenCalledWith({
+        where: { id: 'booking-1' },
+        data: {
+          masterId: 'master-rec-1',
+          startTime: new Date('2026-01-10T15:00:00.000Z'),
+          endTime: new Date('2026-01-10T15:45:00.000Z'),
+          rescheduledAt: expect.any(Date) as Date,
+        },
+      });
+    });
+
     it('rejects reassigning to a master outside the salon', async () => {
       prisma.booking.findFirst.mockResolvedValueOnce({
         id: 'booking-1',

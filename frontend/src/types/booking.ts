@@ -13,4 +13,6 @@ export interface Booking {
   source: BookingSource
   createdAt: string
   rescheduledAt: string | null
+  originalStartTime: string | null
+  originalEndTime: string | null
 }

@@ -35,6 +35,29 @@ export function formatRescheduledAt(iso: string | null): string | null {
   return `перенесено ${datePart}, ${formatTime(iso)}`
 }
 
+// Главная деталь карточки перенесённой записи (item39) — исходный (до переноса) слот времени,
+// в отличие от formatRescheduledAt выше, который отмечает лишь момент самого действия переноса.
+// originalStartTime === null означает, что записи ещё не переносили (см. Booking.originalStartTime,
+// проставляется один раз при первом BookingsService.reschedule()).
+export function formatOriginalTime(
+  originalStartTime: string | null,
+  originalEndTime: string | null,
+): string | null {
+  if (!originalStartTime) return null
+
+  const datePart = new Date(originalStartTime).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'UTC',
+  })
+
+  const timePart = originalEndTime
+    ? formatTimeRange(originalStartTime, originalEndTime)
+    : formatTime(originalStartTime)
+
+  return `перенесена с ${datePart}, ${timePart}`
+}
+
 // Перенос записи в сетке недели/месяца двигает только день — время суток и длительность
 // сохраняются как есть, меняются лишь год/месяц/день исходного момента (UTC, как и весь
 // остальной таймлайн — см. комментарий выше про единые часы работы без per-salon таймзоны).

@@ -107,6 +107,8 @@ function makeBooking(overrides: Partial<Booking>): Booking {
     source: 'ADMIN',
     createdAt: '2026-03-01T00:00:00.000Z',
     rescheduledAt: null,
+    originalStartTime: null,
+    originalEndTime: null,
     ...overrides,
   }
 }
@@ -283,10 +285,17 @@ describe('DashboardPage', () => {
     expect(within(rows[1] as HTMLElement).getByText('Boris Client')).toBeInTheDocument()
   })
 
-  it('marks a rescheduled booking\'s timeline block and mentions it in the tooltip', async () => {
+  it('marks a rescheduled booking\'s timeline block, showing the original time as the main detail and the reschedule moment as secondary in the tooltip', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListBookings.mockResolvedValue([
-      makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1', rescheduledAt: '2026-03-10T09:00:00.000Z' }),
+      makeBooking({
+        id: 'b1',
+        masterId: 'master-1',
+        clientId: 'client-1',
+        originalStartTime: '2026-03-10T08:00:00.000Z',
+        originalEndTime: '2026-03-10T08:30:00.000Z',
+        rescheduledAt: '2026-03-10T09:00:00.000Z',
+      }),
     ])
     mockedListClients.mockResolvedValue([client, clientTwo])
     mockedListStaff.mockResolvedValue([master, masterTwo])
@@ -297,13 +306,14 @@ describe('DashboardPage', () => {
     const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     const block = timeline.querySelector('.dashboard-timeline-block')!
     expect(block).toHaveClass('dashboard-timeline-block--rescheduled')
+    expect(block).toHaveAttribute('title', expect.stringContaining('перенесена с'))
     expect(block).toHaveAttribute('title', expect.stringContaining('перенесено'))
   })
 
   it('does not mark the timeline block for a booking that was never rescheduled', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListBookings.mockResolvedValue([
-      makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1', rescheduledAt: null }),
+      makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1', originalStartTime: null, originalEndTime: null, rescheduledAt: null }),
     ])
     mockedListClients.mockResolvedValue([client, clientTwo])
     mockedListStaff.mockResolvedValue([master, masterTwo])

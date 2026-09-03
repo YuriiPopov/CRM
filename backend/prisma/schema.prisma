@@ -195,6 +195,12 @@ model Booking {
   source    BookingSource @default(ADMIN)
   createdAt DateTime      @default(now())
   rescheduledAt DateTime?
+  // Исходное время записи ДО первого переноса (Backlog item39) — заполняется один раз, при
+  // первом reschedule(), текущими на тот момент startTime/endTime; последующие переносы его не
+  // трогают (в отличие от rescheduledAt, которое обновляется на каждый перенос — см. item26).
+  // null, если записи ещё не переносили.
+  originalStartTime DateTime?
+  originalEndTime   DateTime?
 
   payment       Payment?
   notifications Notification[]

@@ -8,7 +8,7 @@ import { listServices } from '../api/services'
 import { listMasterBlocks } from '../api/masterBlocks'
 import { getRevenueReport } from '../api/payments'
 import { getApiErrorMessage } from '../api/errors'
-import { formatRescheduledAt, formatTimeRange, toDateOnly, todayDateOnly } from './calendar/dateUtils'
+import { formatOriginalTime, formatRescheduledAt, formatTimeRange, toDateOnly, todayDateOnly } from './calendar/dateUtils'
 import { getStatusBadgeClass, STATUS_LABELS } from './calendar/statusTransitions'
 import { countByStatus, currentMonthRange, upcomingBookings } from './dashboard/dashboardUtils'
 import {
@@ -195,14 +195,20 @@ export function DashboardPage() {
                   {row.blocks.map(({ booking, leftPercent, widthPercent }) => {
                     const client = clientsById.get(booking.clientId)
                     const label = client?.name ?? 'Клиент не найден'
+                    const originalTimeLabel = formatOriginalTime(booking.originalStartTime, booking.originalEndTime)
                     const rescheduledLabel = formatRescheduledAt(booking.rescheduledAt)
-                    const title = [formatTimeRange(booking.startTime, booking.endTime), label, rescheduledLabel]
+                    const title = [
+                      formatTimeRange(booking.startTime, booking.endTime),
+                      label,
+                      originalTimeLabel,
+                      rescheduledLabel,
+                    ]
                       .filter(Boolean)
                       .join(' · ')
                     return (
                       <div
                         key={booking.id}
-                        className={`dashboard-timeline-block${rescheduledLabel ? ' dashboard-timeline-block--rescheduled' : ''}`}
+                        className={`dashboard-timeline-block${originalTimeLabel ? ' dashboard-timeline-block--rescheduled' : ''}`}
                         style={{
                           left: `${leftPercent}%`,
                           width: `${widthPercent}%`,

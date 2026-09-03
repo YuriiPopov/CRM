@@ -462,6 +462,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
       const token = await loginAs('admin@b4u.local', adminPassword);
 
@@ -490,6 +492,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
       const token = await loginAs('admin@b4u.local', adminPassword);
 
@@ -520,6 +524,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
       prisma.seedBooking({
         id: 'booking-master-2',
@@ -533,6 +539,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
     });
 
@@ -578,6 +586,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
     });
 
@@ -605,6 +615,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
     });
 
@@ -653,6 +665,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
       const token = await loginAs('admin@b4u.local', adminPassword);
 
@@ -676,6 +690,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
       const token = await loginAs('admin@b4u.local', adminPassword);
 
@@ -701,6 +717,8 @@ describe('Bookings (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
     });
 

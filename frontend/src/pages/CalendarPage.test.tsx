@@ -137,6 +137,8 @@ const booking: Booking = {
   source: 'ADMIN',
   createdAt: '2026-03-01T00:00:00.000Z',
   rescheduledAt: null,
+  originalStartTime: null,
+  originalEndTime: null,
 }
 
 const completedBooking: Booking = {

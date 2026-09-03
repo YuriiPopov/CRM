@@ -131,7 +131,20 @@ export class BookingsService {
 
     const updated = await this.prisma.booking.update({
       where: { id },
-      data: { masterId, startTime, endTime, rescheduledAt: new Date() },
+      data: {
+        masterId,
+        startTime,
+        endTime,
+        rescheduledAt: new Date(),
+        // Исходное время фиксируется только при первом переносе — последующие переносы этой
+        // же записи не должны затирать его текущими (уже перенесёнными) значениями.
+        ...(booking.originalStartTime === null
+          ? {
+              originalStartTime: booking.startTime,
+              originalEndTime: booking.endTime,
+            }
+          : {}),
+      },
     });
 
     await this.notifySafely(() =>

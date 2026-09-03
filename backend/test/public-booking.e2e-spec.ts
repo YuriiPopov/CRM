@@ -253,6 +253,8 @@ describe('Public booking (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
 
       const response = await request(app.getHttpServer())
@@ -390,6 +392,8 @@ describe('Public booking (e2e)', () => {
         source: BookingSource.ADMIN,
         createdAt: new Date(),
         rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
       });
 
       await request(app.getHttpServer())

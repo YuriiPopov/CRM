@@ -51,6 +51,8 @@ function booking(overrides: Partial<Booking>): Booking {
     source: 'ADMIN',
     createdAt: '2026-01-10T09:00:00.000Z',
     rescheduledAt: null,
+    originalStartTime: null,
+    originalEndTime: null,
     ...overrides,
   }
 }
@@ -136,11 +138,15 @@ describe('BookingListItem', () => {
     expect(screen.queryByText('Это вы')).not.toBeInTheDocument()
   })
 
-  it('shows the reschedule mark when the booking was rescheduled', () => {
+  it('shows the original time as the main reschedule detail, with the reschedule moment as a secondary tooltip', () => {
     render(
       <ul>
         <BookingListItem
-          booking={booking({ rescheduledAt: '2026-08-24T14:30:00.000Z' })}
+          booking={booking({
+            originalStartTime: '2026-08-24T13:00:00.000Z',
+            originalEndTime: '2026-08-24T13:30:00.000Z',
+            rescheduledAt: '2026-08-24T14:30:00.000Z',
+          })}
           client={client}
           master={master}
           service={service}
@@ -157,14 +163,17 @@ describe('BookingListItem', () => {
       </ul>,
     )
 
-    expect(screen.getByText('перенесено 24.08, 14:30')).toBeInTheDocument()
+    const label = screen.getByText('перенесена с 24.08, 13:00–13:30')
+    expect(label).toBeInTheDocument()
+    expect(label).toHaveAttribute('title', 'перенесено 24.08, 14:30')
+    expect(screen.queryByText(/перенесено/)).not.toBeInTheDocument()
   })
 
   it('shows no reschedule mark when the booking was never rescheduled', () => {
     render(
       <ul>
         <BookingListItem
-          booking={booking({ rescheduledAt: null })}
+          booking={booking({ originalStartTime: null, originalEndTime: null, rescheduledAt: null })}
           client={client}
           master={master}
           service={service}
@@ -181,7 +190,7 @@ describe('BookingListItem', () => {
       </ul>,
     )
 
-    expect(screen.queryByText(/перенесено/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/перенес/)).not.toBeInTheDocument()
   })
 
   it('shows the service name in bold and the client name as plain text', () => {

@@ -160,6 +160,8 @@ describe('Notifications (e2e)', () => {
       source: BookingSource.ADMIN,
       createdAt: new Date(),
       rescheduledAt: null,
+      originalStartTime: null,
+      originalEndTime: null,
     });
     prisma.seedBooking({
       id: 'booking-salon-2',
@@ -173,6 +175,8 @@ describe('Notifications (e2e)', () => {
       source: BookingSource.ADMIN,
       createdAt: new Date(),
       rescheduledAt: null,
+      originalStartTime: null,
+      originalEndTime: null,
     });
 
     prisma.seedNotification({

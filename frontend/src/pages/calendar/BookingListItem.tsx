@@ -5,7 +5,7 @@ import {
   STATUS_ACTION_LABELS,
   STATUS_LABELS,
 } from './statusTransitions'
-import { formatRescheduledAt, formatTimeRange } from './dateUtils'
+import { formatOriginalTime, formatRescheduledAt, formatTimeRange } from './dateUtils'
 import type { Booking, BookingStatus } from '../../types/booking'
 import type { Client } from '../../types/client'
 import type { Master } from '../../types/staff'
@@ -52,6 +52,7 @@ export function BookingListItem({
   const statusActions = getAvailableStatusActions(booking.status, role)
   const showReschedule = canReschedule(booking.status, role)
   const isOwnBooking = role === 'MASTER' && booking.masterId === currentMasterId
+  const originalTimeLabel = formatOriginalTime(booking.originalStartTime, booking.originalEndTime)
   const rescheduledLabel = formatRescheduledAt(booking.rescheduledAt)
 
   return (
@@ -63,7 +64,11 @@ export function BookingListItem({
         <strong>{service?.name ?? 'Услуга не найдена'}</strong>
         <span>{client?.name ?? 'Клиент не найден'}</span>
         {!groupedByMaster && (isOwnBooking ? <span>Это вы</span> : master && <span>{master.name}</span>)}
-        {rescheduledLabel && <span className="booking-item-rescheduled">{rescheduledLabel}</span>}
+        {originalTimeLabel && (
+          <span className="booking-item-rescheduled" title={rescheduledLabel ?? undefined}>
+            {originalTimeLabel}
+          </span>
+        )}
       </div>
       <div className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
         {STATUS_LABELS[booking.status]}

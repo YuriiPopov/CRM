@@ -308,6 +308,8 @@ describe('Clients (e2e)', () => {
       source: BookingSource.ADMIN,
       createdAt: new Date(),
       rescheduledAt: null,
+      originalStartTime: null,
+      originalEndTime: null,
     });
     prisma.seedPayment({
       id: 'payment-a1',
@@ -343,6 +345,8 @@ describe('Clients (e2e)', () => {
       source: BookingSource.ADMIN,
       createdAt: new Date(),
       rescheduledAt: null,
+      originalStartTime: null,
+      originalEndTime: null,
     });
 
     prisma.seedClient({

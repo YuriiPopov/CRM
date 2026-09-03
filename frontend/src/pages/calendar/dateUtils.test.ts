@@ -1,4 +1,4 @@
-import { formatRescheduledAt, shiftIsoToDateOnly } from './dateUtils'
+import { formatOriginalTime, formatRescheduledAt, shiftIsoToDateOnly } from './dateUtils'
 
 describe('shiftIsoToDateOnly', () => {
   it('replaces the date while keeping the time of day', () => {
@@ -25,5 +25,21 @@ describe('formatRescheduledAt', () => {
 
   it('formats a reschedule timestamp as day.month, HH:mm', () => {
     expect(formatRescheduledAt('2026-08-24T14:30:00.000Z')).toBe('перенесено 24.08, 14:30')
+  })
+})
+
+describe('formatOriginalTime', () => {
+  it('returns null when the booking was never rescheduled', () => {
+    expect(formatOriginalTime(null, null)).toBeNull()
+  })
+
+  it('formats the original slot as day.month, HH:mm–HH:mm', () => {
+    expect(formatOriginalTime('2026-08-24T14:30:00.000Z', '2026-08-24T15:00:00.000Z')).toBe(
+      'перенесена с 24.08, 14:30–15:00',
+    )
+  })
+
+  it('falls back to the start time only when the original end time is missing', () => {
+    expect(formatOriginalTime('2026-08-24T14:30:00.000Z', null)).toBe('перенесена с 24.08, 14:30')
   })
 })

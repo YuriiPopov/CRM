@@ -19,6 +19,8 @@ function makeBooking(overrides: Partial<Booking>): Booking {
     source: 'ADMIN',
     createdAt: '2026-03-01T00:00:00.000Z',
     rescheduledAt: null,
+    originalStartTime: null,
+    originalEndTime: null,
     ...overrides,
   }
 }
@@ -96,16 +98,24 @@ describe('WeekTimelineView', () => {
     expect(grid.querySelectorAll('.dashboard-week-bar')).toHaveLength(1)
   })
 
-  it('marks a rescheduled booking\'s bar and mentions it in the tooltip', () => {
-    renderTimeline([makeBooking({ id: 'a', rescheduledAt: '2026-03-10T09:00:00.000Z' })])
+  it('marks a rescheduled booking\'s bar, showing the original time as the main detail and the reschedule moment as secondary in the tooltip', () => {
+    renderTimeline([
+      makeBooking({
+        id: 'a',
+        originalStartTime: '2026-03-10T08:00:00.000Z',
+        originalEndTime: '2026-03-10T08:30:00.000Z',
+        rescheduledAt: '2026-03-10T09:00:00.000Z',
+      }),
+    ])
     const grid = screen.getByRole('img', { name: /таймлайн загрузки мастеров по неделе/i })
     const bar = grid.querySelector('.dashboard-week-bar')!
     expect(bar).toHaveClass('dashboard-week-bar--rescheduled')
+    expect(bar).toHaveAttribute('title', expect.stringContaining('перенесена с'))
     expect(bar).toHaveAttribute('title', expect.stringContaining('перенесено'))
   })
 
   it('does not mark the bar for a booking that was never rescheduled', () => {
-    renderTimeline([makeBooking({ id: 'a', rescheduledAt: null })])
+    renderTimeline([makeBooking({ id: 'a', originalStartTime: null, originalEndTime: null, rescheduledAt: null })])
     const grid = screen.getByRole('img', { name: /таймлайн загрузки мастеров по неделе/i })
     const bar = grid.querySelector('.dashboard-week-bar')!
     expect(bar).not.toHaveClass('dashboard-week-bar--rescheduled')

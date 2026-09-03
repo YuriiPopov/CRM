@@ -51,6 +51,8 @@ function booking(overrides: Partial<Booking>): Booking {
     source: 'ADMIN',
     createdAt: '2026-03-01T00:00:00.000Z',
     rescheduledAt: null,
+    originalStartTime: null,
+    originalEndTime: null,
     ...overrides,
   }
 }
@@ -354,11 +356,15 @@ describe('BookingGridCard', () => {
     expect(onReschedule).toHaveBeenCalled()
   })
 
-  it('shows the reschedule mark when the booking was rescheduled', () => {
+  it('shows the original time as the main reschedule detail in the card body', () => {
     render(
       <ul>
         <BookingGridCard
-          booking={booking({ rescheduledAt: '2026-08-24T14:30:00.000Z' })}
+          booking={booking({
+            originalStartTime: '2026-08-24T13:00:00.000Z',
+            originalEndTime: '2026-08-24T13:30:00.000Z',
+            rescheduledAt: '2026-08-24T14:30:00.000Z',
+          })}
           client={client}
           master={master}
           service={service}
@@ -375,14 +381,43 @@ describe('BookingGridCard', () => {
       </ul>,
     )
 
-    expect(screen.getByText('перенесено 24.08, 14:30')).toBeInTheDocument()
+    expect(screen.getByText('перенесена с 24.08, 13:00–13:30')).toBeInTheDocument()
+    expect(screen.queryByText(/перенесено/)).not.toBeInTheDocument()
+  })
+
+  it('surfaces the reschedule moment as a secondary detail in the title tooltip', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({
+            originalStartTime: '2026-08-24T13:00:00.000Z',
+            originalEndTime: '2026-08-24T13:30:00.000Z',
+            rescheduledAt: '2026-08-24T14:30:00.000Z',
+          })}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByRole('listitem')).toHaveAttribute('title', expect.stringContaining('перенесено 24.08, 14:30'))
   })
 
   it('shows no reschedule mark when the booking was never rescheduled', () => {
     render(
       <ul>
         <BookingGridCard
-          booking={booking({ rescheduledAt: null })}
+          booking={booking({ originalStartTime: null, originalEndTime: null, rescheduledAt: null })}
           client={client}
           master={master}
           service={service}
@@ -399,6 +434,6 @@ describe('BookingGridCard', () => {
       </ul>,
     )
 
-    expect(screen.queryByText(/перенесено/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/перенес/)).not.toBeInTheDocument()
   })
 })
