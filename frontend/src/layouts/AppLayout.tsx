@@ -15,6 +15,7 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/services', label: 'Услуги' },
   { to: '/finance', label: 'Финансы' },
   { to: '/reports', label: 'Отчёты' },
+  { to: '/dashboard-settings', label: 'Видимость дашборда' },
 ]
 
 // Мастера/Услуги исключены для MASTER (Backlog п.5) — эти разделы полностью недоступны

@@ -8,6 +8,7 @@ import { listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { listMasterBlocks } from '../api/masterBlocks'
 import { getRevenueReport } from '../api/payments'
+import { getEffectiveDashboardWidgets } from '../api/dashboardSettings'
 import type { AuthenticatedUser } from '../types/auth'
 import type { Booking } from '../types/booking'
 import type { Client } from '../types/client'
@@ -23,6 +24,7 @@ vi.mock('../api/staff', () => ({ listStaff: vi.fn() }))
 vi.mock('../api/services', () => ({ listServices: vi.fn() }))
 vi.mock('../api/masterBlocks', () => ({ listMasterBlocks: vi.fn() }))
 vi.mock('../api/payments', () => ({ getRevenueReport: vi.fn() }))
+vi.mock('../api/dashboardSettings', () => ({ getEffectiveDashboardWidgets: vi.fn() }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListBookings = vi.mocked(listBookings)
@@ -31,6 +33,7 @@ const mockedListStaff = vi.mocked(listStaff)
 const mockedListServices = vi.mocked(listServices)
 const mockedListMasterBlocks = vi.mocked(listMasterBlocks)
 const mockedGetRevenueReport = vi.mocked(getRevenueReport)
+const mockedGetEffectiveDashboardWidgets = vi.mocked(getEffectiveDashboardWidgets)
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',
@@ -93,6 +96,16 @@ mockedListServices.mockResolvedValue([service])
 // listMasterBlocks (Backlog п.9/п.11) тоже грузится безусловно — пустой список по умолчанию,
 // чтобы существующие сценарии без блокировок не ломались.
 mockedListMasterBlocks.mockResolvedValue([])
+// Эффективная видимость виджетов — по умолчанию все видны, чтобы существующие сценарии
+// (написанные до появления настройки видимости) продолжали проверять полный набор секций;
+// частичные списки — только в отдельных тестах ниже (see 'hides widgets ...').
+mockedGetEffectiveDashboardWidgets.mockResolvedValue([
+  'today-bookings-summary',
+  'monthly-revenue',
+  'daily-timeline',
+  'weekly-timeline',
+  'upcoming-bookings',
+])
 
 function makeBooking(overrides: Partial<Booking>): Booking {
   return {
@@ -458,5 +471,38 @@ describe('DashboardPage', () => {
 
     const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     expect(within(timeline).getByText('Недоступен')).toBeInTheDocument()
+  })
+
+  it('renders only the widgets present in the effective visibility list', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1' })])
+    mockedListClients.mockResolvedValue([client])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+    mockedGetEffectiveDashboardWidgets.mockResolvedValue(['daily-timeline'])
+
+    renderPage()
+
+    await screen.findByRole('img', { name: /таймлайн активных записей/i })
+    expect(screen.queryByText('Записи сегодня')).not.toBeInTheDocument()
+    expect(screen.queryByText('Выручка за месяц')).not.toBeInTheDocument()
+    expect(screen.queryByText('Таймлайн на неделю')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ближайшие записи')).not.toBeInTheDocument()
+  })
+
+  it('hides every widget when the effective visibility list is empty', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1' })])
+    mockedListClients.mockResolvedValue([client])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+    mockedGetEffectiveDashboardWidgets.mockResolvedValue([])
+
+    renderPage()
+
+    await screen.findByText('Дашборд')
+    expect(screen.queryByText('Записи сегодня')).not.toBeInTheDocument()
+    expect(screen.queryByText('Выручка за месяц')).not.toBeInTheDocument()
+    expect(screen.queryByText('Таймлайн на сегодня')).not.toBeInTheDocument()
+    expect(screen.queryByText('Таймлайн на неделю')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ближайшие записи')).not.toBeInTheDocument()
   })
 })

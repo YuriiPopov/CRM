@@ -14,6 +14,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { FinancePage } from './pages/admin/FinancePage'
 import { ReportsPage } from './pages/admin/ReportsPage'
+import { DashboardSettingsPage } from './pages/admin/DashboardSettingsPage'
 
 // Отдельно от App/BrowserRouter, чтобы в тестах маршрутизацию можно было
 // прогнать под MemoryRouter с произвольным initialEntries.
@@ -49,6 +50,7 @@ export function AppRoutes() {
             <Route path="services" element={<ServicesPage />} />
             <Route path="finance" element={<FinancePage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="dashboard-settings" element={<DashboardSettingsPage />} />
           </Route>
         </Route>
       </Route>

@@ -53,15 +53,17 @@ model Salon {
   timezone  String   @default("Europe/Warsaw")
   createdAt DateTime @default(now())
 
-  clients           Client[]
-  masters           Master[]
-  services          Service[]
-  serviceCategories ServiceCategory[]
-  bookings          Booking[]
-  materials         Material[]
-  staffUsers        User[]
-  masterBlocks      MasterBlock[]
-  masterSchedules   MasterSchedule[]
+  clients                      Client[]
+  masters                      Master[]
+  services                     Service[]
+  serviceCategories            ServiceCategory[]
+  bookings                     Booking[]
+  materials                    Material[]
+  staffUsers                   User[]
+  masterBlocks                 MasterBlock[]
+  masterSchedules              MasterSchedule[]
+  dashboardWidgetRoleDefaults  DashboardWidgetRoleDefault[]
+  dashboardWidgetUserOverrides DashboardWidgetUserOverride[]
 
   @@map("salons")
 }
@@ -80,7 +82,8 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  createdMasterBlocks MasterBlock[] @relation("MasterBlockCreatedBy")
+  createdMasterBlocks      MasterBlock[]                 @relation("MasterBlockCreatedBy")
+  dashboardWidgetOverrides DashboardWidgetUserOverride[]
 
   @@map("users")
 }
@@ -98,8 +101,8 @@ model Client {
   consentWithdrawnAt DateTime?
   createdAt          DateTime  @default(now())
 
-  bookings          Booking[]
-  deletionRequests  DataDeletionRequest[]
+  bookings         Booking[]
+  deletionRequests DataDeletionRequest[]
 
   @@index([salonId])
   @@map("clients")
@@ -180,21 +183,21 @@ model MasterSpecialization {
 }
 
 model Booking {
-  id        String        @id @default(uuid())
-  salonId   String
-  salon     Salon         @relation(fields: [salonId], references: [id])
-  clientId  String
-  client    Client        @relation(fields: [clientId], references: [id])
-  masterId  String
-  master    Master        @relation(fields: [masterId], references: [id])
-  serviceId String
-  service   Service       @relation(fields: [serviceId], references: [id])
-  startTime DateTime
-  endTime   DateTime
-  status    BookingStatus @default(CREATED)
-  source    BookingSource @default(ADMIN)
-  createdAt DateTime      @default(now())
-  rescheduledAt DateTime?
+  id                String        @id @default(uuid())
+  salonId           String
+  salon             Salon         @relation(fields: [salonId], references: [id])
+  clientId          String
+  client            Client        @relation(fields: [clientId], references: [id])
+  masterId          String
+  master            Master        @relation(fields: [masterId], references: [id])
+  serviceId         String
+  service           Service       @relation(fields: [serviceId], references: [id])
+  startTime         DateTime
+  endTime           DateTime
+  status            BookingStatus @default(CREATED)
+  source            BookingSource @default(ADMIN)
+  createdAt         DateTime      @default(now())
+  rescheduledAt     DateTime?
   // Исходное время записи ДО первого переноса (Backlog item39) — заполняется один раз, при
   // первом reschedule(), текущими на тот момент startTime/endTime; последующие переносы его не
   // трогают (в отличие от rescheduledAt, которое обновляется на каждый перенос — см. item26).
@@ -263,11 +266,11 @@ model MasterSchedule {
 }
 
 model Payment {
-  id        String   @id @default(uuid())
-  bookingId String   @unique
-  booking   Booking  @relation(fields: [bookingId], references: [id])
-  amount    Decimal  @db.Decimal(10, 2)
-  discount  Decimal  @default(0) @db.Decimal(10, 2)
+  id        String    @id @default(uuid())
+  bookingId String    @unique
+  booking   Booking   @relation(fields: [bookingId], references: [id])
+  amount    Decimal   @db.Decimal(10, 2)
+  discount  Decimal   @default(0) @db.Decimal(10, 2)
   method    String
   status    String
   paidAt    DateTime?
@@ -276,12 +279,12 @@ model Payment {
 }
 
 model Material {
-  id            String   @id @default(uuid())
+  id            String  @id @default(uuid())
   salonId       String
-  salon         Salon    @relation(fields: [salonId], references: [id])
+  salon         Salon   @relation(fields: [salonId], references: [id])
   name          String
   unit          String
-  stockQuantity Decimal  @default(0) @db.Decimal(10, 2)
+  stockQuantity Decimal @default(0) @db.Decimal(10, 2)
 
   services ServiceMaterial[]
 
@@ -312,6 +315,41 @@ model Notification {
 
   @@index([bookingId])
   @@map("notifications")
+}
+
+// Видимость виджетов дашборда (Backlog: настройка видимости) — два уровня приоритета:
+// ролевой дефолт (per widget key, per role) и пользовательское переопределение (per widget
+// key, per userId), которое всегда выигрывает у дефолта. widgetKey — String, а не Prisma enum:
+// список виджетов задаётся константой в коде (DASHBOARD_WIDGET_KEYS), чтобы добавление нового
+// виджета не требовало миграции. Отсутствие строки в обеих моделях = дефолт visible=true
+// (см. DashboardSettingsService.getEffectiveWidgets) — не нужно засеивать все комбинации.
+model DashboardWidgetRoleDefault {
+  id        String   @id @default(uuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id])
+  role      Role
+  widgetKey String
+  visible   Boolean
+  updatedAt DateTime @updatedAt
+
+  @@unique([salonId, role, widgetKey])
+  @@index([salonId])
+  @@map("dashboard_widget_role_defaults")
+}
+
+model DashboardWidgetUserOverride {
+  id        String   @id @default(uuid())
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  widgetKey String
+  visible   Boolean
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, widgetKey])
+  @@index([salonId])
+  @@map("dashboard_widget_user_overrides")
 }
 
 // GDPR — право на удаление (см. ТЗ, раздел "Нефункциональные требования")

@@ -15,6 +15,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PublicBookingModule } from './public-booking/public-booking.module';
 import { MasterBlocksModule } from './master-blocks/master-blocks.module';
 import { MasterSchedulesModule } from './master-schedules/master-schedules.module';
+import { DashboardSettingsModule } from './dashboard-settings/dashboard-settings.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { MasterSchedulesModule } from './master-schedules/master-schedules.modul
     PublicBookingModule,
     MasterBlocksModule,
     MasterSchedulesModule,
+    DashboardSettingsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

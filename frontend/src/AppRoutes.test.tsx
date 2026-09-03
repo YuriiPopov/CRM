@@ -4,13 +4,26 @@ import { AppRoutes } from './AppRoutes'
 import { AuthProvider } from './auth/AuthContext'
 import { setStoredToken } from './api/client'
 import { fetchCurrentUser } from './api/auth'
+import { getEffectiveDashboardWidgets } from './api/dashboardSettings'
 
 vi.mock('./api/auth', () => ({
   login: vi.fn(),
   fetchCurrentUser: vi.fn(),
 }))
+// DashboardPage грузит его безусловно (см. DashboardPage.test.tsx) — без мока здесь запрос
+// уходил бы в реальную сеть (эта страница фигурирует в маршруте "/") и на 401 от бэкенда
+// разлогинивал бы пользователя через interceptor в api/client.ts, ломая редиректы ниже.
+vi.mock('./api/dashboardSettings', () => ({ getEffectiveDashboardWidgets: vi.fn() }))
 
 const mockedFetchCurrentUser = vi.mocked(fetchCurrentUser)
+const mockedGetEffectiveDashboardWidgets = vi.mocked(getEffectiveDashboardWidgets)
+mockedGetEffectiveDashboardWidgets.mockResolvedValue([
+  'today-bookings-summary',
+  'monthly-revenue',
+  'daily-timeline',
+  'weekly-timeline',
+  'upcoming-bookings',
+])
 
 function renderApp(initialPath: string) {
   return render(
