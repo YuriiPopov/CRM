@@ -8,7 +8,12 @@ import { listPayments } from '../api/payments'
 import { listMasterBlocks, deleteMasterBlock } from '../api/masterBlocks'
 import { getMasterSchedule } from '../api/masterSchedules'
 import { getApiErrorMessage } from '../api/errors'
-import { ALL_MASTERS, filterBookingsForDay, filterBookingsForRange } from './calendar/filterBookings'
+import {
+  ALL_MASTERS,
+  ALL_SERVICES,
+  filterBookingsForDay,
+  filterBookingsForRange,
+} from './calendar/filterBookings'
 import { filterBlocksForDay, filterBlocksForRange } from './calendar/filterBlocksForDay'
 import { groupBlocksByMaster } from './calendar/groupBlocksByMaster'
 import { groupBookingsByDay } from './calendar/groupBookingsByDay'
@@ -47,6 +52,7 @@ export function CalendarPage() {
 
   const [selectedDate, setSelectedDate] = useState(todayDateOnly)
   const [selectedMasterId, setSelectedMasterId] = useState<string>(ALL_MASTERS)
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(ALL_SERVICES)
   const [viewMode, setViewMode] = useState<'list' | 'byMaster' | 'week' | 'month'>('list')
   // Намеренно НЕ сбрасываем при смене даты — фильтр статуса/оплаты обычно листают вместе
   // с датами (например, "показывать только отменённые" при просмотре нескольких дней подряд).
@@ -135,6 +141,11 @@ export function CalendarPage() {
   // применяется при возврате к "Список"/"Неделя"/"Месяц" — без сброса самого selectedMasterId.
   const effectiveMasterFilter = isAdmin && viewMode !== 'byMaster' ? selectedMasterId : ALL_MASTERS
 
+  // В отличие от фильтра мастера, фильтр по услуге доступен и ADMIN, и MASTER, и остаётся
+  // применённым в режиме "По мастерам" — там он позволяет увидеть, у каких мастеров есть
+  // записи на конкретную услугу, а не только сузить до одного мастера.
+  const effectiveServiceFilter = selectedServiceId
+
   // Регулярный график работы мастера (Backlog item28, подзадача №35) — недельная/месячная сетка
   // умеет затемнять/блокировать нерабочие дни, только когда однозначно скоуплена на ОДНОГО
   // мастера: для MASTER это всегда его собственный masterId ("Моё расписание" — по определению
@@ -144,8 +155,8 @@ export function CalendarPage() {
     !isAdmin ? (user?.masterId ?? null) : selectedMasterId !== ALL_MASTERS ? selectedMasterId : null
 
   const dayBookings = useMemo(
-    () => filterBookingsForDay(bookings, selectedDate, effectiveMasterFilter),
-    [bookings, selectedDate, effectiveMasterFilter],
+    () => filterBookingsForDay(bookings, selectedDate, effectiveMasterFilter, effectiveServiceFilter),
+    [bookings, selectedDate, effectiveMasterFilter, effectiveServiceFilter],
   )
 
   const clientsById = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
@@ -239,8 +250,8 @@ export function CalendarPage() {
   }, [viewMode, selectedDate, masters])
 
   const rangeBookings = useMemo(
-    () => filterBookingsForRange(bookings, gridDates, effectiveMasterFilter),
-    [bookings, gridDates, effectiveMasterFilter],
+    () => filterBookingsForRange(bookings, gridDates, effectiveMasterFilter, effectiveServiceFilter),
+    [bookings, gridDates, effectiveMasterFilter, effectiveServiceFilter],
   )
   // Сетка обязана уважать те же фильтры статуса/оплаты, что и список — та же
   // filterBookingsByVisibility, без изменений.
@@ -417,6 +428,22 @@ export function CalendarPage() {
             </select>
           </label>
         )}
+
+        <label htmlFor="calendar-service-filter">
+          Услуга
+          <select
+            id="calendar-service-filter"
+            value={selectedServiceId}
+            onChange={(event) => setSelectedServiceId(event.target.value)}
+          >
+            <option value={ALL_SERVICES}>Все услуги</option>
+            {services.map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <button type="button" onClick={() => setCreateModalOpen(true)}>
           + Новая запись

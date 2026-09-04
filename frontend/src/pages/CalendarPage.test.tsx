@@ -126,6 +126,12 @@ const service: Service = {
   createdAt: '2026-01-01T00:00:00.000Z',
 }
 
+const serviceTwo: Service = {
+  ...service,
+  id: 'service-2',
+  name: 'Haircut',
+}
+
 const booking: Booking = {
   id: 'booking-1',
   salonId: 'salon-1',
@@ -244,6 +250,108 @@ describe('CalendarPage', () => {
     expect(await screen.findByText(/на эту дату записей нет/i)).toBeInTheDocument()
     expect(screen.queryByLabelText(/мастер/i)).not.toBeInTheDocument()
     expect(mockedListStaff).not.toHaveBeenCalled()
+  })
+
+  it('shows the service filter to ADMIN', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([])
+    mockedListClients.mockResolvedValue([])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service, serviceTwo])
+    mockedListPayments.mockResolvedValue([])
+
+    render(<CalendarPage />)
+
+    expect(await screen.findByLabelText(/^услуга$/i)).toBeInTheDocument()
+  })
+
+  it('shows the service filter to MASTER, unlike the master filter', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([])
+    mockedListClients.mockResolvedValue([])
+    mockedListServices.mockResolvedValue([service, serviceTwo])
+
+    render(<CalendarPage />)
+
+    expect(await screen.findByLabelText(/^услуга$/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^мастер$/i)).not.toBeInTheDocument()
+  })
+
+  it('narrows the list to bookings for the selected service, independently of the master filter', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    const bookingServiceTwo: Booking = { ...booking, id: 'booking-service-2', serviceId: 'service-2' }
+    mockedListBookings.mockResolvedValue([booking, bookingServiceTwo])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service, serviceTwo])
+    mockedListPayments.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findAllByText('Anna Client')
+
+    await user.selectOptions(screen.getByLabelText(/^услуга$/i), 'service-2')
+
+    const rows = screen.getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]).getByText('Haircut')).toBeInTheDocument()
+  })
+
+  it('combines the master and service filters with AND logic', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    // `booking` is master-1/service-1 (matches both filters below); these two each match only
+    // one of the two filters, so AND-combining master-1 + service-1 must exclude both of them.
+    const bookingMasterOneServiceTwo: Booking = {
+      ...booking,
+      id: 'booking-m1-s2',
+      masterId: 'master-1',
+      serviceId: 'service-2',
+    }
+    const bookingMasterTwoServiceOne: Booking = {
+      ...booking,
+      id: 'booking-m2-s1',
+      masterId: 'master-2',
+      serviceId: 'service-1',
+    }
+    mockedListBookings.mockResolvedValue([booking, bookingMasterOneServiceTwo, bookingMasterTwoServiceOne])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master, masterTwo])
+    mockedListServices.mockResolvedValue([service, serviceTwo])
+    mockedListPayments.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findAllByText('Anna Client')
+
+    await user.selectOptions(screen.getByLabelText(/^мастер$/i), 'master-1')
+    await user.selectOptions(screen.getByLabelText(/^услуга$/i), 'service-1')
+
+    const rows = screen.getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]).getByText('Massage')).toBeInTheDocument()
+  })
+
+  it('lets MASTER narrow their own (already server-scoped) bookings by service', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    // Server already scopes GET /bookings to this master's own bookings — no masterId filtering
+    // happens client-side for MASTER, only the service narrowing under test here.
+    const ownBookingServiceTwo: Booking = { ...booking, id: 'booking-own-s2', serviceId: 'service-2' }
+    mockedListBookings.mockResolvedValue([booking, ownBookingServiceTwo])
+    mockedListClients.mockResolvedValue([client])
+    mockedListServices.mockResolvedValue([service, serviceTwo])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findAllByText('Anna Client')
+
+    await user.selectOptions(screen.getByLabelText(/^услуга$/i), 'service-2')
+
+    const rows = screen.getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]).getByText('Haircut')).toBeInTheDocument()
   })
 
   it('shows a friendly message and leaves the booking unchanged when a status change is rejected (409)', async () => {
@@ -476,6 +584,43 @@ describe('CalendarPage', () => {
     expect(within(rows[0]).getByText('Master Two')).toBeInTheDocument()
   })
 
+  it('applies the service filter in "По мастерам" mode too, unlike the master filter', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    const bookingMasterOneServiceTwo: Booking = {
+      ...booking,
+      id: 'booking-m1-s2',
+      masterId: 'master-1',
+      serviceId: 'service-2',
+    }
+    const bookingMasterTwoServiceOne: Booking = {
+      ...booking,
+      id: 'booking-m2-s1',
+      masterId: 'master-2',
+      serviceId: 'service-1',
+    }
+    mockedListBookings.mockResolvedValue([booking, bookingMasterOneServiceTwo, bookingMasterTwoServiceOne])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master, masterTwo])
+    mockedListServices.mockResolvedValue([service, serviceTwo])
+    mockedListPayments.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findAllByText('Anna Client')
+
+    await user.click(screen.getByRole('button', { name: /по мастерам/i }))
+    await user.selectOptions(screen.getByLabelText(/^услуга$/i), 'service-1')
+
+    const masterOneColumn = screen.getByRole('heading', { name: 'Master One' }).closest<HTMLElement>('.master-column')!
+    expect(within(masterOneColumn).getAllByRole('listitem')).toHaveLength(1)
+    expect(within(masterOneColumn).getByText('Massage')).toBeInTheDocument()
+
+    const masterTwoColumn = screen.getByRole('heading', { name: 'Master Two' }).closest<HTMLElement>('.master-column')!
+    expect(within(masterTwoColumn).getAllByRole('listitem')).toHaveLength(1)
+    expect(within(masterTwoColumn).getByText('Massage')).toBeInTheDocument()
+  })
+
   it('unchecking a status hides bookings with that status, and re-checking it shows them again', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     const cancelledBooking: Booking = { ...booking, id: 'booking-cancelled', status: 'CANCELLED' }
@@ -622,9 +767,9 @@ describe('CalendarPage', () => {
     await selectDate('2026-03-10')
     await user.click(screen.getByRole('button', { name: /^неделя$/i }))
 
-    // "Master One" also appears as a <option> in the "Мастер" filter select, so scope the
-    // lookup to the grid cell (see CalendarGridView's data-date attribute).
-    const cell = (await screen.findByText('Massage')).closest('[data-date]')!
+    // "Massage" also appears as an <option> in the "Услуга" filter select, so restrict the
+    // match to the <strong> the grid card renders it in (see BookingGridCard).
+    const cell = (await screen.findByText('Massage', { selector: 'strong' })).closest('[data-date]')!
     expect(within(cell as HTMLElement).getByText('Master One')).toBeInTheDocument()
     expect(within(cell as HTMLElement).queryByText('Anna Client')).not.toBeInTheDocument()
     unmount()
@@ -659,8 +804,9 @@ describe('CalendarPage', () => {
     await selectDate('2026-03-10')
     await user.click(screen.getByRole('button', { name: /^неделя$/i }))
 
-    // ADMIN card body shows service/master, not the client (see BookingGridCard).
-    const card = (await screen.findByText('Massage')).closest('li')!
+    // ADMIN card body shows service/master, not the client (see BookingGridCard). "Massage"
+    // also appears as an <option> in the "Услуга" filter select, so restrict to the <strong>.
+    const card = (await screen.findByText('Massage', { selector: 'strong' })).closest('li')!
     const targetCell = document.querySelector('[data-date="2026-03-12"]')!
     const dataTransfer = makeDataTransfer()
 
@@ -692,8 +838,9 @@ describe('CalendarPage', () => {
     await selectDate('2026-03-10')
     await user.click(screen.getByRole('button', { name: /^неделя$/i }))
 
-    // ADMIN card body shows service/master, not the client (see BookingGridCard).
-    const card = (await screen.findByText('Massage')).closest('li')!
+    // ADMIN card body shows service/master, not the client (see BookingGridCard). "Massage"
+    // also appears as an <option> in the "Услуга" filter select, so restrict to the <strong>.
+    const card = (await screen.findByText('Massage', { selector: 'strong' })).closest('li')!
     const sourceCell = document.querySelector('[data-date="2026-03-10"]')!
     const targetCell = document.querySelector('[data-date="2026-03-12"]')!
     const dataTransfer = makeDataTransfer()
@@ -767,8 +914,9 @@ describe('CalendarPage', () => {
       const otherCell = document.querySelector('[data-date="2026-03-12"]')!
       expect(otherCell.className).not.toContain('calendar-grid-cell--schedule-blocked')
 
-      // Перенос на заблокированный день не должен даже вызывать rescheduleBooking.
-      const card = await screen.findByText('Massage')
+      // Перенос на заблокированный день не должен даже вызывать rescheduleBooking. "Massage"
+      // also appears as an <option> in the "Услуга" filter select, so restrict to the <strong>.
+      const card = await screen.findByText('Massage', { selector: 'strong' })
       const dataTransfer = makeDataTransfer()
       fireEvent.dragStart(card.closest('li')!, { dataTransfer })
       fireEvent.dragOver(blockedCell, { dataTransfer })

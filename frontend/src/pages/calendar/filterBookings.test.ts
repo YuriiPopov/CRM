@@ -1,4 +1,4 @@
-import { filterBookingsForDay, filterBookingsForRange } from './filterBookings'
+import { ALL_MASTERS, ALL_SERVICES, filterBookingsForDay, filterBookingsForRange } from './filterBookings'
 import type { Booking } from '../../types/booking'
 
 function makeBooking(overrides: Partial<Booking>): Booking {
@@ -25,18 +25,21 @@ describe('filterBookingsForDay', () => {
     makeBooking({
       id: 'b-early',
       masterId: 'master-1',
+      serviceId: 'service-1',
       startTime: '2026-03-10T09:00:00.000Z',
       endTime: '2026-03-10T09:30:00.000Z',
     }),
     makeBooking({
       id: 'b-late',
       masterId: 'master-2',
+      serviceId: 'service-2',
       startTime: '2026-03-10T14:00:00.000Z',
       endTime: '2026-03-10T14:30:00.000Z',
     }),
     makeBooking({
       id: 'b-other-day',
       masterId: 'master-1',
+      serviceId: 'service-1',
       startTime: '2026-03-11T09:00:00.000Z',
       endTime: '2026-03-11T09:30:00.000Z',
     }),
@@ -66,6 +69,21 @@ describe('filterBookingsForDay', () => {
     const result = filterBookingsForDay(bookings, '2026-03-10', 'all')
     expect(result.map((b) => b.id)).toEqual(['b-early', 'b-late'])
   })
+
+  it('further narrows to a single service when serviceId is given', () => {
+    const result = filterBookingsForDay(bookings, '2026-03-10', ALL_MASTERS, 'service-2')
+    expect(result.map((b) => b.id)).toEqual(['b-late'])
+  })
+
+  it('returns every service when serviceId is "all" (default)', () => {
+    const result = filterBookingsForDay(bookings, '2026-03-10', ALL_MASTERS, ALL_SERVICES)
+    expect(result.map((b) => b.id)).toEqual(['b-early', 'b-late'])
+  })
+
+  it('combines master and service filters with AND logic', () => {
+    const result = filterBookingsForDay(bookings, '2026-03-10', 'master-1', 'service-2')
+    expect(result).toEqual([])
+  })
 })
 
 describe('filterBookingsForRange', () => {
@@ -79,6 +97,7 @@ describe('filterBookingsForRange', () => {
     makeBooking({
       id: 'b-day2-early',
       masterId: 'master-2',
+      serviceId: 'service-2',
       startTime: '2026-03-10T09:00:00.000Z',
       endTime: '2026-03-10T09:30:00.000Z',
     }),
@@ -115,5 +134,15 @@ describe('filterBookingsForRange', () => {
   it('further narrows to a single master when masterId is given', () => {
     const result = filterBookingsForRange(bookings, dates, 'master-1')
     expect(result.map((b) => b.id)).toEqual(['b-day1', 'b-day2-late'])
+  })
+
+  it('further narrows to a single service when serviceId is given', () => {
+    const result = filterBookingsForRange(bookings, dates, ALL_MASTERS, 'service-2')
+    expect(result.map((b) => b.id)).toEqual(['b-day2-early'])
+  })
+
+  it('combines master and service filters with AND logic', () => {
+    const result = filterBookingsForRange(bookings, dates, 'master-1', 'service-2')
+    expect(result).toEqual([])
   })
 })
