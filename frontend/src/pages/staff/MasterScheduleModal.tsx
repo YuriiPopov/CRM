@@ -28,6 +28,12 @@ import type { Booking } from '../../types/booking'
 const WEEKDAY_HEADERS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const UNSET_STATE: ScheduleDayState = { status: 'unset', startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME }
 
+// item53 — в попапе неразмеченный день показывается предвыбранным как рабочий (09:00–19:00),
+// как будто админ уже нажал "Рабочий", хотя dayStates для него остаётся 'unset' до "Сохранить".
+function toDisplayState(state: ScheduleDayState): ScheduleDayState {
+  return state.status === 'unset' ? { ...state, status: 'working' } : state
+}
+
 // item52 — часы работы салона (те же 09:00–19:00, что и TIMELINE_START_HOUR/TIMELINE_END_HOUR
 // в dashboard/timeline.ts), чтобы admin не мог указать время вне часов салона в графике мастера.
 const SALON_OPEN_TIME = `${String(TIMELINE_START_HOUR).padStart(2, '0')}:00`
@@ -78,6 +84,11 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
   // Дата, для которой сейчас открыт попап с переключателями "Рабочий"/"Выходной" и часами
   // (item38) — null, когда попап закрыт. Ячейки соседних месяцев сюда никогда не попадают.
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  // item53 — даты, чей попап админ открывал, пока день был 'unset' (см. toDisplayState) — такие
+  // дни визуально уже показаны рабочими, поэтому должны сохраниться как рабочие 09:00–19:00, даже
+  // если админ явно не нажимал "Рабочий" (см. effectiveDayStates). dayStates при этом не трогается:
+  // сетка продолжает показывать такие дни нейтральными, пока не нажато "Сохранить".
+  const [viewedUnsetDates, setViewedUnsetDates] = useState<Set<string>>(new Set())
 
   const gridDays = useMemo(
     () => getMonthGridDays(`${year}-${String(month).padStart(2, '0')}-01`),
@@ -98,6 +109,7 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
     setLoadError(null)
     setConflicts(null)
     setSelectedDate(null)
+    setViewedUnsetDates(new Set())
 
     getMasterSchedule(master.id, year, month)
       .then((records) => {
@@ -150,10 +162,38 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
     })
   }
 
-  const days = useMemo(() => buildUpsertDays(dayStates), [dayStates])
-  const selectedState = selectedDate ? dayStates.get(selectedDate) ?? UNSET_STATE : null
+  // item53 — дни из viewedUnsetDates, всё ещё 'unset' в dayStates, попадают в сохранение как
+  // рабочие 09:00–19:00 (или отредактированными часами, если админ успел их поменять в попапе) —
+  // так же, как они уже показаны в попапе (см. toDisplayState). Явно переключённые в "Выходной"
+  // дни сюда не попадают: их статус в dayStates уже не 'unset'.
+  const effectiveDayStates = useMemo(() => {
+    if (viewedUnsetDates.size === 0) return dayStates
+    const next = new Map(dayStates)
+    for (const date of viewedUnsetDates) {
+      const current = next.get(date)
+      if (current?.status === 'unset') next.set(date, toDisplayState(current))
+    }
+    return next
+  }, [dayStates, viewedUnsetDates])
+
+  const days = useMemo(() => buildUpsertDays(effectiveDayStates), [effectiveDayStates])
+  const selectedState = selectedDate ? toDisplayState(dayStates.get(selectedDate) ?? UNSET_STATE) : null
   const hasUnresolvedConflicts = (conflicts?.length ?? 0) > 0
   const canSave = days.length > 0 && !saving && !loading && !hasUnresolvedConflicts
+
+  // item53 — открытие попапа для ещё не размеченного дня "запоминает", что админ его видел
+  // предвыбранным рабочим (см. viewedUnsetDates/effectiveDayStates); сам dayStates не меняется.
+  const openDayPopover = (date: string) => {
+    if (selectedDate === date) {
+      setSelectedDate(null)
+      return
+    }
+    setSelectedDate(date)
+    if ((dayStates.get(date)?.status ?? 'unset') === 'unset' && !viewedUnsetDates.has(date)) {
+      setConflicts(null)
+      setViewedUnsetDates((prev) => new Set(prev).add(date))
+    }
+  }
 
   // Перед сохранением графика всегда сперва спрашиваем /master-schedules/conflicts. Если что-то
   // нашлось — сохранение блокируется (см. canSave), пока по каждой конфликтующей записи не будет
@@ -261,7 +301,7 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  onClick={() => setSelectedDate((prev) => (prev === day.date ? null : day.date))}
+                  onClick={() => openDayPopover(day.date)}
                 >
                   <span className="master-schedule-grid-cell-number">{dayNumber}</span>
                   {state.status === 'working' && (

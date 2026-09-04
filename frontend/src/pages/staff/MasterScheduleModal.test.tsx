@@ -180,7 +180,45 @@ describe('MasterScheduleModal', () => {
     expect(screen.queryByRole('dialog', { name: /настройки дня/i })).not.toBeInTheDocument()
   })
 
-  it('opens a popover with controls on cell click, and the toggles/hours in it reflect that day', async () => {
+  // item53 — предвыбор "Рабочий" в попапе действует только для ещё не размеченных ('unset')
+  // дней; уже размеченные дни (working/off) должны открываться так же, как и раньше.
+  it('opens already-marked working/off days reflecting their actual state, unaffected by the unset pre-selection', async () => {
+    mockedGetMasterSchedule.mockResolvedValue([
+      scheduleRecord({
+        date: `${currentMonthDates[1]}T00:00:00.000Z`,
+        isWorking: true,
+        startTime: '10:00',
+        endTime: '17:00',
+      }),
+      scheduleRecord({
+        date: `${currentMonthDates[2]}T00:00:00.000Z`,
+        isWorking: false,
+        startTime: null,
+        endTime: null,
+      }),
+    ])
+    const user = userEvent.setup()
+
+    renderModal()
+    await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+
+    await user.click(getDayCell(2))
+    const workingPopover = getDayPopover()
+    expect(within(workingPopover).getByRole('button', { name: 'Рабочий' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(workingPopover).getByLabelText('С')).toHaveValue('10:00')
+    expect(within(workingPopover).getByLabelText('До')).toHaveValue('17:00')
+    await user.click(getDayCell(2))
+
+    await user.click(getDayCell(3))
+    const offPopover = getDayPopover()
+    expect(within(offPopover).getByRole('button', { name: 'Рабочий' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(offPopover).getByRole('button', { name: 'Выходной' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(offPopover).queryByLabelText('С')).not.toBeInTheDocument()
+  })
+
+  // item53 — неразмеченный день открывается в попапе визуально предвыбранным как рабочий
+  // (09:00–19:00), как будто админ уже нажал "Рабочий", хотя сам он этого не делал.
+  it('opens a popover for an unset day pre-selected as working with default hours', async () => {
     mockedGetMasterSchedule.mockResolvedValue([])
     const user = userEvent.setup()
 
@@ -189,13 +227,48 @@ describe('MasterScheduleModal', () => {
 
     await user.click(getDayCell(1))
     const popover = getDayPopover()
-    expect(within(popover).getByRole('button', { name: 'Рабочий' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(popover).getByRole('button', { name: 'Рабочий' })).toHaveAttribute('aria-pressed', 'true')
     expect(within(popover).getByRole('button', { name: 'Выходной' })).toHaveAttribute('aria-pressed', 'false')
-    expect(within(popover).queryByLabelText('С')).not.toBeInTheDocument()
+    expect(within(popover).getByLabelText('С')).toHaveValue('09:00')
+    expect(within(popover).getByLabelText('До')).toHaveValue('19:00')
+    // Само по себе открытие попапа ещё не переводит день в "рабочий" в сетке — это происходит
+    // только при сохранении (см. тест ниже).
+    expect(getDayCell(1)).toHaveClass('master-schedule-grid-cell--unset')
 
     // Клик по той же ячейке снова закрывает попап.
     await user.click(getDayCell(1))
     expect(screen.queryByRole('dialog', { name: /настройки дня/i })).not.toBeInTheDocument()
+  })
+
+  // item53 — если админ открыл попап неразмеченного дня и закрыл его (или всю модалку) без
+  // явного переключения, при сохранении графика день всё равно уходит рабочим 09:00–19:00 —
+  // так же, как он уже был показан в попапе.
+  it('saves a viewed-but-untouched unset day as working with default hours', async () => {
+    mockedGetMasterSchedule.mockResolvedValue([])
+    mockedFindConflicts.mockResolvedValue([])
+    mockedUpsertMasterSchedule.mockResolvedValue([])
+    const user = userEvent.setup()
+
+    renderModal()
+    await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+
+    await user.click(getDayCell(1))
+    // Закрываем попап, ничего не трогая.
+    await user.click(getDayCell(1))
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    const expectedPayload = {
+      masterId: 'master-1',
+      year: currentYear,
+      month: currentMonth,
+      days: [{ date: currentMonthDates[0], isWorking: true, startTime: '09:00', endTime: '19:00' }],
+    }
+
+    await waitFor(() => {
+      expect(mockedFindConflicts).toHaveBeenCalledWith(expectedPayload)
+    })
+    expect(mockedUpsertMasterSchedule).toHaveBeenCalledWith(expectedPayload)
   })
 
   it('marks a day as off when the toggle is clicked, and saves it directly when there are no conflicts', async () => {
@@ -247,7 +320,7 @@ describe('MasterScheduleModal', () => {
 
     expect(startInput).toHaveValue('11:00')
     expect(getDayCell(1)).toHaveClass('master-schedule-grid-cell--working')
-    expect(within(getDayCell(1)).getByText('11:00–18:00')).toBeInTheDocument()
+    expect(within(getDayCell(1)).getByText('11:00–19:00')).toBeInTheDocument()
   })
 
   // item52 — часы работы салона (09:00–19:00): ограничение через min/max нативного пикера плюс

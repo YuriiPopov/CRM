@@ -1,9 +1,13 @@
 import { toDateOnly } from '../calendar/dateUtils'
+import { TIMELINE_END_HOUR, TIMELINE_START_HOUR } from '../dashboard/timeline'
 import type { MasterScheduleDayInput } from '../../api/masterSchedules'
 import type { MasterScheduleRecord } from '../../types/masterSchedule'
 
-export const DEFAULT_START_TIME = '09:00'
-export const DEFAULT_END_TIME = '18:00'
+// Часы работы салона (см. TIMELINE_START_HOUR/TIMELINE_END_HOUR в dashboard/timeline.ts, те же
+// часы, что и SALON_OPEN_TIME/SALON_CLOSE_TIME в MasterScheduleModal.tsx — item52) — дефолтное
+// время для дня, отмеченного рабочим без явно указанных часов (item53).
+export const DEFAULT_START_TIME = `${String(TIMELINE_START_HOUR).padStart(2, '0')}:00`
+export const DEFAULT_END_TIME = `${String(TIMELINE_END_HOUR).padStart(2, '0')}:00`
 
 // 'unset' = день ещё не размечен администратором (записи в MasterSchedule нет вовсе) — нейтральное
 // состояние, отличное от 'off' (явно отмеченный выходной). См. MasterScheduleRecord.
