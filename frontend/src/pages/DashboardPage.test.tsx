@@ -291,12 +291,47 @@ describe('DashboardPage', () => {
 
     const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     const rowLabels = timeline.querySelectorAll('.dashboard-timeline-row-label')
-    expect(Array.from(rowLabels).map((label) => label.textContent)).toEqual(['Master One', 'Master Two'])
+    expect(Array.from(rowLabels).map((label) => label.querySelector('.dashboard-timeline-row-label-name')!.textContent)).toEqual([
+      'Master One',
+      'Master Two',
+    ])
+    // Аватар мастера (item45) — по одному на строку, с заглушкой-инициалами (фото не задано)
+    expect(Array.from(rowLabels).map((label) => label.querySelector('.dashboard-timeline-row-avatar')!.textContent)).toEqual([
+      'MO',
+      'MT',
+    ])
 
     // Каждая запись — в своей строке
     const rows = timeline.querySelectorAll('.dashboard-timeline-row')
     expect(within(rows[0] as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
     expect(within(rows[1] as HTMLElement).getByText('Boris Client')).toBeInTheDocument()
+  })
+
+  it('truncates a timeline row label longer than 12 characters, keeping the full name in the title', async () => {
+    const longNameMaster: Master = { ...master, name: 'Александра Иванова' }
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1' })])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([longNameMaster])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
+    const nameEl = timeline.querySelector('.dashboard-timeline-row-label-name')!
+    expect(nameEl.textContent).toBe('Александра И…')
+    expect(nameEl).toHaveAttribute('title', 'Александра Иванова')
+  })
+
+  it('does not render a master avatar in the timeline row label for MASTER', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1' })])
+    mockedListClients.mockResolvedValue([client])
+
+    renderPage()
+
+    const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
+    expect(timeline.querySelector('.dashboard-timeline-row-avatar')).not.toBeInTheDocument()
   })
 
   it('marks a rescheduled booking\'s timeline block, showing the original time as the main detail and the reschedule moment as secondary in the tooltip', async () => {

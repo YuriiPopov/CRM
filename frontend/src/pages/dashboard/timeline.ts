@@ -92,6 +92,18 @@ export interface TimelineRow {
   unavailableBlocks: TimelineUnavailableBlock[]
 }
 
+// Ширина подписи в строке таймлайна дашборда фиксирована (см. .dashboard-timeline-row-label
+// в App.css), поэтому имя усекается по числу символов, а не через CSS text-overflow — так
+// результат не зависит от фактической ширины конкретных глифов и все строки таймлайна
+// начинаются с одного и того же места независимо от длины имени мастера (item45).
+export const TIMELINE_MASTER_NAME_MAX_LENGTH = 12
+
+export function truncateMasterName(name: string): string {
+  return name.length > TIMELINE_MASTER_NAME_MAX_LENGTH
+    ? `${name.slice(0, TIMELINE_MASTER_NAME_MAX_LENGTH)}…`
+    : name
+}
+
 // Одна строка на каждого мастера, у которого сегодня есть хотя бы одна запись ИЛИ блокировка
 // времени (Backlog п.9/п.11) — в отличие от groupBookingsByMaster (Календарь, режим "По мастерам"),
 // НЕ создаёт пустых строк для мастеров без записей и без блокировок: для компактного таймлайна

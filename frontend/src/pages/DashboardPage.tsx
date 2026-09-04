@@ -17,10 +17,12 @@ import {
   groupTimelineBlocksByMaster,
   TIMELINE_END_HOUR,
   TIMELINE_START_HOUR,
+  truncateMasterName,
 } from './dashboard/timeline'
 import { getMasterColor } from './dashboard/masterColor'
 import { WeekTimelineView } from './dashboard/WeekTimelineView'
 import { masterBlockCreatedByLabel } from './calendar/masterBlockCreatedBy'
+import { MasterAvatar } from '../components/MasterAvatar'
 import type { Booking, BookingStatus } from '../types/booking'
 import type { Client } from '../types/client'
 import type { Master } from '../types/staff'
@@ -201,7 +203,15 @@ export function DashboardPage() {
                   <div key={row.masterId} className="dashboard-timeline-row">
                     {isAdmin && (
                       <div className="dashboard-timeline-row-label" style={{ color: getMasterColor(row.masterId) }}>
-                        {row.masterName}
+                        {mastersById.get(row.masterId) && (
+                          <MasterAvatar
+                            master={mastersById.get(row.masterId)!}
+                            className="dashboard-timeline-row-avatar"
+                          />
+                        )}
+                        <span className="dashboard-timeline-row-label-name" title={row.masterName}>
+                          {truncateMasterName(row.masterName)}
+                        </span>
                       </div>
                     )}
                     <div className="dashboard-timeline-track">

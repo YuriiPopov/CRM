@@ -892,14 +892,38 @@
   margin-bottom: 4px;
 }
 
+/* Ширина фиксирована (item45) — с запасом под аватар (26px) + имя, усечённое в JS до 12
+   символов (см. truncateMasterName в timeline.ts), чтобы дорожки всех строк начинались
+   с одного и того же места независимо от длины имени мастера. */
 .dashboard-timeline-row-label,
 .dashboard-timeline-label-spacer {
-  flex: 0 0 110px;
+  flex: 0 0 150px;
   font-size: 13px;
   font-weight: 600;
-  white-space: nowrap;
+}
+
+/* Аватар мастера слева, имя рядом справа (item45). */
+.dashboard-timeline-row-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Имя уже усечено в JS до 12 символов (truncateMasterName) — overflow/ellipsis здесь только
+   подстраховка на случай очень широких глифов, а не основной механизм усечения. */
+.dashboard-timeline-row-label-name {
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Аватар мастера в строке таймлайна «На сегодня» на дашборде (item45), тот же размер,
+   что и увеличенный .booking-grid-card-avatar (item44). Виден только ADMIN. */
+.dashboard-timeline-row-avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+  flex-shrink: 0;
 }
 
 .dashboard-timeline-hours-track,

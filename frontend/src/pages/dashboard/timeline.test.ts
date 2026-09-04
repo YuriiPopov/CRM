@@ -5,6 +5,7 @@ import {
   layoutMasterBlocksOnTimeline,
   TIMELINE_END_HOUR,
   TIMELINE_START_HOUR,
+  truncateMasterName,
 } from './timeline'
 import type { Booking, BookingStatus } from '../../types/booking'
 import type { Master } from '../../types/staff'
@@ -253,5 +254,16 @@ describe('layoutMasterBlocksOnTimeline', () => {
     const blockB = makeMasterBlock({ id: 'b', startTime: '2026-03-10T09:00:00.000Z', endTime: '2026-03-10T09:30:00.000Z' })
     const layouts = layoutMasterBlocksOnTimeline([blockA, blockB])
     expect(layouts.map((layout) => layout.block.id)).toEqual(['a', 'b'])
+  })
+})
+
+describe('truncateMasterName', () => {
+  it('leaves a name of 12 characters or fewer unchanged', () => {
+    expect(truncateMasterName('Anna Client')).toBe('Anna Client')
+    expect(truncateMasterName('Александра И')).toBe('Александра И')
+  })
+
+  it('cuts a name longer than 12 characters down to 12 plus an ellipsis', () => {
+    expect(truncateMasterName('Александра Иванова')).toBe('Александра И…')
   })
 })
