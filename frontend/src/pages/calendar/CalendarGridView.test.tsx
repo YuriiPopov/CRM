@@ -102,6 +102,7 @@ describe('CalendarGridView', () => {
         currentMasterId={null}
         canDragReschedule
         blockedDates={new Set()}
+        partialAvailabilityByDate={new Map()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}
@@ -125,6 +126,7 @@ describe('CalendarGridView', () => {
         currentMasterId={null}
         canDragReschedule
         blockedDates={new Set()}
+        partialAvailabilityByDate={new Map()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}
@@ -152,6 +154,7 @@ describe('CalendarGridView', () => {
         currentMasterId={null}
         canDragReschedule
         blockedDates={new Set()}
+        partialAvailabilityByDate={new Map()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}
@@ -181,6 +184,7 @@ describe('CalendarGridView', () => {
         currentMasterId={null}
         canDragReschedule
         blockedDates={new Set()}
+        partialAvailabilityByDate={new Map()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}
@@ -213,6 +217,7 @@ describe('CalendarGridView', () => {
         currentMasterId={null}
         canDragReschedule
         blockedDates={new Set()}
+        partialAvailabilityByDate={new Map()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={onDropBooking}
@@ -250,6 +255,7 @@ describe('CalendarGridView', () => {
         currentMasterId={null}
         canDragReschedule
         blockedDates={new Set()}
+        partialAvailabilityByDate={new Map()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={onDropBooking}
@@ -287,6 +293,7 @@ describe('CalendarGridView', () => {
         currentMasterId="master-1"
         canDragReschedule={false}
         blockedDates={new Set()}
+        partialAvailabilityByDate={new Map()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={onDropBooking}
@@ -323,6 +330,7 @@ describe('CalendarGridView', () => {
           currentMasterId={null}
           canDragReschedule
           blockedDates={new Set(['2026-03-11'])}
+          partialAvailabilityByDate={new Map()}
           busyBookingId={null}
           onReschedule={noop}
           onDropBooking={noop}
@@ -350,6 +358,7 @@ describe('CalendarGridView', () => {
           currentMasterId={null}
           canDragReschedule
           blockedDates={new Set()}
+          partialAvailabilityByDate={new Map()}
           busyBookingId={null}
           onReschedule={noop}
           onDropBooking={noop}
@@ -381,6 +390,7 @@ describe('CalendarGridView', () => {
           currentMasterId={null}
           canDragReschedule
           blockedDates={new Set(['2026-03-11'])}
+          partialAvailabilityByDate={new Map()}
           busyBookingId={null}
           onReschedule={noop}
           onDropBooking={onDropBooking}
@@ -396,6 +406,103 @@ describe('CalendarGridView', () => {
       fireEvent.drop(blockedCell, { dataTransfer })
 
       expect(onDropBooking).not.toHaveBeenCalled()
+    })
+  })
+
+  // item49 — часы дня вне startTime–endTime графика мастера, для дней isWorking: true.
+  describe('partial availability overlay', () => {
+    it('renders top and bottom unavailable overlays sized to the hours outside startTime–endTime', () => {
+      const days = getWeekGridDays('2026-03-12')
+
+      render(
+        <CalendarGridView
+          days={days}
+          layout="week"
+          bookingsByDay={new Map()}
+          blocksByDay={new Map()}
+          clientsById={new Map()}
+          mastersById={new Map()}
+          servicesById={new Map()}
+          paidBookingIds={new Set()}
+          role="ADMIN"
+          currentMasterId={null}
+          canDragReschedule
+          blockedDates={new Set()}
+          partialAvailabilityByDate={new Map([['2026-03-11', { startTime: '14:00', endTime: '20:00' }]])}
+          busyBookingId={null}
+          onReschedule={noop}
+          onDropBooking={noop}
+        />,
+      )
+
+      const cell = getCell('2026-03-11')
+      const top = cell.querySelector('.calendar-grid-cell-unavailable--top') as HTMLElement
+      const bottom = cell.querySelector('.calendar-grid-cell-unavailable--bottom') as HTMLElement
+
+      expect(top).toBeInTheDocument()
+      expect(top.style.height).toBe(`${(14 / 24) * 100}%`)
+      expect(bottom).toBeInTheDocument()
+      expect(bottom.style.height).toBe(`${(4 / 24) * 100}%`)
+
+      expect(getCell('2026-03-12').querySelector('.calendar-grid-cell-unavailable--top')).not.toBeInTheDocument()
+    })
+
+    it('renders no overlay for a fully working day with no schedule restriction', () => {
+      const days = getWeekGridDays('2026-03-12')
+
+      render(
+        <CalendarGridView
+          days={days}
+          layout="week"
+          bookingsByDay={new Map()}
+          blocksByDay={new Map()}
+          clientsById={new Map()}
+          mastersById={new Map()}
+          servicesById={new Map()}
+          paidBookingIds={new Set()}
+          role="ADMIN"
+          currentMasterId={null}
+          canDragReschedule
+          blockedDates={new Set()}
+          partialAvailabilityByDate={new Map()}
+          busyBookingId={null}
+          onReschedule={noop}
+          onDropBooking={noop}
+        />,
+      )
+
+      for (const day of days) {
+        expect(getCell(day.date).querySelector('.calendar-grid-cell-unavailable')).not.toBeInTheDocument()
+      }
+    })
+
+    it('does not render a partial overlay for a fully schedule-blocked day, even if both maps carry the date', () => {
+      const days = getWeekGridDays('2026-03-12')
+
+      render(
+        <CalendarGridView
+          days={days}
+          layout="week"
+          bookingsByDay={new Map()}
+          blocksByDay={new Map()}
+          clientsById={new Map()}
+          mastersById={new Map()}
+          servicesById={new Map()}
+          paidBookingIds={new Set()}
+          role="ADMIN"
+          currentMasterId={null}
+          canDragReschedule
+          blockedDates={new Set(['2026-03-11'])}
+          partialAvailabilityByDate={new Map([['2026-03-11', { startTime: '14:00', endTime: '20:00' }]])}
+          busyBookingId={null}
+          onReschedule={noop}
+          onDropBooking={noop}
+        />,
+      )
+
+      const cell = getCell('2026-03-11')
+      expect(cell.className).toContain('calendar-grid-cell--schedule-blocked')
+      expect(cell.querySelector('.calendar-grid-cell-unavailable')).not.toBeInTheDocument()
     })
   })
 
@@ -421,6 +528,7 @@ describe('CalendarGridView', () => {
           currentMasterId={null}
           canDragReschedule
           blockedDates={new Set()}
+          partialAvailabilityByDate={new Map()}
           busyBookingId={null}
           onReschedule={noop}
           onDropBooking={noop}
@@ -449,6 +557,7 @@ describe('CalendarGridView', () => {
           currentMasterId="master-1"
           canDragReschedule={false}
           blockedDates={new Set()}
+          partialAvailabilityByDate={new Map()}
           busyBookingId={null}
           onReschedule={noop}
           onDropBooking={noop}
@@ -486,6 +595,7 @@ describe('CalendarGridView', () => {
         currentMasterId={null}
         canDragReschedule
         blockedDates={new Set()}
+        partialAvailabilityByDate={new Map()}
         busyBookingId={null}
         onReschedule={noop}
         onDropBooking={noop}

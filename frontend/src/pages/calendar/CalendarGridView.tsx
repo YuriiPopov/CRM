@@ -4,8 +4,10 @@ import { BookingGridCard } from './BookingGridCard'
 import { formatTimeRange, toDateOnly } from './dateUtils'
 import { masterBlockCreatedByLabel } from './masterBlockCreatedBy'
 import { mergeScheduleItems } from './mergeScheduleItems'
+import { unavailableFractions } from './masterScheduleAvailability'
 import { MasterAvatar } from '../../components/MasterAvatar'
 import type { CalendarGridDay } from './calendarGrid'
+import type { PartialAvailability } from './masterScheduleAvailability'
 import type { Booking } from '../../types/booking'
 import type { MasterBlock } from '../../types/masterBlock'
 import type { Client } from '../../types/client'
@@ -39,6 +41,11 @@ interface CalendarGridViewProps {
   // переноса по графику не имеют смысла без единственного мастера на ячейку (см. CalendarPage,
   // scheduleMasterId). Дни без записи в графике ("не размечено") сюда не попадают.
   blockedDates: Set<string>
+  // item49 — дни, рабочие (isWorking: true), но с часами дня, ограниченными startTime/endTime
+  // (частичная недоступность) — та же область видимости, что у blockedDates выше (только для
+  // сетки, скоупленной на одного мастера); полностью нерабочие дни сюда не попадают, они уже
+  // покрыты blockedDates.
+  partialAvailabilityByDate: Map<string, PartialAvailability>
   busyBookingId: string | null
   onReschedule: (booking: Booking) => void
   onDropBooking: (booking: Booking, newDate: string) => void
@@ -64,6 +71,7 @@ export function CalendarGridView({
   currentMasterId,
   canDragReschedule,
   blockedDates,
+  partialAvailabilityByDate,
   busyBookingId,
   onReschedule,
   onDropBooking,
@@ -109,6 +117,13 @@ export function CalendarGridView({
           const hiddenCount = dayBookings.length - visibleBookings.length
           const isScheduleBlocked = blockedDates.has(day.date)
           const canDropHere = canDragReschedule && !isScheduleBlocked
+          // Полностью нерабочий день уже целиком заштрихован (isScheduleBlocked) — частичный
+          // оверлей поверх него был бы избыточен, к тому же дата не может попасть в оба Set/Map
+          // одновременно (см. buildBlockedDatesSet/buildPartialAvailabilityByDate).
+          const partialAvailability = !isScheduleBlocked ? partialAvailabilityByDate.get(day.date) : undefined
+          const unavailable = partialAvailability
+            ? unavailableFractions(partialAvailability.startTime, partialAvailability.endTime)
+            : null
 
           const cellClassNames = [
             'calendar-grid-cell',
@@ -128,6 +143,19 @@ export function CalendarGridView({
               onDragOver={canDropHere ? (event) => handleCellDragOver(event, day.date) : undefined}
               onDrop={canDropHere ? (event) => handleCellDrop(event, day.date) : undefined}
             >
+              {unavailable && unavailable.topPercent > 0 && (
+                <div
+                  className="calendar-grid-cell-unavailable calendar-grid-cell-unavailable--top"
+                  style={{ height: `${unavailable.topPercent}%` }}
+                />
+              )}
+              {unavailable && unavailable.bottomPercent > 0 && (
+                <div
+                  className="calendar-grid-cell-unavailable calendar-grid-cell-unavailable--bottom"
+                  style={{ height: `${unavailable.bottomPercent}%` }}
+                />
+              )}
+
               <div className="calendar-grid-cell-date">{formatCellDayNumber(day.date)}</div>
 
               <ul className="calendar-grid-cell-bookings">

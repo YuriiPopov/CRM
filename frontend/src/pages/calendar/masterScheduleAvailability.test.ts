@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildBlockedDatesSet, distinctYearMonths, findMastersBlockedOnDate } from './masterScheduleAvailability'
+import {
+  buildBlockedDatesSet,
+  buildPartialAvailabilityByDate,
+  distinctYearMonths,
+  findMastersBlockedOnDate,
+  unavailableFractions,
+} from './masterScheduleAvailability'
 import type { MasterScheduleRecord } from '../../types/masterSchedule'
 
 function record(overrides: Partial<MasterScheduleRecord>): MasterScheduleRecord {
@@ -67,5 +73,45 @@ describe('findMastersBlockedOnDate', () => {
     const blocked = findMastersBlockedOnDate(scheduleByMasterId, '2026-03-02')
 
     expect(blocked.has('master-1')).toBe(false)
+  })
+})
+
+// item49
+describe('buildPartialAvailabilityByDate', () => {
+  it('includes working days with their startTime/endTime', () => {
+    const records = [
+      record({ date: '2026-03-02T00:00:00.000Z', isWorking: true, startTime: '14:00', endTime: '20:00' }),
+    ]
+
+    const partial = buildPartialAvailabilityByDate(records)
+
+    expect(partial.get('2026-03-02')).toEqual({ startTime: '14:00', endTime: '20:00' })
+  })
+
+  it('excludes fully non-working days (already covered by buildBlockedDatesSet)', () => {
+    const records = [record({ date: '2026-03-02T00:00:00.000Z', isWorking: false })]
+
+    expect(buildPartialAvailabilityByDate(records).has('2026-03-02')).toBe(false)
+  })
+
+  it('excludes working days missing startTime or endTime', () => {
+    const records = [
+      record({ date: '2026-03-02T00:00:00.000Z', isWorking: true, startTime: null, endTime: '20:00' }),
+    ]
+
+    expect(buildPartialAvailabilityByDate(records).has('2026-03-02')).toBe(false)
+  })
+})
+
+describe('unavailableFractions', () => {
+  it('computes the unavailable share of the day before startTime and after endTime', () => {
+    expect(unavailableFractions('14:00', '20:00')).toEqual({
+      topPercent: (14 / 24) * 100,
+      bottomPercent: (4 / 24) * 100,
+    })
+  })
+
+  it('returns 0% on both ends for a day covering the full 00:00–24:00 span', () => {
+    expect(unavailableFractions('00:00', '24:00')).toEqual({ topPercent: 0, bottomPercent: 0 })
   })
 })

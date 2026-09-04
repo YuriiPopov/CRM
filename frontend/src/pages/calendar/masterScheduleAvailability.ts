@@ -43,3 +43,48 @@ export function findMastersBlockedOnDate(
 
   return blocked
 }
+
+export interface PartialAvailability {
+  startTime: string
+  endTime: string
+}
+
+// item49 — дни, рабочие (isWorking: true), но с часами, ограниченными startTime/endTime
+// (buildUpsertDays в masterScheduleGrid.ts всегда пишет их вместе для 'working', так что null
+// у одного из двух практически не встречается — проверка обоих лишь отражает то, что тип
+// MasterScheduleRecord их всё же допускает). Дни без ограничения часов сюда не нужны — их
+// в MasterSchedule не бывает (см. DEFAULT_START_TIME/DEFAULT_END_TIME), полностью нерабочие
+// дни уже покрыты buildBlockedDatesSet.
+export function buildPartialAvailabilityByDate(
+  records: MasterScheduleRecord[],
+): Map<string, PartialAvailability> {
+  const result = new Map<string, PartialAvailability>()
+
+  for (const record of records) {
+    if (record.isWorking && record.startTime && record.endTime) {
+      result.set(toDateOnly(record.date), { startTime: record.startTime, endTime: record.endTime })
+    }
+  }
+
+  return result
+}
+
+const MINUTES_PER_DAY = 24 * 60
+
+function minutesSinceMidnight(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number)
+  return hours * 60 + minutes
+}
+
+// item49 — доля суток (в процентах) до startTime и после endTime, чтобы CalendarGridView мог
+// отрисовать недоступную часть ячейки дня пропорционально её реальной продолжительности
+// (сравнение всегда с полными сутками 00:00–24:00, а не с часами работы салона — см. задачу).
+export function unavailableFractions(
+  startTime: string,
+  endTime: string,
+): { topPercent: number; bottomPercent: number } {
+  return {
+    topPercent: (minutesSinceMidnight(startTime) / MINUTES_PER_DAY) * 100,
+    bottomPercent: ((MINUTES_PER_DAY - minutesSinceMidnight(endTime)) / MINUTES_PER_DAY) * 100,
+  }
+}

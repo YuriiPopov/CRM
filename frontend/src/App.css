@@ -323,6 +323,11 @@
 }
 
 .calendar-grid-cell {
+  position: relative;
+  /* Создаёт локальный stacking context, чтобы z-index: -1 у
+     .calendar-grid-cell-unavailable ниже был ограничен этой ячейкой, а не "вываливался" под
+     соседние ячейки сетки. */
+  z-index: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -368,6 +373,35 @@
     transparent 4px,
     transparent 10px
   );
+}
+
+/* Частичная недоступность дня по графику (item49) — тот же приём штриховки, что и
+   .calendar-grid-cell--schedule-blocked выше, но оверлеем только на долю высоты ячейки,
+   пропорциональной части суток до startTime/после endTime (см. unavailableFractions).
+   z-index: -1 держит штриховку под датой/карточками записей (см. .calendar-grid-cell), а
+   pointer-events: none — не мешает drag-and-drop и клику по карточкам под ней. */
+.calendar-grid-cell-unavailable {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--border),
+    var(--border) 4px,
+    transparent 4px,
+    transparent 10px
+  );
+}
+
+.calendar-grid-cell-unavailable--top {
+  top: 0;
+}
+
+.calendar-grid-cell-unavailable--bottom {
+  bottom: 0;
 }
 
 .calendar-grid-cell-date {

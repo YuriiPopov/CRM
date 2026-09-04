@@ -21,6 +21,7 @@ import { groupBookingsByDay } from './calendar/groupBookingsByDay'
 import { groupBlocksByDay } from './calendar/groupBlocksByDay'
 import {
   buildBlockedDatesSet,
+  buildPartialAvailabilityByDate,
   distinctYearMonths,
   findMastersBlockedOnDate,
 } from './calendar/masterScheduleAvailability'
@@ -42,6 +43,7 @@ import type { Master, MasterServiceLink } from '../types/staff'
 import type { Service } from '../types/service'
 import type { PaymentView } from '../types/payment'
 import type { MasterBlock } from '../types/masterBlock'
+import type { PartialAvailability } from './calendar/masterScheduleAvailability'
 import type { PaymentVisibilityFilter } from './calendar/bookingVisibilityFilter'
 
 // Один и тот же экран смонтирован и на /calendar (ADMIN), и на /my-schedule (MASTER) —
@@ -185,6 +187,11 @@ export function CalendarPage() {
   const gridDates = useMemo(() => gridDays.map((day) => day.date), [gridDays])
 
   const [scheduleBlockedDates, setScheduleBlockedDates] = useState<Set<string>>(new Set())
+  // item49 — дни, рабочие, но с часами, ограниченными startTime/endTime (частичная
+  // недоступность, в отличие от scheduleBlockedDates выше, который про целиком нерабочие дни).
+  const [partialAvailabilityByDate, setPartialAvailabilityByDate] = useState<Map<string, PartialAvailability>>(
+    new Map(),
+  )
 
   // Догружает график scheduleMasterId на все месяцы, попавшие в видимую сетку (может быть 2,
   // если неделя/месяц пересекает границу месяца — см. distinctYearMonths). Не блокирующий для
@@ -198,6 +205,8 @@ export function CalendarPage() {
       // с тем, что для нового состояния запрос вообще не будет сделан.
       // oxlint-disable-next-line react/set-state-in-effect
       setScheduleBlockedDates(new Set())
+      // oxlint-disable-next-line react/set-state-in-effect
+      setPartialAvailabilityByDate(new Map())
       return
     }
 
@@ -205,10 +214,17 @@ export function CalendarPage() {
       distinctYearMonths(gridDates).map(({ year, month }) => getMasterSchedule(scheduleMasterId, year, month)),
     )
       .then((results) => {
-        if (!cancelled) setScheduleBlockedDates(buildBlockedDatesSet(results.flat()))
+        const records = results.flat()
+        if (!cancelled) {
+          setScheduleBlockedDates(buildBlockedDatesSet(records))
+          setPartialAvailabilityByDate(buildPartialAvailabilityByDate(records))
+        }
       })
       .catch(() => {
-        if (!cancelled) setScheduleBlockedDates(new Set())
+        if (!cancelled) {
+          setScheduleBlockedDates(new Set())
+          setPartialAvailabilityByDate(new Map())
+        }
       })
 
     return () => {
@@ -573,6 +589,7 @@ export function CalendarPage() {
           currentMasterId={user?.masterId ?? null}
           canDragReschedule={isAdmin}
           blockedDates={scheduleBlockedDates}
+          partialAvailabilityByDate={partialAvailabilityByDate}
           busyBookingId={busyBookingId}
           onReschedule={(booking) => setRescheduleTarget(booking)}
           onDropBooking={(booking, newDate) => void handleGridReschedule(booking, newDate)}
