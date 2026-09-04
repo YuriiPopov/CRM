@@ -3,6 +3,7 @@ import {
   groupTimelineBlocksByMaster,
   layoutBookingsOnTimeline,
   layoutMasterBlocksOnTimeline,
+  scheduleUnavailableSegments,
   TIMELINE_END_HOUR,
   TIMELINE_START_HOUR,
   truncateMasterName,
@@ -10,6 +11,7 @@ import {
 import type { Booking, BookingStatus } from '../../types/booking'
 import type { Master } from '../../types/staff'
 import type { MasterBlock } from '../../types/masterBlock'
+import type { MasterScheduleRecord } from '../../types/masterSchedule'
 
 function makeMasterBlock(overrides: Partial<MasterBlock>): MasterBlock {
   return {
@@ -40,6 +42,20 @@ function makeBooking(overrides: Partial<Booking>): Booking {
     rescheduledAt: null,
     originalStartTime: null,
     originalEndTime: null,
+    ...overrides,
+  }
+}
+
+function makeScheduleRecord(overrides: Partial<MasterScheduleRecord>): MasterScheduleRecord {
+  return {
+    id: 'schedule-1',
+    salonId: 'salon-1',
+    masterId: 'master-1',
+    date: '2026-03-10T00:00:00.000Z',
+    isWorking: true,
+    startTime: '09:00',
+    endTime: '19:00',
+    createdAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   }
 }
@@ -229,6 +245,80 @@ describe('groupTimelineBlocksByMaster', () => {
     const bookingA = makeBooking({ id: 'a', masterId: 'master-1' })
     const rows = groupTimelineBlocksByMaster([bookingA], [masterOne])
     expect(rows[0].unavailableBlocks).toEqual([])
+  })
+
+  // item50
+  it('creates a row for a master who is off today by schedule, even without bookings or blocks', () => {
+    const scheduleByMasterId = new Map([['master-2', makeScheduleRecord({ masterId: 'master-2', isWorking: false, startTime: null, endTime: null })]])
+    const rows = groupTimelineBlocksByMaster([], [masterOne, masterTwo], [], scheduleByMasterId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].masterId).toBe('master-2')
+    expect(rows[0].scheduleUnavailable).toEqual([{ leftPercent: 0, widthPercent: 100 }])
+  })
+
+  it('does not create a row for a master whose schedule for today covers the full working window', () => {
+    const scheduleByMasterId = new Map([['master-2', makeScheduleRecord({ masterId: 'master-2', startTime: '09:00', endTime: '19:00' })]])
+    const rows = groupTimelineBlocksByMaster([], [masterOne, masterTwo], [], scheduleByMasterId)
+    expect(rows).toEqual([])
+  })
+
+  it('attaches the schedule unavailability to the same row as that master\'s bookings', () => {
+    const bookingA = makeBooking({ id: 'a', masterId: 'master-1' })
+    const scheduleByMasterId = new Map([['master-1', makeScheduleRecord({ isWorking: false, startTime: null, endTime: null })]])
+    const rows = groupTimelineBlocksByMaster([bookingA], [masterOne], [], scheduleByMasterId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].blocks.map((b) => b.booking.id)).toEqual(['a'])
+    expect(rows[0].scheduleUnavailable).toEqual([{ leftPercent: 0, widthPercent: 100 }])
+  })
+
+  it('defaults to no schedule unavailability when none is passed', () => {
+    const bookingA = makeBooking({ id: 'a', masterId: 'master-1' })
+    const rows = groupTimelineBlocksByMaster([bookingA], [masterOne])
+    expect(rows[0].scheduleUnavailable).toEqual([])
+  })
+})
+
+describe('scheduleUnavailableSegments', () => {
+  it('returns no segments when there is no record for today ("not yet configured")', () => {
+    expect(scheduleUnavailableSegments(undefined)).toEqual([])
+  })
+
+  it('shades the full row for a full day off (isWorking: false)', () => {
+    expect(scheduleUnavailableSegments(makeScheduleRecord({ isWorking: false, startTime: null, endTime: null }))).toEqual([
+      { leftPercent: 0, widthPercent: 100 },
+    ])
+  })
+
+  it('shades only the portions outside startTime/endTime for a partially available day', () => {
+    // Window is 09:00-19:00 (600min); available only 11:00-17:00 -> unavailable 09:00-11:00
+    // (0%..20%) and 17:00-19:00 (80%..100%).
+    const segments = scheduleUnavailableSegments(makeScheduleRecord({ startTime: '11:00', endTime: '17:00' }))
+    expect(segments).toEqual([
+      { leftPercent: 0, widthPercent: 20 },
+      { leftPercent: 80, widthPercent: 20 },
+    ])
+  })
+
+  it('shades only the start of the row when the master starts late but works past the window', () => {
+    const segments = scheduleUnavailableSegments(makeScheduleRecord({ startTime: '11:00', endTime: '20:00' }))
+    expect(segments).toEqual([{ leftPercent: 0, widthPercent: 20 }])
+  })
+
+  it('shades only the end of the row when the master starts before the window but leaves early', () => {
+    const segments = scheduleUnavailableSegments(makeScheduleRecord({ startTime: '07:00', endTime: '17:00' }))
+    expect(segments).toEqual([{ leftPercent: 80, widthPercent: 20 }])
+  })
+
+  it('returns no segments for a normal working day covering the full window', () => {
+    expect(scheduleUnavailableSegments(makeScheduleRecord({ startTime: '09:00', endTime: '19:00' }))).toEqual([])
+  })
+
+  it('returns no segments when the working day covers a window wider than the timeline on both sides', () => {
+    expect(scheduleUnavailableSegments(makeScheduleRecord({ startTime: '07:00', endTime: '20:00' }))).toEqual([])
+  })
+
+  it('returns no segments for a working record missing startTime/endTime', () => {
+    expect(scheduleUnavailableSegments(makeScheduleRecord({ startTime: null, endTime: '19:00' }))).toEqual([])
   })
 })
 

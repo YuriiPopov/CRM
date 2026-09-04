@@ -1043,6 +1043,27 @@
   color: var(--text-h);
 }
 
+/* Недоступность мастера по графику работ (item50) — тот же приём штриховки, что и
+   .calendar-grid-cell-unavailable (item49), но по горизонтали (left/width вместо top/height),
+   т.к. полоса таймлайна изображает окно 09:00–19:00, а не сутки целиком (см.
+   scheduleUnavailableSegments в timeline.ts). В отличие от .dashboard-timeline-block-unavailable
+   выше (штучная "плашка" блокировки с текстом и рамкой) — это фоновая заливка на всю высоту
+   трека, без рамки и текста, рендерится первой в DOM, чтобы лежать под записями/блокировками. */
+.dashboard-timeline-row-schedule-unavailable {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--unavailable-stripe),
+    var(--unavailable-stripe) 4px,
+    var(--unavailable-bg) 4px,
+    var(--unavailable-bg) 10px
+  );
+}
+
 /* Недельный таймлайн загрузки мастеров (ниже дневного, см. DashboardPage/WeekTimeline.tsx) */
 
 .dashboard-week-timeline {

@@ -7,6 +7,7 @@ import { listClients } from '../api/clients'
 import { listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { listMasterBlocks } from '../api/masterBlocks'
+import { getMasterSchedule } from '../api/masterSchedules'
 import { getRevenueReport } from '../api/payments'
 import { getEffectiveDashboardWidgets } from '../api/dashboardSettings'
 import type { AuthenticatedUser } from '../types/auth'
@@ -16,6 +17,7 @@ import type { Master } from '../types/staff'
 import type { Service } from '../types/service'
 import type { RevenueReport } from '../types/payment'
 import type { MasterBlock } from '../types/masterBlock'
+import type { MasterScheduleRecord } from '../types/masterSchedule'
 
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/bookings', () => ({ listBookings: vi.fn() }))
@@ -23,6 +25,7 @@ vi.mock('../api/clients', () => ({ listClients: vi.fn() }))
 vi.mock('../api/staff', () => ({ listStaff: vi.fn() }))
 vi.mock('../api/services', () => ({ listServices: vi.fn() }))
 vi.mock('../api/masterBlocks', () => ({ listMasterBlocks: vi.fn() }))
+vi.mock('../api/masterSchedules', () => ({ getMasterSchedule: vi.fn() }))
 vi.mock('../api/payments', () => ({ getRevenueReport: vi.fn() }))
 vi.mock('../api/dashboardSettings', () => ({ getEffectiveDashboardWidgets: vi.fn() }))
 
@@ -32,6 +35,7 @@ const mockedListClients = vi.mocked(listClients)
 const mockedListStaff = vi.mocked(listStaff)
 const mockedListServices = vi.mocked(listServices)
 const mockedListMasterBlocks = vi.mocked(listMasterBlocks)
+const mockedGetMasterSchedule = vi.mocked(getMasterSchedule)
 const mockedGetRevenueReport = vi.mocked(getRevenueReport)
 const mockedGetEffectiveDashboardWidgets = vi.mocked(getEffectiveDashboardWidgets)
 
@@ -97,6 +101,9 @@ mockedListServices.mockResolvedValue([service])
 // listMasterBlocks (Backlog п.9/п.11) тоже грузится безусловно — пустой список по умолчанию,
 // чтобы существующие сценарии без блокировок не ломались.
 mockedListMasterBlocks.mockResolvedValue([])
+// getMasterSchedule (item50) — пустой график по умолчанию (ни один мастер не размечен),
+// чтобы существующие сценарии без штриховки по графику не ломались.
+mockedGetMasterSchedule.mockResolvedValue([])
 // Эффективная видимость виджетов — по умолчанию все видны, чтобы существующие сценарии
 // (написанные до появления настройки видимости) продолжали проверять полный набор секций;
 // частичные списки — только в отдельных тестах ниже (see 'hides widgets ...').
@@ -482,6 +489,115 @@ describe('DashboardPage', () => {
     const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
     expect(within(timeline).getByText('Обед')).toBeInTheDocument()
     expect(within(timeline).getByText('Master One')).toBeInTheDocument()
+  })
+
+  // item50 — недоступность по графику работ (MasterSchedule) на дневном таймлайне "На сегодня".
+  describe('schedule-based unavailability on the daily timeline (item50)', () => {
+    function makeScheduleRecord(overrides: Partial<MasterScheduleRecord>): MasterScheduleRecord {
+      return {
+        id: 'schedule-1',
+        salonId: 'salon-1',
+        masterId: 'master-1',
+        date: '2026-03-10T00:00:00.000Z',
+        isWorking: true,
+        startTime: '09:00',
+        endTime: '19:00',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        ...overrides,
+      }
+    }
+
+    it('shows a master row shaded across its full width for a full day off, even without bookings', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([])
+      mockedListClients.mockResolvedValue([])
+      mockedListStaff.mockResolvedValue([master])
+      mockedListMasterBlocks.mockResolvedValue([])
+      mockedGetRevenueReport.mockResolvedValue(revenueReport)
+      mockedGetMasterSchedule.mockResolvedValue([makeScheduleRecord({ isWorking: false, startTime: null, endTime: null })])
+
+      renderPage()
+
+      const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
+      expect(within(timeline).getByText('Master One')).toBeInTheDocument()
+      const overlay = timeline.querySelector('.dashboard-timeline-row-schedule-unavailable') as HTMLElement
+      expect(overlay).toBeInTheDocument()
+      expect(overlay.style.left).toBe('0%')
+      expect(overlay.style.width).toBe('100%')
+    })
+
+    it('shades only the portions of the row outside startTime/endTime for a partially available day', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([])
+      mockedListClients.mockResolvedValue([])
+      mockedListStaff.mockResolvedValue([master])
+      mockedListMasterBlocks.mockResolvedValue([])
+      mockedGetRevenueReport.mockResolvedValue(revenueReport)
+      // Окно таймлайна — 09:00–19:00 (600 минут); мастер доступен только 11:00–17:00, значит
+      // недоступны 09:00–11:00 (0%..20%) и 17:00–19:00 (80%..100%).
+      mockedGetMasterSchedule.mockResolvedValue([makeScheduleRecord({ startTime: '11:00', endTime: '17:00' })])
+
+      renderPage()
+
+      const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
+      const overlays = Array.from(
+        timeline.querySelectorAll<HTMLElement>('.dashboard-timeline-row-schedule-unavailable'),
+      )
+      expect(overlays).toHaveLength(2)
+      expect(overlays[0].style.left).toBe('0%')
+      expect(overlays[0].style.width).toBe('20%')
+      expect(overlays[1].style.left).toBe('80%')
+      expect(overlays[1].style.width).toBe('20%')
+    })
+
+    it('does not shade the row or force it to appear for a normal working day covering the full window', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([])
+      mockedListClients.mockResolvedValue([])
+      mockedListStaff.mockResolvedValue([master])
+      mockedListMasterBlocks.mockResolvedValue([])
+      mockedGetRevenueReport.mockResolvedValue(revenueReport)
+      mockedGetMasterSchedule.mockResolvedValue([makeScheduleRecord({ startTime: '09:00', endTime: '19:00' })])
+
+      renderPage()
+
+      expect(await screen.findByText(/на сегодня активных записей и блокировок времени нет/i)).toBeInTheDocument()
+      expect(screen.queryByRole('img', { name: /таймлайн активных записей/i })).not.toBeInTheDocument()
+    })
+
+    it('does not shade a booked master row when their schedule for today covers the full window', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1', masterId: 'master-1', clientId: 'client-1' })])
+      mockedListClients.mockResolvedValue([client])
+      mockedListStaff.mockResolvedValue([master])
+      mockedListMasterBlocks.mockResolvedValue([])
+      mockedGetRevenueReport.mockResolvedValue(revenueReport)
+      mockedGetMasterSchedule.mockResolvedValue([makeScheduleRecord({ startTime: '09:00', endTime: '19:00' })])
+
+      renderPage()
+
+      const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
+      expect(within(timeline).getByText('Anna Client')).toBeInTheDocument()
+      expect(timeline.querySelector('.dashboard-timeline-row-schedule-unavailable')).not.toBeInTheDocument()
+    })
+
+    it('shows the unavailable schedule shading on a MASTER’s own row', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([])
+      mockedListClients.mockResolvedValue([])
+      mockedListMasterBlocks.mockResolvedValue([])
+      mockedGetMasterSchedule.mockResolvedValue([
+        makeScheduleRecord({ masterId: 'master-1', isWorking: false, startTime: null, endTime: null }),
+      ])
+
+      renderPage()
+
+      const timeline = await screen.findByRole('img', { name: /таймлайн активных записей/i })
+      const overlay = timeline.querySelector('.dashboard-timeline-row-schedule-unavailable') as HTMLElement
+      expect(overlay).toBeInTheDocument()
+      expect(overlay.style.width).toBe('100%')
+      expect(mockedGetMasterSchedule).toHaveBeenCalledWith('master-1', 2026, 3)
+    })
   })
 
   it('renders a block with no reason using a fallback label', async () => {

@@ -6,6 +6,7 @@ import { listClients } from '../api/clients'
 import { listStaff } from '../api/staff'
 import { listServices } from '../api/services'
 import { listMasterBlocks } from '../api/masterBlocks'
+import { getMasterSchedule } from '../api/masterSchedules'
 import { getRevenueReport } from '../api/payments'
 import { getEffectiveDashboardWidgets } from '../api/dashboardSettings'
 import { getApiErrorMessage } from '../api/errors'
@@ -29,6 +30,7 @@ import type { Master } from '../types/staff'
 import type { Service } from '../types/service'
 import type { RevenueReport } from '../types/payment'
 import type { MasterBlock } from '../types/masterBlock'
+import type { MasterScheduleRecord } from '../types/masterSchedule'
 import type { DashboardWidgetKey } from '../types/dashboardSettings'
 
 // Общий компонент для /dashboard (стартовая страница ADMIN) — ADMIN видит сводку по всему салону
@@ -44,6 +46,7 @@ export function DashboardPage() {
   const [masters, setMasters] = useState<Master[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [masterBlocks, setMasterBlocks] = useState<MasterBlock[]>([])
+  const [masterScheduleRecords, setMasterScheduleRecords] = useState<MasterScheduleRecord[]>([])
   const [revenue, setRevenue] = useState<RevenueReport | null>(null)
   const [visibleWidgets, setVisibleWidgets] = useState<Set<DashboardWidgetKey>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -69,6 +72,11 @@ export function DashboardPage() {
       // к JSX ниже, не к фетчингу.
       getEffectiveDashboardWidgets().then((keys) => setVisibleWidgets(new Set(keys as DashboardWidgetKey[]))),
     ]
+    // Год/месяц "сегодня" — для запроса графика работ (getMasterSchedule берёт один месяц
+    // за раз, см. api/masterSchedules.ts); из today (ниже по компоненту) их взять нельзя —
+    // today вычисляется отдельным вызовом todayDateOnly() после этого эффекта.
+    const [scheduleYear, scheduleMonth] = todayDateOnly().split('-').map(Number)
+
     if (isAdmin) {
       const { from, to } = currentMonthRange()
       requests.push(getRevenueReport({ from, to }).then(setRevenue))
@@ -76,7 +84,24 @@ export function DashboardPage() {
       // в карточке "Ближайшие записи". MASTER не грузит его: на таймлайне у него одна
       // безымянная строка со своими записями, а в "Ближайших записях" вместо имени — "Вы"
       // (тот же приём, что и в ClientDetailPage).
-      requests.push(listStaff().then(setMasters))
+      requests.push(
+        listStaff().then((loadedMasters) => {
+          setMasters(loadedMasters)
+          // Недоступность по графику работ на таймлайне "На сегодня" (item50) — график того же
+          // месяца, что и today, по каждому отображаемому мастеру; сбой не должен ронять весь
+          // дашборд (та же логика, что у остального содержимого requests), поэтому ошибка здесь
+          // всплывает в общий catch(), а не гасится локально.
+          return Promise.all(
+            loadedMasters.map((loadedMaster) => getMasterSchedule(loadedMaster.id, scheduleYear, scheduleMonth)),
+          ).then((results) => setMasterScheduleRecords(results.flat()))
+        }),
+      )
+    } else if (user?.masterId) {
+      // MASTER видит недоступность только по своему графику — тот же masterId, что и у его
+      // записей (backend их и так скоупит по роли).
+      requests.push(
+        getMasterSchedule(user.masterId, scheduleYear, scheduleMonth).then(setMasterScheduleRecords),
+      )
     }
 
     Promise.all(requests)
@@ -90,7 +115,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin])
+  }, [isAdmin, user?.masterId])
 
   const today = todayDateOnly()
   const todayBookings = useMemo(
@@ -107,6 +132,18 @@ export function DashboardPage() {
       (block) => new Date(block.startTime) <= todayEnd && new Date(block.endTime) >= todayStart,
     )
   }, [masterBlocks, today])
+  // Недоступность по графику работ (item50) — только запись(и) на сегодня, по мастеру; graph
+  // может содержать записи на весь месяц (getMasterSchedule берёт месяц целиком), но таймлайну
+  // "На сегодня" нужна ровно сегодняшняя.
+  const todayScheduleByMasterId = useMemo(() => {
+    const map = new Map<string, MasterScheduleRecord>()
+    for (const record of masterScheduleRecords) {
+      if (toDateOnly(record.date) === today) {
+        map.set(record.masterId, record)
+      }
+    }
+    return map
+  }, [masterScheduleRecords, today])
   const statusCounts = useMemo(() => countByStatus(todayBookings), [todayBookings])
   const upcoming = useMemo(
     () => upcomingBookings(bookings, new Date().toISOString()),
@@ -122,8 +159,8 @@ export function DashboardPage() {
   // Одна строка на каждого мастера, у кого сегодня есть активная запись (masters для MASTER
   // не грузится и остаётся [] — тогда получаем ровно одну строку с его же записями).
   const timelineRows = useMemo(
-    () => groupTimelineBlocksByMaster(timelineBookings, masters, todayMasterBlocks),
-    [timelineBookings, masters, todayMasterBlocks],
+    () => groupTimelineBlocksByMaster(timelineBookings, masters, todayMasterBlocks, todayScheduleByMasterId),
+    [timelineBookings, masters, todayMasterBlocks, todayScheduleByMasterId],
   )
   const timelineHours = useMemo(
     () => Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 }, (_, i) => TIMELINE_START_HOUR + i),
@@ -215,6 +252,17 @@ export function DashboardPage() {
                       </div>
                     )}
                     <div className="dashboard-timeline-track">
+                      {/* Недоступность по графику работ (item50) — рендерится первой, чтобы
+                          лежать под записями/блокировками по порядку в DOM (все дети трека
+                          абсолютно спозиционированы, z-index не нужен, см. .calendar-grid-cell-unavailable
+                          для того же приёма по вертикали в item49). */}
+                      {row.scheduleUnavailable.map(({ leftPercent, widthPercent }, index) => (
+                        <div
+                          key={`schedule-unavailable-${index}`}
+                          className="dashboard-timeline-row-schedule-unavailable"
+                          style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }}
+                        />
+                      ))}
                       {row.blocks.map(({ booking, leftPercent, widthPercent }) => {
                         const client = clientsById.get(booking.clientId)
                         const label = client?.name ?? 'Клиент не найден'
