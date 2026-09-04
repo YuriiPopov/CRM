@@ -3,7 +3,14 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { StaffDetailPage } from './StaffDetailPage'
 import { useAuth } from '../auth/useAuth'
-import { assignService, getMaster, listStaff, unassignService, updateMaster } from '../api/staff'
+import {
+  assignService,
+  getMaster,
+  listMasterServiceLinks,
+  listStaff,
+  unassignService,
+  updateMaster,
+} from '../api/staff'
 import { listServices } from '../api/services'
 import { listServiceCategories } from '../api/serviceCategories'
 import { getMasterSchedule } from '../api/masterSchedules'
@@ -15,6 +22,7 @@ vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/staff', () => ({
   getMaster: vi.fn(),
   listStaff: vi.fn(),
+  listMasterServiceLinks: vi.fn(),
   assignService: vi.fn(),
   unassignService: vi.fn(),
   updateMaster: vi.fn(),
@@ -32,6 +40,7 @@ vi.mock('../api/masterSchedules', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetMaster = vi.mocked(getMaster)
 const mockedListStaff = vi.mocked(listStaff)
+const mockedListMasterServiceLinks = vi.mocked(listMasterServiceLinks)
 const mockedAssignService = vi.mocked(assignService)
 const mockedUnassignService = vi.mocked(unassignService)
 const mockedUpdateMaster = vi.mocked(updateMaster)
@@ -43,6 +52,7 @@ const mockedGetMasterSchedule = vi.mocked(getMasterSchedule)
 // подзадача №36, перенос/переназначение конфликтующей записи) — безобидный дефолт для тестов,
 // которые сам список мастеров не проверяют.
 mockedListStaff.mockResolvedValue([])
+mockedListMasterServiceLinks.mockResolvedValue([])
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',

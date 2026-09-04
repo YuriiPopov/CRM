@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { assignService, getMaster, listStaff, unassignService } from '../api/staff'
+import { assignService, getMaster, listMasterServiceLinks, listStaff, unassignService } from '../api/staff'
 import { listServices } from '../api/services'
 import { listServiceCategories } from '../api/serviceCategories'
 import { getApiErrorMessage } from '../api/errors'
@@ -10,7 +10,7 @@ import { EditMasterModal } from './staff/EditMasterModal'
 import { MasterPhotoUpload } from './staff/MasterPhotoUpload'
 import { MasterScheduleModal } from './staff/MasterScheduleModal'
 import type { Service, ServiceCategoryRef } from '../types/service'
-import type { Master, MasterDetail } from '../types/staff'
+import type { Master, MasterDetail, MasterServiceLink } from '../types/staff'
 
 export function StaffDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -19,6 +19,7 @@ export function StaffDetailPage() {
 
   const [master, setMaster] = useState<MasterDetail | null>(null)
   const [allMasters, setAllMasters] = useState<Master[]>([])
+  const [masterServiceLinks, setMasterServiceLinks] = useState<MasterServiceLink[]>([])
   const [allServices, setAllServices] = useState<Service[]>([])
   const [categories, setCategories] = useState<ServiceCategoryRef[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,8 +49,15 @@ export function StaffDetailPage() {
     if (isAdmin) {
       requests.push(listServices().then(setAllServices))
       // Нужен для модалки графика (item28, подзадача №36) — перенос/переназначение
-      // конфликтующей записи другому мастеру требует полный список мастеров салона.
-      requests.push(listStaff().then(setAllMasters))
+      // конфликтующей записи другому мастеру требует полный список мастеров салона, а связки
+      // мастер↔услуга (item55) — чтобы предлагать для переназначения только тех, кто эту услугу
+      // оказывает (см. filterMastersForService в MasterScheduleModal).
+      requests.push(
+        listStaff().then((loadedMasters) => {
+          setAllMasters(loadedMasters)
+          return listMasterServiceLinks(loadedMasters.map((m) => m.id)).then(setMasterServiceLinks)
+        }),
+      )
     }
 
     Promise.all(requests)
@@ -230,6 +238,7 @@ export function StaffDetailPage() {
         <MasterScheduleModal
           master={master}
           masters={allMasters}
+          masterServiceLinks={masterServiceLinks}
           services={allServices}
           onClose={() => setScheduleModalOpen(false)}
         />

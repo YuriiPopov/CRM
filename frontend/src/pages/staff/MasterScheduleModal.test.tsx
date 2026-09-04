@@ -8,7 +8,7 @@ import {
 } from '../../api/masterSchedules'
 import { rescheduleBooking } from '../../api/bookings'
 import { buildMonthDates, daysInMonth, formatMonthLabel, shiftMonth } from './masterScheduleGrid'
-import type { Master } from '../../types/staff'
+import type { Master, MasterServiceLink } from '../../types/staff'
 import type { Service } from '../../types/service'
 import type { MasterScheduleRecord } from '../../types/masterSchedule'
 import type { Booking } from '../../types/booking'
@@ -67,6 +67,16 @@ const masterTwo: Master = {
   createdAt: '2026-01-01T00:00:00.000Z',
 }
 
+const masterThree: Master = {
+  id: 'master-3',
+  salonId: 'salon-1',
+  name: 'Carla',
+  specializationCategoryIds: [],
+  isActive: true,
+  photo: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
 const service: Service = {
   id: 'service-1',
   salonId: 'salon-1',
@@ -76,6 +86,10 @@ const service: Service = {
   price: 150,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
+
+// item55 — по умолчанию только Boris (master-2) оказывает услугу конфликтующей записи
+// (service-1); Carla (master-3) привязана к другой услуге и не должна предлагаться.
+const defaultMasterServiceLinks: MasterServiceLink[] = [{ masterId: 'master-2', serviceId: 'service-1' }]
 
 function scheduleRecord(overrides: Partial<MasterScheduleRecord>): MasterScheduleRecord {
   return {
@@ -100,11 +114,19 @@ const currentYear = now.getUTCFullYear()
 const currentMonth = now.getUTCMonth() + 1
 const currentMonthDates = buildMonthDates(currentYear, currentMonth)
 
-function renderModal(overrides: { masters?: Master[]; services?: Service[]; onClose?: () => void } = {}) {
+function renderModal(
+  overrides: {
+    masters?: Master[]
+    masterServiceLinks?: MasterServiceLink[]
+    services?: Service[]
+    onClose?: () => void
+  } = {},
+) {
   return render(
     <MasterScheduleModal
       master={master}
       masters={overrides.masters ?? [master, masterTwo]}
+      masterServiceLinks={overrides.masterServiceLinks ?? defaultMasterServiceLinks}
       services={overrides.services ?? [service]}
       onClose={overrides.onClose ?? vi.fn()}
     />,
@@ -610,6 +632,42 @@ describe('MasterScheduleModal', () => {
       expect(saveButton).toBeEnabled()
       await user.click(saveButton)
       await waitFor(() => expect(mockedUpsertMasterSchedule).toHaveBeenCalled())
+    })
+
+    // item55 — список "Новый мастер" должен предлагать только тех активных мастеров (кроме
+    // текущего), кто оказывает услугу именно этой конфликтующей записи.
+    it('only lists masters linked to the conflicting booking\'s service in the "Новый мастер" dropdown', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedFindConflicts.mockResolvedValue([conflictBooking()])
+      const user = userEvent.setup()
+
+      renderModal({ masters: [master, masterTwo, masterThree] })
+      await markFirstDayOffAndSave(user)
+      await screen.findByText(/уже есть записи клиентов/)
+
+      await user.click(screen.getByRole('button', { name: 'Переназначить другому мастеру' }))
+      const masterSelect = screen.getByLabelText('Новый мастер')
+
+      expect(within(masterSelect).getByText('Boris')).toBeInTheDocument()
+      // Carla не привязана к service-1 (см. defaultMasterServiceLinks) — не должна предлагаться.
+      expect(within(masterSelect).queryByText('Carla')).not.toBeInTheDocument()
+    })
+
+    it('shows an explanatory message and blocks confirming when no master provides the conflicting service', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedFindConflicts.mockResolvedValue([conflictBooking()])
+      const user = userEvent.setup()
+
+      renderModal({ masters: [master, masterTwo], masterServiceLinks: [] })
+      await markFirstDayOffAndSave(user)
+      await screen.findByText(/уже есть записи клиентов/)
+
+      await user.click(screen.getByRole('button', { name: 'Переназначить другому мастеру' }))
+
+      expect(screen.getByText('Нет мастеров, оказывающих эту услугу')).toBeInTheDocument()
+      const masterSelect = screen.getByLabelText('Новый мастер')
+      expect(within(masterSelect).queryByRole('option', { name: 'Boris' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Подтвердить' })).toBeDisabled()
     })
 
     it('shows a friendly error and keeps the conflict listed when reassignment fails', async () => {

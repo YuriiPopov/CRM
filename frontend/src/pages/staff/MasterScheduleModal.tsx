@@ -10,6 +10,7 @@ import {
 import { RescheduleModal } from '../calendar/RescheduleModal'
 import { formatTimeRange, toDateOnly } from '../calendar/dateUtils'
 import { getMonthGridDays } from '../calendar/calendarGrid'
+import { filterMastersForService } from '../calendar/masterServiceFilter'
 import { TIMELINE_END_HOUR, TIMELINE_START_HOUR } from '../dashboard/timeline'
 import {
   applyBulkDayState,
@@ -22,7 +23,7 @@ import {
   shiftMonth,
 } from './masterScheduleGrid'
 import type { ScheduleDayState } from './masterScheduleGrid'
-import type { Master } from '../../types/staff'
+import type { Master, MasterServiceLink } from '../../types/staff'
 import type { Service } from '../../types/service'
 import type { Booking } from '../../types/booking'
 
@@ -54,6 +55,9 @@ interface MasterScheduleModalProps {
   // Полный список мастеров салона (не только этот) — нужен для переноса (RescheduleModal) и для
   // выбора мастера при переназначении конфликтующей записи (см. item28, подзадача №36).
   masters: Master[]
+  // Связки мастер↔услуга — сужают список "Новый мастер" при переназначении конфликтующей записи
+  // до тех, кто реально оказывает её услугу (item55, см. filterMastersForService).
+  masterServiceLinks: MasterServiceLink[]
   // Для отображения услуги в RescheduleModal при переносе конфликтующей записи.
   services: Service[]
   onClose: () => void
@@ -67,7 +71,13 @@ function currentYearMonth(): { year: number; month: number } {
 // Настройка регулярного графика мастера (Backlog item28, подзадача №34) — доступ только ADMIN,
 // форсируется и на бэкенде (см. MasterSchedulesController), и здесь: кнопка открытия этой модалки
 // на StaffDetailPage скрыта за isAdmin, а сам маршрут /staff/:id и так под RequireRole ADMIN.
-export function MasterScheduleModal({ master, masters, services, onClose }: MasterScheduleModalProps) {
+export function MasterScheduleModal({
+  master,
+  masters,
+  masterServiceLinks,
+  services,
+  onClose,
+}: MasterScheduleModalProps) {
   const [{ year, month }, setPeriod] = useState(currentYearMonth)
   const [dayStates, setDayStates] = useState<Map<string, ScheduleDayState>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -110,6 +120,12 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
     () => masters.filter((m) => m.isActive && m.id !== master.id),
     [masters, master.id],
   )
+
+  // item55 — "Новый мастер" при переназначении конфликтующей записи должен предлагать только
+  // тех активных мастеров (кроме текущего), кто оказывает услугу именно этой записи — иначе
+  // переназначение создаёт запись мастеру, не оказывающему эту услугу.
+  const getReassignCandidates = (serviceId: string) =>
+    filterMastersForService(masters, masterServiceLinks, serviceId).filter((m) => m.id !== master.id)
 
   useEffect(() => {
     let cancelled = false
@@ -511,62 +527,70 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
             Перенесите или переназначьте каждую другому мастеру, прежде чем сохранить график.
           </p>
           <ul>
-            {conflicts.map((conflictBooking) => (
-              <li key={conflictBooking.id} className="master-schedule-conflict-item">
-                <div className="master-schedule-conflict-summary">
-                  <span>
-                    {toDateOnly(conflictBooking.startTime)} ·{' '}
-                    {formatTimeRange(conflictBooking.startTime, conflictBooking.endTime)}
-                  </span>
-                  <span>{servicesById.get(conflictBooking.serviceId)?.name ?? 'Услуга не найдена'}</span>
-                </div>
+            {conflicts.map((conflictBooking) => {
+              const reassignCandidates = getReassignCandidates(conflictBooking.serviceId)
 
-                <div className="master-schedule-conflict-actions">
-                  <button type="button" onClick={() => setRescheduleTarget(conflictBooking)}>
-                    Перенести
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setReassigningBookingId((prev) =>
-                        prev === conflictBooking.id ? null : conflictBooking.id,
-                      )
-                    }
-                  >
-                    Переназначить другому мастеру
-                  </button>
-                </div>
+              return (
+                <li key={conflictBooking.id} className="master-schedule-conflict-item">
+                  <div className="master-schedule-conflict-summary">
+                    <span>
+                      {toDateOnly(conflictBooking.startTime)} ·{' '}
+                      {formatTimeRange(conflictBooking.startTime, conflictBooking.endTime)}
+                    </span>
+                    <span>{servicesById.get(conflictBooking.serviceId)?.name ?? 'Услуга не найдена'}</span>
+                  </div>
 
-                {reassigningBookingId === conflictBooking.id && (
-                  <div className="master-schedule-conflict-reassign">
-                    <label htmlFor={`reassign-master-${conflictBooking.id}`}>
-                      Новый мастер
-                      <select
-                        id={`reassign-master-${conflictBooking.id}`}
-                        value={reassignMasterId}
-                        onChange={(event) => setReassignMasterId(event.target.value)}
-                      >
-                        <option value="" disabled>
-                          Выберите мастера
-                        </option>
-                        {otherActiveMasters.map((otherMaster) => (
-                          <option key={otherMaster.id} value={otherMaster.id}>
-                            {otherMaster.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                  <div className="master-schedule-conflict-actions">
+                    <button type="button" onClick={() => setRescheduleTarget(conflictBooking)}>
+                      Перенести
+                    </button>
                     <button
                       type="button"
-                      disabled={!reassignMasterId || resolvingBookingId === conflictBooking.id}
-                      onClick={() => void handleReassign(conflictBooking)}
+                      onClick={() =>
+                        setReassigningBookingId((prev) =>
+                          prev === conflictBooking.id ? null : conflictBooking.id,
+                        )
+                      }
                     >
-                      {resolvingBookingId === conflictBooking.id ? 'Переназначаем…' : 'Подтвердить'}
+                      Переназначить другому мастеру
                     </button>
                   </div>
-                )}
-              </li>
-            ))}
+
+                  {reassigningBookingId === conflictBooking.id && (
+                    <div className="master-schedule-conflict-reassign">
+                      <label htmlFor={`reassign-master-${conflictBooking.id}`}>
+                        Новый мастер
+                        <select
+                          id={`reassign-master-${conflictBooking.id}`}
+                          value={reassignMasterId}
+                          disabled={reassignCandidates.length === 0}
+                          onChange={(event) => setReassignMasterId(event.target.value)}
+                        >
+                          <option value="" disabled>
+                            Выберите мастера
+                          </option>
+                          {reassignCandidates.map((otherMaster) => (
+                            <option key={otherMaster.id} value={otherMaster.id}>
+                              {otherMaster.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {reassignCandidates.length === 0 && (
+                        <p role="alert">Нет мастеров, оказывающих эту услугу</p>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!reassignMasterId || resolvingBookingId === conflictBooking.id}
+                        onClick={() => void handleReassign(conflictBooking)}
+                      >
+                        {resolvingBookingId === conflictBooking.id ? 'Переназначаем…' : 'Подтвердить'}
+                      </button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
           {resolveError && <p role="alert">{resolveError}</p>}
         </div>
