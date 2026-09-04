@@ -381,7 +381,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 18px 4px 6px;
+  padding: 4px 32px 4px 6px;
   background: var(--code-bg);
   border-left: 3px solid var(--accent);
   border-radius: 4px;
@@ -733,9 +733,9 @@
   position: absolute;
   top: 3px;
   right: 3px;
-  width: 13px;
-  height: 13px;
-  font-size: 7px;
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
 }
 
 /* Аватар текущего пользователя в шапке (item43) — .app-user, рядом с "Выполнен вход под именем" */
