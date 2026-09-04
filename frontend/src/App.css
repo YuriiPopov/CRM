@@ -143,6 +143,9 @@
 }
 
 .master-column-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 12px;
   font-size: 15px;
   color: var(--text-h);
@@ -374,10 +377,11 @@
 }
 
 .booking-grid-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 6px;
+  padding: 4px 18px 4px 6px;
   background: var(--code-bg);
   border-left: 3px solid var(--accent);
   border-radius: 4px;
@@ -704,8 +708,37 @@
   border-color: #dc2626;
 }
 
-/* Фото мастера (item41) — блок загрузки на StaffDetailPage, виден только ADMIN
-   (использование фото на других экранах — отдельная задача item42) */
+/* Аватар мастера (item42) — фото (item41) или заглушка с инициалами на цвете мастера,
+   используется в заголовке колонки "По мастерам" (.master-column-avatar) и в правом верхнем
+   углу карточки записи в сеточном/месячном виде (.booking-grid-card-avatar), см. MasterAvatar. */
+.master-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  object-fit: cover;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.master-column-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.booking-grid-card-avatar {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 13px;
+  height: 13px;
+  font-size: 7px;
+}
+
+/* Фото мастера (item41) — блок загрузки на StaffDetailPage, виден только ADMIN */
 .master-photo {
   display: flex;
   align-items: center;

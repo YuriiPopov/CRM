@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { groupBookingsByMaster } from './groupBookingsByMaster'
+import { MasterAvatar } from '../../components/MasterAvatar'
 import type { Booking } from '../../types/booking'
 import type { Master } from '../../types/staff'
 import type { MasterBlock } from '../../types/masterBlock'
@@ -45,7 +46,10 @@ export function MasterColumnsView({
         const masterBlocks = blocksByMasterId.get(master.id) ?? []
         return (
           <div key={master.id} className="master-column">
-            <h2 className="master-column-header">{master.name}</h2>
+            <h2 className="master-column-header">
+              <MasterAvatar master={master} className="master-column-avatar" />
+              {master.name}
+            </h2>
             {masterBookings.length === 0 && masterBlocks.length === 0 ? (
               <p className="master-column-empty">
                 {(totalCountByMasterId.get(master.id) ?? 0) === 0

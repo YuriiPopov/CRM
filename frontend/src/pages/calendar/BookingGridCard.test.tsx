@@ -414,6 +414,80 @@ describe('BookingGridCard', () => {
     expect(screen.getByRole('listitem')).toHaveAttribute('title', expect.stringContaining('перенесено 24.08, 14:30'))
   })
 
+  it('shows a master avatar placeholder with initials when the master has no photo', () => {
+    render(
+      <ul>
+        <BookingGridCard
+          booking={booking({})}
+          client={client}
+          master={master}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByText('AM')).toBeInTheDocument()
+  })
+
+  it('shows the master photo in the card corner when one is set', () => {
+    const { container } = render(
+      <ul>
+        <BookingGridCard
+          booking={booking({})}
+          client={client}
+          master={{ ...master, photo: 'data:image/png;base64,abc' }}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(container.querySelector('img')).toHaveAttribute('src', 'data:image/png;base64,abc')
+  })
+
+  it('omits the avatar when master is unresolved, without breaking the rest of the card', () => {
+    const { container } = render(
+      <ul>
+        <BookingGridCard
+          booking={booking({})}
+          client={client}
+          master={undefined}
+          service={service}
+          role="ADMIN"
+          currentMasterId={null}
+          isPaid={false}
+          canDragReschedule
+          isDragging={false}
+          busy={false}
+          onReschedule={noop}
+          onDragStart={noop}
+          onDragEnd={noop}
+        />
+      </ul>,
+    )
+
+    expect(container.querySelector('img')).not.toBeInTheDocument()
+    expect(container.querySelector('.master-avatar')).not.toBeInTheDocument()
+    expect(screen.getByText('Massage')).toBeInTheDocument()
+  })
+
   it('shows no reschedule mark when the booking was never rescheduled', () => {
     render(
       <ul>

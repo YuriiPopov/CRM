@@ -2,6 +2,7 @@ import type { DragEvent } from 'react'
 import { canReschedule, getStatusBadgeClass, STATUS_LABELS } from './statusTransitions'
 import { formatOriginalTime, formatRescheduledAt, formatTime, formatTimeRange } from './dateUtils'
 import { getMasterColor } from '../dashboard/masterColor'
+import { MasterAvatar } from '../../components/MasterAvatar'
 import type { Booking } from '../../types/booking'
 import type { Client } from '../../types/client'
 import type { Master } from '../../types/staff'
@@ -83,6 +84,7 @@ export function BookingGridCard({
       onDragStart={canDrag ? handleDragStart : undefined}
       onDragEnd={canDrag ? onDragEnd : undefined}
     >
+      {master && <MasterAvatar master={master} className="booking-grid-card-avatar" />}
       <div className="booking-grid-card-time">{formatTime(booking.startTime)}</div>
       <div className="booking-grid-card-details">
         {role === 'ADMIN' ? (
