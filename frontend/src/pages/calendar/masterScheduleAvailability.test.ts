@@ -103,15 +103,33 @@ describe('buildPartialAvailabilityByDate', () => {
   })
 })
 
+// item52 — доля считается от рабочего окна салона 09:00–19:00 (600 минут), а не от полных
+// суток (см. регресс item49, где частично рабочий день выглядел как выходной).
 describe('unavailableFractions', () => {
-  it('computes the unavailable share of the day before startTime and after endTime', () => {
-    expect(unavailableFractions('14:00', '20:00')).toEqual({
-      topPercent: (14 / 24) * 100,
-      bottomPercent: (4 / 24) * 100,
+  it('computes the unavailable share of the salon window before startTime and after endTime', () => {
+    expect(unavailableFractions('14:00', '18:00')).toEqual({
+      topPercent: (5 / 10) * 100,
+      bottomPercent: (1 / 10) * 100,
     })
   })
 
-  it('returns 0% on both ends for a day covering the full 00:00–24:00 span', () => {
-    expect(unavailableFractions('00:00', '24:00')).toEqual({ topPercent: 0, bottomPercent: 0 })
+  it('returns 0% on both ends when the schedule exactly matches the salon window', () => {
+    expect(unavailableFractions('09:00', '19:00')).toEqual({ topPercent: 0, bottomPercent: 0 })
+  })
+
+  it('returns 0% on the start side only when startTime matches the opening hour', () => {
+    expect(unavailableFractions('09:00', '15:00')).toEqual({ topPercent: 0, bottomPercent: (4 / 10) * 100 })
+  })
+
+  it('returns 0% on the end side only when endTime matches the closing hour', () => {
+    expect(unavailableFractions('14:00', '19:00')).toEqual({ topPercent: (5 / 10) * 100, bottomPercent: 0 })
+  })
+
+  it('clamps a schedule wider than the salon window instead of going negative on either side', () => {
+    expect(unavailableFractions('06:00', '22:00')).toEqual({ topPercent: 0, bottomPercent: 0 })
+  })
+
+  it('clamps a schedule entirely after closing instead of exceeding 100% on the top side', () => {
+    expect(unavailableFractions('20:00', '22:00')).toEqual({ topPercent: 100, bottomPercent: 0 })
   })
 })

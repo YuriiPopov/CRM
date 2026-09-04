@@ -1,4 +1,5 @@
 import { toDateOnly } from './dateUtils'
+import { TIMELINE_END_HOUR, TIMELINE_START_HOUR } from '../dashboard/timeline'
 import type { MasterScheduleRecord } from '../../types/masterSchedule'
 
 // GET /master-schedules принимает один месяц за раз — при недельной/месячной сетке,
@@ -69,22 +70,34 @@ export function buildPartialAvailabilityByDate(
   return result
 }
 
-const MINUTES_PER_DAY = 24 * 60
-
 function minutesSinceMidnight(time: string): number {
   const [hours, minutes] = time.split(':').map(Number)
   return hours * 60 + minutes
 }
 
-// item49 — доля суток (в процентах) до startTime и после endTime, чтобы CalendarGridView мог
-// отрисовать недоступную часть ячейки дня пропорционально её реальной продолжительности
-// (сравнение всегда с полными сутками 00:00–24:00, а не с часами работы салона — см. задачу).
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
+}
+
+// item52 — исправляет item49: доля недоступности считалась от полных суток (00:00–24:00), из-за
+// чего частично рабочий день (напр. 09:00–15:00) выглядел заштрихованным почти как выходной.
+// Окно сравнения теперь то же самое рабочее окно салона (09:00–19:00), что и у
+// scheduleUnavailableSegments (item50, dashboard/timeline.ts) — единый источник правды на оба
+// экрана. startTime/endTime вне окна (в т.ч. старые записи до ограничения min/max в
+// MasterScheduleModal) обрезаются по границам окна, поэтому результат всегда в [0, 100].
 export function unavailableFractions(
   startTime: string,
   endTime: string,
 ): { topPercent: number; bottomPercent: number } {
+  const windowStart = TIMELINE_START_HOUR * 60
+  const windowEnd = TIMELINE_END_HOUR * 60
+  const windowMinutes = windowEnd - windowStart
+
+  const clampedStart = clamp(minutesSinceMidnight(startTime), windowStart, windowEnd)
+  const clampedEnd = clamp(minutesSinceMidnight(endTime), windowStart, windowEnd)
+
   return {
-    topPercent: (minutesSinceMidnight(startTime) / MINUTES_PER_DAY) * 100,
-    bottomPercent: ((MINUTES_PER_DAY - minutesSinceMidnight(endTime)) / MINUTES_PER_DAY) * 100,
+    topPercent: ((clampedStart - windowStart) / windowMinutes) * 100,
+    bottomPercent: ((windowEnd - clampedEnd) / windowMinutes) * 100,
   }
 }

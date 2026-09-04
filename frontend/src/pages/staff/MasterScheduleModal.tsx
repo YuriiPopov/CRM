@@ -10,6 +10,7 @@ import {
 import { RescheduleModal } from '../calendar/RescheduleModal'
 import { formatTimeRange, toDateOnly } from '../calendar/dateUtils'
 import { getMonthGridDays } from '../calendar/calendarGrid'
+import { TIMELINE_END_HOUR, TIMELINE_START_HOUR } from '../dashboard/timeline'
 import {
   buildDayStates,
   buildMonthDates,
@@ -26,6 +27,11 @@ import type { Booking } from '../../types/booking'
 
 const WEEKDAY_HEADERS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const UNSET_STATE: ScheduleDayState = { status: 'unset', startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME }
+
+// item52 — часы работы салона (те же 09:00–19:00, что и TIMELINE_START_HOUR/TIMELINE_END_HOUR
+// в dashboard/timeline.ts), чтобы admin не мог указать время вне часов салона в графике мастера.
+const SALON_OPEN_TIME = `${String(TIMELINE_START_HOUR).padStart(2, '0')}:00`
+const SALON_CLOSE_TIME = `${String(TIMELINE_END_HOUR).padStart(2, '0')}:00`
 
 // Заголовок попапа дня — краткая дата без года (сетка уже показывает месяц/год в шапке модалки).
 function formatDayHeading(date: string): string {
@@ -123,13 +129,23 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
     })
   }
 
+  // item52 — min/max на <input type="time"> ограничивают выбор через нативный пикер, но ручной
+  // ввод (или значение из старой записи до этого ограничения) может всё же оказаться вне часов
+  // салона — обрезаем по границам здесь. Строки "HH:MM" с ведущими нулями сравнимы лексикографически,
+  // отдельный парсинг в минуты не нужен.
+  const clampToSalonHours = (value: string) => {
+    if (value < SALON_OPEN_TIME) return SALON_OPEN_TIME
+    if (value > SALON_CLOSE_TIME) return SALON_CLOSE_TIME
+    return value
+  }
+
   const setDayHours = (date: string, field: 'startTime' | 'endTime', value: string) => {
     setConflicts(null)
     setDayStates((prev) => {
       const current = prev.get(date)
       if (!current) return prev
       const next = new Map(prev)
-      next.set(date, { ...current, [field]: value })
+      next.set(date, { ...current, [field]: value ? clampToSalonHours(value) : value })
       return next
     })
   }
@@ -295,6 +311,8 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
                 <input
                   id={`schedule-start-${selectedDate}`}
                   type="time"
+                  min={SALON_OPEN_TIME}
+                  max={SALON_CLOSE_TIME}
                   value={selectedState.startTime}
                   onChange={(event) => setDayHours(selectedDate, 'startTime', event.target.value)}
                 />
@@ -304,6 +322,8 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
                 <input
                   id={`schedule-end-${selectedDate}`}
                   type="time"
+                  min={SALON_OPEN_TIME}
+                  max={SALON_CLOSE_TIME}
                   value={selectedState.endTime}
                   onChange={(event) => setDayHours(selectedDate, 'endTime', event.target.value)}
                 />

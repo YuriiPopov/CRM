@@ -439,10 +439,12 @@ describe('CalendarGridView', () => {
       const top = cell.querySelector('.calendar-grid-cell-unavailable--top') as HTMLElement
       const bottom = cell.querySelector('.calendar-grid-cell-unavailable--bottom') as HTMLElement
 
+      // item52 — доля считается от рабочего окна салона 09:00–19:00 (600 минут), а не от суток:
+      // 14:00 - 09:00 = 5ч недоступности сверху, 19:00 - ... не превышает 19:00, значит снизу
+      // считается от endTime=20:00, обрезанного по закрытию (19:00) — 0ч недоступности снизу.
       expect(top).toBeInTheDocument()
-      expect(top.style.height).toBe(`${(14 / 24) * 100}%`)
-      expect(bottom).toBeInTheDocument()
-      expect(bottom.style.height).toBe(`${(4 / 24) * 100}%`)
+      expect(top.style.height).toBe(`${(5 / 10) * 100}%`)
+      expect(bottom).not.toBeInTheDocument()
 
       expect(getCell('2026-03-12').querySelector('.calendar-grid-cell-unavailable--top')).not.toBeInTheDocument()
     })

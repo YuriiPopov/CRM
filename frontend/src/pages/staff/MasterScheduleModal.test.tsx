@@ -250,6 +250,34 @@ describe('MasterScheduleModal', () => {
     expect(within(getDayCell(1)).getByText('11:00–18:00')).toBeInTheDocument()
   })
 
+  // item52 — часы работы салона (09:00–19:00): ограничение через min/max нативного пикера плюс
+  // обрезка значения при ручном вводе времени вне этого диапазона.
+  it('constrains working hours inputs to the salon hours (09:00–19:00)', async () => {
+    mockedGetMasterSchedule.mockResolvedValue([])
+    const user = userEvent.setup()
+
+    renderModal()
+    await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+
+    await user.click(getDayCell(1))
+    await user.click(within(getDayPopover()).getByRole('button', { name: 'Рабочий' }))
+    const startInput = within(getDayPopover()).getByLabelText('С')
+    const endInput = within(getDayPopover()).getByLabelText('До')
+
+    expect(startInput).toHaveAttribute('min', '09:00')
+    expect(startInput).toHaveAttribute('max', '19:00')
+    expect(endInput).toHaveAttribute('min', '09:00')
+    expect(endInput).toHaveAttribute('max', '19:00')
+
+    await user.clear(startInput)
+    await user.type(startInput, '06:00')
+    expect(startInput).toHaveValue('09:00')
+
+    await user.clear(endInput)
+    await user.type(endInput, '22:00')
+    expect(endInput).toHaveValue('19:00')
+  })
+
   it('navigates to the next month and reloads the schedule for it', async () => {
     mockedGetMasterSchedule.mockResolvedValue([])
     const user = userEvent.setup()
