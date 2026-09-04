@@ -738,6 +738,13 @@
   font-size: 7px;
 }
 
+/* Аватар текущего пользователя в шапке (item43) — .app-user, рядом с "Выполнен вход под именем" */
+.app-user-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
 /* Фото мастера (item41) — блок загрузки на StaffDetailPage, виден только ADMIN */
 .master-photo {
   display: flex;
