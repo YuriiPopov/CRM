@@ -69,6 +69,21 @@ export function buildDayStates(
   return result
 }
 
+// item54 — множественный выбор дней в сетке: применяет одно и то же состояние сразу ко всем
+// датам из selectedDates (см. MasterScheduleModal.tsx), одним обновлением Map вместо цикла
+// отдельных setDayStatus/setDayHours — тот же принцип "новая Map поверх prev", что и в них.
+export function applyBulkDayState(
+  dayStates: Map<string, ScheduleDayState>,
+  dates: Iterable<string>,
+  state: ScheduleDayState,
+): Map<string, ScheduleDayState> {
+  const next = new Map(dayStates)
+  for (const date of dates) {
+    next.set(date, state)
+  }
+  return next
+}
+
 // 'unset' дни не попадают в PUT — они "ещё не размечены", их и не нужно трогать
 // (см. MasterSchedulesService.upsertMonth на бэкенде: не переданные дни не трогаются).
 export function buildUpsertDays(dayStates: Map<string, ScheduleDayState>): MasterScheduleDayInput[] {

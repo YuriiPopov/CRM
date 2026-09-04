@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyBulkDayState,
   buildDayStates,
   buildMonthDates,
   buildUpsertDays,
@@ -96,6 +97,41 @@ describe('buildDayStates', () => {
 
     expect(result.get('2026-03-03')).toEqual({
       status: 'off',
+      startTime: DEFAULT_START_TIME,
+      endTime: DEFAULT_END_TIME,
+    })
+  })
+})
+
+// item54 — множественный выбор дней применяет одно состояние сразу к набору дат.
+describe('applyBulkDayState', () => {
+  it('sets the given state on every listed date, leaving other dates untouched', () => {
+    const initial = new Map([
+      ['2026-03-01', { status: 'unset' as const, startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME }],
+      ['2026-03-02', { status: 'off' as const, startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME }],
+      ['2026-03-03', { status: 'unset' as const, startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME }],
+    ])
+
+    const result = applyBulkDayState(initial, ['2026-03-01', '2026-03-03'], {
+      status: 'working',
+      startTime: '09:00',
+      endTime: '19:00',
+    })
+
+    expect(result.get('2026-03-01')).toEqual({ status: 'working', startTime: '09:00', endTime: '19:00' })
+    expect(result.get('2026-03-03')).toEqual({ status: 'working', startTime: '09:00', endTime: '19:00' })
+    expect(result.get('2026-03-02')).toEqual({ status: 'off', startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME })
+  })
+
+  it('does not mutate the input map', () => {
+    const initial = new Map([
+      ['2026-03-01', { status: 'unset' as const, startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME }],
+    ])
+
+    applyBulkDayState(initial, ['2026-03-01'], { status: 'off', startTime: DEFAULT_START_TIME, endTime: DEFAULT_END_TIME })
+
+    expect(initial.get('2026-03-01')).toEqual({
+      status: 'unset',
       startTime: DEFAULT_START_TIME,
       endTime: DEFAULT_END_TIME,
     })

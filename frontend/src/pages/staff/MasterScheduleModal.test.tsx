@@ -365,6 +365,146 @@ describe('MasterScheduleModal', () => {
     expect(mockedGetMasterSchedule).toHaveBeenCalledWith('master-1', next.year, next.month)
   })
 
+  // item54 — режим "Множественный выбор": выделение нескольких дней и пакетное применение
+  // одного из трёх массовых действий.
+  describe('multi-select mode', () => {
+    it('toggles selection of days instead of opening the single-day popover while the mode is on', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      const user = userEvent.setup()
+
+      renderModal()
+      await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+
+      await user.click(screen.getByRole('button', { name: 'Множественный выбор' }))
+      await user.click(getDayCell(1))
+      await user.click(getDayCell(2))
+
+      expect(screen.queryByRole('dialog', { name: /настройки дня/i })).not.toBeInTheDocument()
+      expect(getDayCell(1)).toHaveAttribute('aria-pressed', 'true')
+      expect(getDayCell(2)).toHaveAttribute('aria-pressed', 'true')
+
+      // Повторный клик по уже выбранному дню снимает выбор именно с него.
+      await user.click(getDayCell(1))
+      expect(getDayCell(1)).toHaveAttribute('aria-pressed', 'false')
+      expect(getDayCell(2)).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('clears the whole selection via "Сбросить выбор"', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      const user = userEvent.setup()
+
+      renderModal()
+      await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+      await user.click(screen.getByRole('button', { name: 'Множественный выбор' }))
+      await user.click(getDayCell(1))
+      await user.click(getDayCell(2))
+
+      await user.click(screen.getByRole('button', { name: 'Сбросить выбор' }))
+
+      expect(getDayCell(1)).toHaveAttribute('aria-pressed', 'false')
+      expect(getDayCell(2)).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.queryByText(/Выбрано дней/)).not.toBeInTheDocument()
+    })
+
+    it('applies "Рабочий" with default hours to every selected day at once', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      const user = userEvent.setup()
+
+      renderModal()
+      await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+      await user.click(screen.getByRole('button', { name: 'Множественный выбор' }))
+      await user.click(getDayCell(1))
+      await user.click(getDayCell(2))
+
+      await user.click(screen.getByRole('button', { name: 'Рабочий' }))
+
+      expect(getDayCell(1)).toHaveClass('master-schedule-grid-cell--working')
+      expect(within(getDayCell(1)).getByText('09:00–19:00')).toBeInTheDocument()
+      expect(getDayCell(2)).toHaveClass('master-schedule-grid-cell--working')
+      expect(within(getDayCell(2)).getByText('09:00–19:00')).toBeInTheDocument()
+      // Селект остаётся выделенным — можно сразу применить другое действие поверх.
+      expect(getDayCell(1)).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('applies "Выходной" to every selected day at once', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      const user = userEvent.setup()
+
+      renderModal()
+      await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+      await user.click(screen.getByRole('button', { name: 'Множественный выбор' }))
+      await user.click(getDayCell(1))
+      await user.click(getDayCell(2))
+
+      await user.click(screen.getByRole('button', { name: 'Выходной' }))
+
+      expect(getDayCell(1)).toHaveClass('master-schedule-grid-cell--off')
+      expect(getDayCell(2)).toHaveClass('master-schedule-grid-cell--off')
+    })
+
+    it('applies a custom time range via "Рабочий с временем" to every selected day, clamped to salon hours', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      const user = userEvent.setup()
+
+      renderModal()
+      await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+      await user.click(screen.getByRole('button', { name: 'Множественный выбор' }))
+      await user.click(getDayCell(1))
+      await user.click(getDayCell(2))
+
+      await user.click(screen.getByRole('button', { name: 'Рабочий с временем' }))
+      const startInput = screen.getByLabelText('С')
+      const endInput = screen.getByLabelText('До')
+      await user.clear(startInput)
+      await user.type(startInput, '11:00')
+      await user.clear(endInput)
+      await user.type(endInput, '22:00')
+      expect(endInput).toHaveValue('19:00')
+
+      await user.click(screen.getByRole('button', { name: 'Применить' }))
+
+      expect(within(getDayCell(1)).getByText('11:00–19:00')).toBeInTheDocument()
+      expect(within(getDayCell(2)).getByText('11:00–19:00')).toBeInTheDocument()
+    })
+
+    it('keeps bulk edits in dayStates after leaving multi-select mode, and saves them normally', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedFindConflicts.mockResolvedValue([])
+      mockedUpsertMasterSchedule.mockResolvedValue([])
+      const user = userEvent.setup()
+
+      renderModal()
+      await screen.findByText(formatMonthLabel(currentYear, currentMonth))
+      await user.click(screen.getByRole('button', { name: 'Множественный выбор' }))
+      await user.click(getDayCell(1))
+      await user.click(getDayCell(2))
+      await user.click(screen.getByRole('button', { name: 'Выходной' }))
+
+      // Выход из режима множественного выбора не откатывает уже применённые правки.
+      await user.click(screen.getByRole('button', { name: 'Множественный выбор' }))
+      expect(getDayCell(1)).toHaveClass('master-schedule-grid-cell--off')
+      expect(getDayCell(2)).toHaveClass('master-schedule-grid-cell--off')
+
+      // Обычный режим снова работает как одиночный попап.
+      await user.click(getDayCell(1))
+      expect(getDayPopover()).toBeInTheDocument()
+      await user.click(getDayCell(1))
+
+      await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+      await waitFor(() => {
+        expect(mockedUpsertMasterSchedule).toHaveBeenCalledWith(
+          expect.objectContaining({
+            days: expect.arrayContaining([
+              { date: currentMonthDates[0], isWorking: false },
+              { date: currentMonthDates[1], isWorking: false },
+            ]),
+          }),
+        )
+      })
+    })
+  })
+
   // Разрешение конфликтов существующих записей (Backlog item28, подзадача №36).
   describe('conflict resolution', () => {
     function conflictBooking(overrides: Partial<Booking> = {}): Booking {

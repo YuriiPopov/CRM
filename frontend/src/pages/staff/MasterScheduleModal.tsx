@@ -12,6 +12,7 @@ import { formatTimeRange, toDateOnly } from '../calendar/dateUtils'
 import { getMonthGridDays } from '../calendar/calendarGrid'
 import { TIMELINE_END_HOUR, TIMELINE_START_HOUR } from '../dashboard/timeline'
 import {
+  applyBulkDayState,
   buildDayStates,
   buildMonthDates,
   buildUpsertDays,
@@ -89,6 +90,16 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
   // если админ явно не нажимал "Рабочий" (см. effectiveDayStates). dayStates при этом не трогается:
   // сетка продолжает показывать такие дни нейтральными, пока не нажато "Сохранить".
   const [viewedUnsetDates, setViewedUnsetDates] = useState<Set<string>>(new Set())
+  // item54 — режим "Множественный выбор": пока выключен, поведение сетки не меняется (см.
+  // handleDayClick). Пока включён, клик по дню добавляет/убирает его из selectedDates вместо
+  // открытия одиночного попапа (selectedDate), и становится доступна панель массовых действий.
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set())
+  // Мини-форма "Рабочий с временем" — отдельный произвольный диапазон времени, который по
+  // подтверждению применяется сразу ко всем selectedDates (см. applyBulkStatus).
+  const [bulkTimeFormOpen, setBulkTimeFormOpen] = useState(false)
+  const [bulkStartTime, setBulkStartTime] = useState(DEFAULT_START_TIME)
+  const [bulkEndTime, setBulkEndTime] = useState(DEFAULT_END_TIME)
 
   const gridDays = useMemo(
     () => getMonthGridDays(`${year}-${String(month).padStart(2, '0')}-01`),
@@ -195,6 +206,51 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
     }
   }
 
+  // item54 — включение/выключение режима множественного выбора закрывает одиночный попап и
+  // сбрасывает набор выбранных дней и мини-форму времени; сам dayStates не трогается, поэтому
+  // уже применённые массовые правки не откатываются при выходе из режима.
+  const toggleMultiSelectMode = () => {
+    setIsMultiSelectMode((prev) => !prev)
+    setSelectedDate(null)
+    setSelectedDates(new Set())
+    setBulkTimeFormOpen(false)
+  }
+
+  const handleDayClick = (date: string) => {
+    if (!isMultiSelectMode) {
+      openDayPopover(date)
+      return
+    }
+    setSelectedDates((prev) => {
+      const next = new Set(prev)
+      if (next.has(date)) next.delete(date)
+      else next.add(date)
+      return next
+    })
+  }
+
+  const clearSelectedDates = () => setSelectedDates(new Set())
+
+  // item54 — применяет одно и то же состояние сразу ко всем selectedDates (см. applyBulkDayState
+  // в masterScheduleGrid.ts). Набор выбранных дней намеренно не сбрасывается после применения —
+  // админ может сразу применить ещё одно действие поверх (например, уточнить время после "Рабочий").
+  const applyBulkStatus = (status: 'working' | 'off', startTime?: string, endTime?: string) => {
+    if (selectedDates.size === 0) return
+    setConflicts(null)
+    setDayStates((prev) =>
+      applyBulkDayState(prev, selectedDates, {
+        status,
+        startTime: startTime ?? DEFAULT_START_TIME,
+        endTime: endTime ?? DEFAULT_END_TIME,
+      }),
+    )
+  }
+
+  const applyBulkTimeRange = () => {
+    applyBulkStatus('working', bulkStartTime, bulkEndTime)
+    setBulkTimeFormOpen(false)
+  }
+
   // Перед сохранением графика всегда сперва спрашиваем /master-schedules/conflicts. Если что-то
   // нашлось — сохранение блокируется (см. canSave), пока по каждой конфликтующей записи не будет
   // принято решение (перенос или переназначение — см. handleBookingResolved/handleReassign). Раз
@@ -265,6 +321,22 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
         </button>
       </div>
 
+      <div className="master-schedule-multiselect-bar">
+        <button
+          type="button"
+          aria-pressed={isMultiSelectMode}
+          className={isMultiSelectMode ? 'active' : undefined}
+          onClick={toggleMultiSelectMode}
+        >
+          Множественный выбор
+        </button>
+        {isMultiSelectMode && (
+          <button type="button" disabled={selectedDates.size === 0} onClick={clearSelectedDates}>
+            Сбросить выбор
+          </button>
+        )}
+      </div>
+
       {loadError && <p role="alert">{loadError}</p>}
 
       {loading ? (
@@ -285,23 +357,26 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
 
               const state: ScheduleDayState = dayStates.get(day.date) ?? UNSET_STATE
               const dayNumber = Number(day.date.slice(-2))
-              const isSelected = day.date === selectedDate
+              const isSelected = !isMultiSelectMode && day.date === selectedDate
+              const isMultiSelected = isMultiSelectMode && selectedDates.has(day.date)
 
               return (
                 <button
                   key={day.date}
                   type="button"
                   aria-label={`День ${dayNumber}`}
-                  aria-haspopup="dialog"
-                  aria-expanded={isSelected}
+                  aria-haspopup={isMultiSelectMode ? undefined : 'dialog'}
+                  aria-expanded={isMultiSelectMode ? undefined : isSelected}
+                  aria-pressed={isMultiSelectMode ? isMultiSelected : undefined}
                   className={[
                     'master-schedule-grid-cell',
                     `master-schedule-grid-cell--${state.status}`,
                     isSelected && 'master-schedule-grid-cell--selected',
+                    isMultiSelected && 'master-schedule-grid-cell--multi-selected',
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  onClick={() => openDayPopover(day.date)}
+                  onClick={() => handleDayClick(day.date)}
                 >
                   <span className="master-schedule-grid-cell-number">{dayNumber}</span>
                   {state.status === 'working' && (
@@ -313,6 +388,62 @@ export function MasterScheduleModal({ master, masters, services, onClose }: Mast
               )
             })}
           </div>
+        </div>
+      )}
+
+      {isMultiSelectMode && selectedDates.size > 0 && (
+        <div className="master-schedule-bulk-actions">
+          <span>Выбрано дней: {selectedDates.size}</span>
+          <div className="master-schedule-bulk-actions-buttons">
+            <button type="button" onClick={() => applyBulkStatus('working')}>
+              Рабочий
+            </button>
+            <button type="button" onClick={() => applyBulkStatus('off')}>
+              Выходной
+            </button>
+            <button
+              type="button"
+              aria-pressed={bulkTimeFormOpen}
+              className={bulkTimeFormOpen ? 'active' : undefined}
+              onClick={() => setBulkTimeFormOpen((prev) => !prev)}
+            >
+              Рабочий с временем
+            </button>
+          </div>
+
+          {bulkTimeFormOpen && (
+            <div className="master-schedule-bulk-time-form">
+              <label htmlFor="bulk-schedule-start">
+                С
+                <input
+                  id="bulk-schedule-start"
+                  type="time"
+                  min={SALON_OPEN_TIME}
+                  max={SALON_CLOSE_TIME}
+                  value={bulkStartTime}
+                  onChange={(event) =>
+                    setBulkStartTime(event.target.value ? clampToSalonHours(event.target.value) : event.target.value)
+                  }
+                />
+              </label>
+              <label htmlFor="bulk-schedule-end">
+                До
+                <input
+                  id="bulk-schedule-end"
+                  type="time"
+                  min={SALON_OPEN_TIME}
+                  max={SALON_CLOSE_TIME}
+                  value={bulkEndTime}
+                  onChange={(event) =>
+                    setBulkEndTime(event.target.value ? clampToSalonHours(event.target.value) : event.target.value)
+                  }
+                />
+              </label>
+              <button type="button" onClick={applyBulkTimeRange}>
+                Применить
+              </button>
+            </div>
+          )}
         </div>
       )}
 
