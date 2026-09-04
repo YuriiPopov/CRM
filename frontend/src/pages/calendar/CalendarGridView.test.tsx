@@ -4,6 +4,7 @@ import { getMonthGridDays, getWeekGridDays } from './calendarGrid'
 import type { Booking } from '../../types/booking'
 import type { Client } from '../../types/client'
 import type { Master } from '../../types/staff'
+import type { MasterBlock } from '../../types/masterBlock'
 import type { Service } from '../../types/service'
 
 function makeBooking(overrides: Partial<Booking>): Booking {
@@ -56,6 +57,20 @@ const service: Service = {
   durationMin: 60,
   price: 150,
   createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+function makeBlock(overrides: Partial<MasterBlock>): MasterBlock {
+  return {
+    id: 'block-1',
+    salonId: 'salon-1',
+    masterId: 'master-1',
+    startTime: '2026-03-09T09:00:00.000Z',
+    endTime: '2026-03-09T10:00:00.000Z',
+    reason: null,
+    createdAt: '2026-03-01T00:00:00.000Z',
+    createdById: null,
+    ...overrides,
+  }
 }
 
 // jsdom's DragEvent has no working dataTransfer — fireEvent lets us hand it a stand-in object,
@@ -381,6 +396,66 @@ describe('CalendarGridView', () => {
       fireEvent.drop(blockedCell, { dataTransfer })
 
       expect(onDropBooking).not.toHaveBeenCalled()
+    })
+  })
+
+  // item47: раньше .calendar-grid-block-chip показывал только время, без указания мастера —
+  // выбор конкретного мастера в фильтре выглядел так, будто чужие блокировки всё ещё видны.
+  describe('block chip avatar', () => {
+    it('renders a MasterAvatar on the block chip when the master resolves', () => {
+      const days = getWeekGridDays('2026-03-12')
+      const block = makeBlock({})
+      const blocksByDay = new Map(days.map((d) => [d.date, d.date === '2026-03-09' ? [block] : []]))
+
+      render(
+        <CalendarGridView
+          days={days}
+          layout="week"
+          bookingsByDay={new Map()}
+          blocksByDay={blocksByDay}
+          clientsById={new Map()}
+          mastersById={new Map([[master.id, master]])}
+          servicesById={new Map()}
+          paidBookingIds={new Set()}
+          role="ADMIN"
+          currentMasterId={null}
+          canDragReschedule
+          blockedDates={new Set()}
+          busyBookingId={null}
+          onReschedule={noop}
+          onDropBooking={noop}
+        />,
+      )
+
+      expect(getCell('2026-03-09').querySelector('.calendar-grid-block-chip-avatar')).toBeInTheDocument()
+    })
+
+    it('renders no avatar on the block chip when the master is not resolved (e.g. "Моё расписание")', () => {
+      const days = getWeekGridDays('2026-03-12')
+      const block = makeBlock({})
+      const blocksByDay = new Map(days.map((d) => [d.date, d.date === '2026-03-09' ? [block] : []]))
+
+      render(
+        <CalendarGridView
+          days={days}
+          layout="week"
+          bookingsByDay={new Map()}
+          blocksByDay={blocksByDay}
+          clientsById={new Map()}
+          mastersById={new Map()}
+          servicesById={new Map()}
+          paidBookingIds={new Set()}
+          role="MASTER"
+          currentMasterId="master-1"
+          canDragReschedule={false}
+          blockedDates={new Set()}
+          busyBookingId={null}
+          onReschedule={noop}
+          onDropBooking={noop}
+        />,
+      )
+
+      expect(getCell('2026-03-09').querySelector('.calendar-grid-block-chip-avatar')).not.toBeInTheDocument()
     })
   })
 })

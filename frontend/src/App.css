@@ -278,6 +278,20 @@
   font-size: 13px;
 }
 
+/* Аватар мастера рядом с его именем на блокировке (item47) — тот же MasterAvatar, что и
+   в BookingGridCard/MasterColumnsView, здесь просто инлайново перед текстом. */
+.schedule-block-master {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedule-block-master-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
 /* Недельная/месячная сетка календаря записей (ячейка = день, без почасовой шкалы —
    в отличие от .dashboard-timeline выше) + drag-and-drop перенос между днями. */
 
@@ -420,6 +434,9 @@
 /* Компактная альтернатива .schedule-block-item внутри ячейки сетки — та же штриховка
    недоступности, что и .dashboard-timeline-block-unavailable, без полноценной карточки. */
 .calendar-grid-block-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 1px 6px;
   border: 1px solid var(--unavailable-border);
   border-radius: 4px;
@@ -432,6 +449,12 @@
   );
   color: var(--text-h);
   font-size: 11px;
+}
+
+.calendar-grid-block-chip-avatar {
+  width: 14px;
+  height: 14px;
+  font-size: 8px;
 }
 
 /* Модальные формы (создание/перенос записи) */

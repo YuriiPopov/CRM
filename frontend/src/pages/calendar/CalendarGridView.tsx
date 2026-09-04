@@ -3,6 +3,7 @@ import type { DragEvent } from 'react'
 import { BookingGridCard } from './BookingGridCard'
 import { formatTimeRange, toDateOnly } from './dateUtils'
 import { masterBlockCreatedByLabel } from './masterBlockCreatedBy'
+import { MasterAvatar } from '../../components/MasterAvatar'
 import type { CalendarGridDay } from './calendarGrid'
 import type { Booking } from '../../types/booking'
 import type { MasterBlock } from '../../types/masterBlock'
@@ -129,6 +130,7 @@ export function CalendarGridView({
               <div className="calendar-grid-cell-date">{formatCellDayNumber(day.date)}</div>
 
               {dayBlocks.map((block) => {
+                const blockMaster = mastersById.get(block.masterId)
                 const createdByLabel = masterBlockCreatedByLabel(block)
                 const title = [
                   formatTimeRange(block.startTime, block.endTime),
@@ -139,6 +141,9 @@ export function CalendarGridView({
                   .join(' · ')
                 return (
                   <div key={block.id} className="calendar-grid-block-chip" title={title}>
+                    {blockMaster && (
+                      <MasterAvatar master={blockMaster} className="calendar-grid-block-chip-avatar" />
+                    )}
                     {formatTimeRange(block.startTime, block.endTime)}
                   </div>
                 )

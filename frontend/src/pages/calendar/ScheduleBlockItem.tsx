@@ -1,5 +1,6 @@
 import { formatTimeRange } from './dateUtils'
 import { masterBlockCreatedByLabel } from './masterBlockCreatedBy'
+import { MasterAvatar } from '../../components/MasterAvatar'
 import type { MasterBlock } from '../../types/masterBlock'
 import type { Master } from '../../types/staff'
 
@@ -34,7 +35,12 @@ export function ScheduleBlockItem({
       <div className="booking-item-time">{formatTimeRange(block.startTime, block.endTime)}</div>
       <div className="booking-item-details">
         <strong>Заблокировано</strong>
-        {showMasterName && master && <span>{master.name}</span>}
+        {showMasterName && master && (
+          <span className="schedule-block-master">
+            <MasterAvatar master={master} className="schedule-block-master-avatar" />
+            {master.name}
+          </span>
+        )}
         {createdByLabel && <span className="schedule-block-created-by">{createdByLabel}</span>}
         {block.reason && <span>{block.reason}</span>}
       </div>

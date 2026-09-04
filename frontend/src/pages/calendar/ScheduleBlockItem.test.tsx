@@ -66,6 +66,43 @@ describe('ScheduleBlockItem', () => {
     expect(screen.getByText('Анна')).toBeInTheDocument()
   })
 
+  // item47: без аватара рядом с именем было не сразу видно, чья это блокировка — MasterAvatar
+  // (та же заглушка с инициалами, что и в BookingGridCard) должен появляться рядом с именем.
+  it('renders a MasterAvatar next to the master name when the master is resolved', () => {
+    render(
+      <ul>
+        <ScheduleBlockItem
+          block={block({})}
+          master={master}
+          showMasterName
+          canDelete
+          onDelete={vi.fn()}
+          busy={false}
+        />
+      </ul>,
+    )
+
+    expect(document.querySelector('.schedule-block-master-avatar')).toBeInTheDocument()
+  })
+
+  // "Моё расписание" (роль MASTER) — master всегда undefined, аватар показывать нечего.
+  it('renders no MasterAvatar when master is undefined', () => {
+    render(
+      <ul>
+        <ScheduleBlockItem
+          block={block({})}
+          master={undefined}
+          showMasterName
+          canDelete
+          onDelete={vi.fn()}
+          busy={false}
+        />
+      </ul>,
+    )
+
+    expect(document.querySelector('.schedule-block-master-avatar')).not.toBeInTheDocument()
+  })
+
   it('shows no created-by label for pre-migration blocks without a recorded creator', () => {
     render(
       <ul>
