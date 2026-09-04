@@ -100,7 +100,13 @@ function optionLabels(select: HTMLElement): string[] {
 describe('CreateBookingModal — mutual master/service filtering', () => {
   beforeEach(() => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
-    mockedGetAvailableSlots.mockResolvedValue({ date: '2026-03-10', masterId: '', serviceId: '', slots: [] })
+    mockedGetAvailableSlots.mockResolvedValue({
+      date: '2026-03-10',
+      masterId: '',
+      serviceId: '',
+      isWorkingDay: true,
+      slots: [],
+    })
   })
 
   afterEach(() => {

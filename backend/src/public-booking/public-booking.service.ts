@@ -41,6 +41,7 @@ export class PublicBookingService {
     date: string;
     masterId: string;
     serviceId: string;
+    isWorkingDay: boolean;
     slots: AvailableSlot[];
   }> {
     const { master, service } = await this.resolveBookableMasterService(
@@ -49,10 +50,47 @@ export class PublicBookingService {
     );
 
     const dayStart = this.parseDateOnly(query.date);
+
+    // Регулярный график работы мастера (Backlog item28, подзадача №51) — та же семантика, что
+    // и на стороне самого бронирования (см. BookingsService.assertScheduleAllows): отсутствие
+    // записи в MasterSchedule на эту дату значит "график ещё не настроен", а не "недоступен",
+    // поэтому в этом случае ничего не меняется.
+    const schedule = await this.prisma.masterSchedule.findFirst({
+      where: { masterId: master.id, date: dayStart },
+    });
+
+    if (schedule && !schedule.isWorking) {
+      return {
+        date: query.date,
+        masterId: master.id,
+        serviceId: service.id,
+        isWorkingDay: false,
+        slots: [],
+      };
+    }
+
     const windowStart = new Date(dayStart);
     windowStart.setUTCHours(SALON_OPEN_HOUR_UTC, 0, 0, 0);
     const windowEnd = new Date(dayStart);
     windowEnd.setUTCHours(SALON_CLOSE_HOUR_UTC, 0, 0, 0);
+
+    // Частичная недоступность (isWorking: true, но startTime/endTime уже часов салона) — сужаем
+    // окно генерации слотов до пересечения с рабочими часами мастера, вместо часов салона.
+    // Слоты вне этого пересечения не должны существовать вовсе, а не просто фильтроваться позже.
+    if (schedule?.startTime) {
+      const scheduleStart = new Date(
+        `${query.date}T${schedule.startTime}:00.000Z`,
+      );
+      if (scheduleStart > windowStart) {
+        windowStart.setTime(scheduleStart.getTime());
+      }
+    }
+    if (schedule?.endTime) {
+      const scheduleEnd = new Date(`${query.date}T${schedule.endTime}:00.000Z`);
+      if (scheduleEnd < windowEnd) {
+        windowEnd.setTime(scheduleEnd.getTime());
+      }
+    }
 
     // Запрашиваем с запасом в BOOKING_BUFFER_MINUTES по краям окна — иначе запись,
     // заканчивающаяяся чуть раньше windowStart (или начинающаяся чуть позже windowEnd),
@@ -114,6 +152,7 @@ export class PublicBookingService {
       date: query.date,
       masterId: master.id,
       serviceId: service.id,
+      isWorkingDay: true,
       slots,
     };
   }

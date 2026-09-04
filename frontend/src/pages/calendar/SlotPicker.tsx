@@ -16,6 +16,10 @@ interface SlotPickerProps {
 // публичный GET /public/booking/slots (см. api/publicBooking.ts).
 export function SlotPicker({ masterId, serviceId, date, selectedStartTime, onSelect }: SlotPickerProps) {
   const [slots, setSlots] = useState<AvailableSlot[]>([])
+  // item51 — недоступность мастера по графику работ (MasterSchedule) на весь день; true по
+  // умолчанию, т.к. до первого ответа сервера не показывается ни список, ни это сообщение
+  // (см. статус loading/idle ниже).
+  const [isWorkingDay, setIsWorkingDay] = useState(true)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -37,6 +41,7 @@ export function SlotPicker({ masterId, serviceId, date, selectedStartTime, onSel
       .then((response) => {
         if (cancelled) return
         setSlots(response.slots)
+        setIsWorkingDay(response.isWorkingDay)
         setStatus('idle')
       })
       .catch((err: unknown) => {
@@ -61,6 +66,13 @@ export function SlotPicker({ masterId, serviceId, date, selectedStartTime, onSel
 
   if (status === 'error') {
     return <p role="alert">{error}</p>
+  }
+
+  // item51 — полный выходной по графику работ (MasterSchedule.isWorking: false) на выбранную
+  // дату: список слотов вообще не показываем, только эта надпись — независимо от slots (сервер
+  // и так возвращает для этого случая пустой список, см. PublicBookingService.getAvailableSlots).
+  if (!isWorkingDay) {
+    return <p>Мастер в этот день недоступен</p>
   }
 
   if (slots.length === 0) {

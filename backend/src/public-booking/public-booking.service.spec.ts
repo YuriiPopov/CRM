@@ -17,6 +17,7 @@ describe('PublicBookingService', () => {
     booking: { findMany: jest.Mock; findFirst: jest.Mock; create: jest.Mock };
     client: { findFirst: jest.Mock; create: jest.Mock };
     masterBlock: { findMany: jest.Mock; findFirst: jest.Mock };
+    masterSchedule: { findFirst: jest.Mock };
   };
 
   const master = { id: 'master-1', salonId: 'salon-1', isActive: true };
@@ -30,11 +31,15 @@ describe('PublicBookingService', () => {
       booking: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
       client: { findFirst: jest.fn(), create: jest.fn() },
       masterBlock: { findMany: jest.fn(), findFirst: jest.fn() },
+      masterSchedule: { findFirst: jest.fn() },
     };
     // По умолчанию блокировок нет (Backlog п.9) — тесты, которым нужен конфликт
     // с MasterBlock, переопределяют это значение явно.
     prisma.masterBlock.findMany.mockResolvedValue([]);
     prisma.masterBlock.findFirst.mockResolvedValue(null);
+    // По умолчанию график не настроен ("не размечено", item51) — ведёт себя как раньше;
+    // тесты про недоступность по графику переопределяют это значение явно.
+    prisma.masterSchedule.findFirst.mockResolvedValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -212,6 +217,130 @@ describe('PublicBookingService', () => {
       expect(
         result.slots.every((slot) => new Date(slot.startTime) >= now),
       ).toBe(true);
+    });
+
+    // item51 — недоступность по графику работ (MasterSchedule) на экране выбора слота.
+    describe('regular work schedule (item51)', () => {
+      beforeEach(() => {
+        prisma.master.findFirst.mockResolvedValue(master);
+        prisma.service.findFirst.mockResolvedValue(service_);
+        prisma.masterService.findUnique.mockResolvedValue({});
+        prisma.booking.findMany.mockResolvedValue([]);
+      });
+
+      it('returns no slots and isWorkingDay: false for a full day off', async () => {
+        prisma.masterSchedule.findFirst.mockResolvedValue({
+          isWorking: false,
+          startTime: null,
+          endTime: null,
+        });
+
+        const result = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        expect(result.isWorkingDay).toBe(false);
+        expect(result.slots).toEqual([]);
+      });
+
+      it('does not even query bookings/blocks for a full day off (short-circuits before the window)', async () => {
+        prisma.masterSchedule.findFirst.mockResolvedValue({
+          isWorking: false,
+          startTime: null,
+          endTime: null,
+        });
+
+        await service.getAvailableSlots({ ...query, date: '2099-06-15' });
+
+        expect(prisma.booking.findMany).not.toHaveBeenCalled();
+        expect(prisma.masterBlock.findMany).not.toHaveBeenCalled();
+      });
+
+      it('excludes slots outside startTime/endTime for a partially available day, keeping isWorkingDay: true', async () => {
+        // Salon is open 09:00-19:00 UTC; master is only available 11:00-17:00 this day.
+        prisma.masterSchedule.findFirst.mockResolvedValue({
+          isWorking: true,
+          startTime: '11:00',
+          endTime: '17:00',
+        });
+
+        const result = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        expect(result.isWorkingDay).toBe(true);
+        expect(
+          result.slots.some((s) => s.startTime === '2099-06-15T09:00:00.000Z'),
+        ).toBe(false);
+        expect(
+          result.slots.some((s) => s.startTime === '2099-06-15T10:30:00.000Z'),
+        ).toBe(false);
+        // 16:00-17:00 is the last hour-long slot that still fits inside 11:00-17:00
+        expect(
+          result.slots.some((s) => s.startTime === '2099-06-15T16:00:00.000Z'),
+        ).toBe(true);
+        expect(
+          result.slots.some((s) => s.startTime === '2099-06-15T16:15:00.000Z'),
+        ).toBe(false);
+      });
+
+      it('does not widen the window past the salon hours when the schedule is looser on either side', async () => {
+        // Master "works" 07:00-20:00, wider than the salon's 09:00-19:00 — salon hours still win.
+        prisma.masterSchedule.findFirst.mockResolvedValue({
+          isWorking: true,
+          startTime: '07:00',
+          endTime: '20:00',
+        });
+
+        const result = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        expect(
+          result.slots.some((s) => s.startTime === '2099-06-15T08:00:00.000Z'),
+        ).toBe(false);
+        expect(
+          result.slots.some((s) => s.startTime === '2099-06-15T18:00:00.000Z'),
+        ).toBe(true);
+      });
+
+      it('behaves exactly as before ("not yet configured") when there is no schedule record for the date', async () => {
+        prisma.masterSchedule.findFirst.mockResolvedValue(null);
+
+        const result = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        expect(result.isWorkingDay).toBe(true);
+        expect(
+          result.slots.some((s) => s.startTime === '2099-06-15T09:00:00.000Z'),
+        ).toBe(true);
+      });
+
+      it('does not change anything for a normal working day covering the full salon window', async () => {
+        prisma.masterSchedule.findFirst.mockResolvedValue({
+          isWorking: true,
+          startTime: '09:00',
+          endTime: '19:00',
+        });
+
+        const withSchedule = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        prisma.masterSchedule.findFirst.mockResolvedValue(null);
+        const withoutSchedule = await service.getAvailableSlots({
+          ...query,
+          date: '2099-06-15',
+        });
+
+        expect(withSchedule.slots).toEqual(withoutSchedule.slots);
+      });
     });
   });
 

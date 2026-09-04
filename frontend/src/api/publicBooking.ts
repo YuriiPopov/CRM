@@ -9,6 +9,9 @@ export interface AvailableSlotsResponse {
   date: string
   masterId: string
   serviceId: string
+  // item51 — false только для явного полного выходного (MasterSchedule.isWorking: false) на эту
+  // дату; при "график не настроен" бэкенд ведёт себя как раньше и всегда возвращает true.
+  isWorkingDay: boolean
   slots: AvailableSlot[]
 }
 
