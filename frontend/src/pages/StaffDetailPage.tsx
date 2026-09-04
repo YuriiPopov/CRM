@@ -7,6 +7,7 @@ import { listServices } from '../api/services'
 import { listServiceCategories } from '../api/serviceCategories'
 import { getApiErrorMessage } from '../api/errors'
 import { EditMasterModal } from './staff/EditMasterModal'
+import { MasterPhotoUpload } from './staff/MasterPhotoUpload'
 import { MasterScheduleModal } from './staff/MasterScheduleModal'
 import type { Service, ServiceCategoryRef } from '../types/service'
 import type { Master, MasterDetail } from '../types/staff'
@@ -134,6 +135,8 @@ export function StaffDetailPage() {
       </p>
 
       <h1>{master.name}</h1>
+
+      {isAdmin && <MasterPhotoUpload master={master} onChanged={() => void load()} />}
 
       {actionError && <p role="alert">{actionError}</p>}
 

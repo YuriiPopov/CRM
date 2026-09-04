@@ -47,3 +47,14 @@ export async function assignService(masterId: string, serviceId: string): Promis
 export async function unassignService(masterId: string, serviceId: string): Promise<void> {
   await apiClient.delete(`/staff/${masterId}/services/${serviceId}`)
 }
+
+// photo — base64 data URL (см. resizeImageFile в pages/staff/masterPhoto.ts); бэкенд проверяет
+// формат и итоговый размер после декодирования (ADMIN-only, item41)
+export async function uploadMasterPhoto(id: string, photo: string): Promise<MasterDetail> {
+  const response = await apiClient.post<MasterDetail>(`/staff/${id}/photo`, { photo })
+  return response.data
+}
+
+export async function removeMasterPhoto(id: string): Promise<void> {
+  await apiClient.delete(`/staff/${id}/photo`)
+}

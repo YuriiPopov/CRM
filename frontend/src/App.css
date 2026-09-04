@@ -704,6 +704,44 @@
   border-color: #dc2626;
 }
 
+/* Фото мастера (item41) — блок загрузки на StaffDetailPage, виден только ADMIN
+   (использование фото на других экранах — отдельная задача item42) */
+.master-photo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.master-photo-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.master-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  color: var(--text);
+  font-size: 12px;
+  text-align: center;
+}
+
+.master-photo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 /* Клиенты */
 
 .client-list {

@@ -35,6 +35,7 @@ const master: Master = {
   name: 'Anna',
   specializationCategoryIds: ['category-massage'],
   isActive: true,
+  photo: null,
   createdAt: '2026-01-01T00:00:00.000Z',
 }
 

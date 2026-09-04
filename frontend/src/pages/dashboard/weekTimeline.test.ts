@@ -29,6 +29,7 @@ function makeMaster(overrides: Partial<Master>): Master {
     name: 'Anna',
     specializationCategoryIds: ['category-spa'],
     isActive: true,
+    photo: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   }

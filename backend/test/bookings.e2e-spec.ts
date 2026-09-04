@@ -319,6 +319,7 @@ describe('Bookings (e2e)', () => {
       salonId: 'salon-1',
       name: 'Anna',
       isActive: true,
+      photo: null,
       createdAt: new Date(),
     });
     prisma.seedMaster({
@@ -326,6 +327,7 @@ describe('Bookings (e2e)', () => {
       salonId: 'salon-1',
       name: 'Boris',
       isActive: true,
+      photo: null,
       createdAt: new Date(),
     });
 

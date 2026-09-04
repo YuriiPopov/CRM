@@ -9,11 +9,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreateMasterDto } from './dto/create-master.dto';
 import { UpdateMasterDto } from './dto/update-master.dto';
+import { UploadMasterPhotoDto } from './dto/upload-master-photo.dto';
 
 const masterInclude = {
   services: { include: { service: true } },
   specializations: true,
 } satisfies Prisma.MasterInclude;
+
+// Лимит применяется к декодированным байтам, не к длине base64-строки (см. assertPhotoSize) —
+// клиент должен ресайзить/сжимать фото перед отправкой (item41), это последняя серверная
+// гарантия, а не расчёт на добросовестность клиента.
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 
 type MasterWithRelations = Prisma.MasterGetPayload<{
   include: typeof masterInclude;
@@ -164,6 +170,39 @@ export class StaffService {
     await this.prisma.masterService.delete({
       where: { masterId_serviceId: { masterId, serviceId } },
     });
+  }
+
+  async uploadPhoto(id: string, dto: UploadMasterPhotoDto, salonId: string) {
+    await this.assertExistsInSalon(id, salonId);
+    this.assertPhotoSize(dto.photo);
+
+    const master = await this.prisma.master.update({
+      where: { id },
+      data: { photo: dto.photo },
+      include: masterInclude,
+    });
+
+    return this.toMasterDetail(master);
+  }
+
+  async removePhoto(id: string, salonId: string): Promise<void> {
+    await this.assertExistsInSalon(id, salonId);
+
+    await this.prisma.master.update({
+      where: { id },
+      data: { photo: null },
+    });
+  }
+
+  // Формат data URL уже проверен @Matches в UploadMasterPhotoDto — здесь только объём
+  // декодированных байт.
+  private assertPhotoSize(dataUrl: string): void {
+    const base64Payload = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    const byteLength = Buffer.from(base64Payload, 'base64').length;
+
+    if (byteLength > MAX_PHOTO_BYTES) {
+      throw new BadRequestException('Photo must not exceed 2MB');
+    }
   }
 
   private toMasterDetail(master: MasterWithRelations) {

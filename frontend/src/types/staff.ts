@@ -6,6 +6,9 @@ export interface Master {
   name: string
   specializationCategoryIds: string[]
   isActive: boolean
+  // Base64 data URL или null, если фото не загружено (item41). Отдаётся инлайн и в списке,
+  // и в карточке мастера — см. StaffService.toMasterDetail на бэкенде.
+  photo: string | null
   createdAt: string
 }
 

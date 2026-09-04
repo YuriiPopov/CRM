@@ -18,6 +18,8 @@ vi.mock('../api/staff', () => ({
   assignService: vi.fn(),
   unassignService: vi.fn(),
   updateMaster: vi.fn(),
+  uploadMasterPhoto: vi.fn(),
+  removeMasterPhoto: vi.fn(),
 }))
 vi.mock('../api/services', () => ({ listServices: vi.fn() }))
 vi.mock('../api/serviceCategories', () => ({ listServiceCategories: vi.fn() }))
@@ -111,6 +113,7 @@ function makeMasterDetail(overrides: Partial<MasterDetail> = {}): MasterDetail {
     name: 'Anna Kowalska',
     specializationCategoryIds: ['category-spa'],
     isActive: true,
+    photo: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     services: [massageService],
     ...overrides,
@@ -183,6 +186,20 @@ describe('StaffDetailPage', () => {
     expect(within(select).getByText('Manicure')).toBeInTheDocument()
   })
 
+  // Загрузка/замена/удаление фото — item41; сам блок протестирован отдельно в
+  // MasterPhotoUpload.test.tsx, здесь важна только видимость на странице по роли.
+  it('shows the photo upload block for ADMIN', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedGetMaster.mockResolvedValue(makeMasterDetail())
+    mockedListServices.mockResolvedValue([massageService, manicureService])
+    mockedListServiceCategories.mockResolvedValue(categories)
+
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Anna Kowalska' })
+    expect(screen.getByLabelText('Загрузить фото')).toBeInTheDocument()
+  })
+
   it('is read-only for MASTER viewing their own profile', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
     mockedGetMaster.mockResolvedValue(makeMasterDetail())
@@ -195,6 +212,7 @@ describe('StaffDetailPage', () => {
     expect(screen.queryByRole('button', { name: /отвязать/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /график работы/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/привязать услугу/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Загрузить фото')).not.toBeInTheDocument()
     expect(mockedListServices).not.toHaveBeenCalled()
   })
 

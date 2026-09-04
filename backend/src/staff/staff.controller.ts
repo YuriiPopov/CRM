@@ -18,6 +18,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreateMasterDto } from './dto/create-master.dto';
 import { UpdateMasterDto } from './dto/update-master.dto';
+import { UploadMasterPhotoDto } from './dto/upload-master-photo.dto';
 import { StaffService } from './staff.service';
 
 @Controller('staff')
@@ -79,5 +80,22 @@ export class StaffController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.staffService.unassignService(id, serviceId, user.salonId);
+  }
+
+  @Post(':id/photo')
+  @Roles(Role.ADMIN)
+  uploadPhoto(
+    @Param('id') id: string,
+    @Body() dto: UploadMasterPhotoDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.staffService.uploadPhoto(id, dto, user.salonId);
+  }
+
+  @Delete(':id/photo')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removePhoto(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.staffService.removePhoto(id, user.salonId);
   }
 }

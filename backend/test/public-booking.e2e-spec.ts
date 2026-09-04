@@ -192,6 +192,7 @@ describe('Public booking (e2e)', () => {
       salonId: 'salon-1',
       name: 'Anna',
       isActive: true,
+      photo: null,
       createdAt: new Date(),
     });
     prisma.seedMaster({
@@ -199,6 +200,7 @@ describe('Public booking (e2e)', () => {
       salonId: 'salon-1',
       name: 'Retired Master',
       isActive: false,
+      photo: null,
       createdAt: new Date(),
     });
     prisma.seedService({

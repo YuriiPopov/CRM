@@ -457,6 +457,80 @@ describe('StaffService', () => {
     });
   });
 
+  describe('uploadPhoto', () => {
+    const validPhoto =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+    it('throws NotFoundException when the master is not in the salon', async () => {
+      prisma.master.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.uploadPhoto('master-1', { photo: validPhoto }, 'salon-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.master.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a photo exceeding 2MB after decoding without updating the master', async () => {
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-1' });
+      const oversizedPhoto = `data:image/png;base64,${'A'.repeat(3_000_000)}`;
+
+      await expect(
+        service.uploadPhoto('master-1', { photo: oversizedPhoto }, 'salon-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.master.update).not.toHaveBeenCalled();
+    });
+
+    it('stores the photo and returns the updated master', async () => {
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-1' });
+      prisma.master.update.mockResolvedValue({
+        id: 'master-1',
+        photo: validPhoto,
+        services: [],
+        specializations: [],
+      });
+
+      const result = await service.uploadPhoto(
+        'master-1',
+        { photo: validPhoto },
+        'salon-1',
+      );
+
+      expect(prisma.master.update).toHaveBeenCalledWith({
+        where: { id: 'master-1' },
+        data: { photo: validPhoto },
+        include: {
+          services: { include: { service: true } },
+          specializations: true,
+        },
+      });
+      expect(result.photo).toEqual(validPhoto);
+    });
+  });
+
+  describe('removePhoto', () => {
+    it('throws NotFoundException when the master is not in the salon', async () => {
+      prisma.master.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.removePhoto('master-1', 'salon-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.master.update).not.toHaveBeenCalled();
+    });
+
+    it('clears the photo field', async () => {
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-1' });
+      prisma.master.update.mockResolvedValue({ id: 'master-1', photo: null });
+
+      await expect(
+        service.removePhoto('master-1', 'salon-1'),
+      ).resolves.toBeUndefined();
+      expect(prisma.master.update).toHaveBeenCalledWith({
+        where: { id: 'master-1' },
+        data: { photo: null },
+      });
+    });
+  });
+
   describe('unassignService', () => {
     it('throws NotFoundException when the master is not in the salon', async () => {
       prisma.master.findFirst.mockResolvedValue(null);

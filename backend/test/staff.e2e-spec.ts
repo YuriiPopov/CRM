@@ -12,6 +12,7 @@ import {
   User,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { json, urlencoded } from 'express';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AuthModule } from '../src/auth/auth.module';
@@ -359,6 +360,7 @@ describe('Staff (e2e)', () => {
       salonId: 'salon-1',
       name: 'Anna',
       isActive: true,
+      photo: null,
       createdAt: new Date(),
     });
     prisma.seedMasterSpecialization(
@@ -370,6 +372,7 @@ describe('Staff (e2e)', () => {
       salonId: 'salon-1',
       name: 'Boris',
       isActive: true,
+      photo: null,
       createdAt: new Date(),
     });
     prisma.seedMasterSpecialization(
@@ -381,6 +384,7 @@ describe('Staff (e2e)', () => {
       salonId: 'salon-2',
       name: 'Someone else',
       isActive: true,
+      photo: null,
       createdAt: new Date(),
     });
     prisma.seedMasterSpecialization(
@@ -419,7 +423,11 @@ describe('Staff (e2e)', () => {
       .useValue(prisma)
       .compile();
 
-    app = moduleFixture.createNestApplication();
+    // bodyParser: false + higher manual limit — mirrors main.ts (item41: base64 photo uploads
+    // exceed express's default 100kb JSON body limit).
+    app = moduleFixture.createNestApplication({ bodyParser: false });
+    app.use(json({ limit: '4mb' }));
+    app.use(urlencoded({ extended: true, limit: '4mb' }));
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true }),
     );
@@ -648,6 +656,105 @@ describe('Staff (e2e)', () => {
         .delete('/staff/master-rec-1/services/service-a')
         .set('Authorization', `Bearer ${token}`)
         .expect(404);
+    });
+  });
+
+  describe('photo upload', () => {
+    const validPhoto =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+    it('allows ADMIN to upload a photo', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      const response = await request(app.getHttpServer())
+        .post('/staff/master-rec-1/photo')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ photo: validPhoto })
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        id: 'master-rec-1',
+        photo: validPhoto,
+      });
+
+      const detail = await request(app.getHttpServer())
+        .get('/staff/master-rec-1')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect((detail.body as { photo: string }).photo).toEqual(validPhoto);
+    });
+
+    it('forbids MASTER from uploading a photo', async () => {
+      const token = await loginAs('master1@b4u.local', master1Password);
+
+      await request(app.getHttpServer())
+        .post('/staff/master-rec-1/photo')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ photo: validPhoto })
+        .expect(403);
+    });
+
+    it('rejects a data URL with a disallowed mime type', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      await request(app.getHttpServer())
+        .post('/staff/master-rec-1/photo')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ photo: 'data:image/gif;base64,AAAA' })
+        .expect(400);
+    });
+
+    it('rejects a photo exceeding 2MB after decoding', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+      const oversizedPhoto = `data:image/png;base64,${'A'.repeat(3_000_000)}`;
+
+      await request(app.getHttpServer())
+        .post('/staff/master-rec-1/photo')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ photo: oversizedPhoto })
+        .expect(400);
+    });
+
+    it('returns 404 when uploading a photo for a master outside the salon', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      await request(app.getHttpServer())
+        .post('/staff/master-other-salon/photo')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ photo: validPhoto })
+        .expect(404);
+    });
+
+    it('allows ADMIN to remove a previously uploaded photo', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      await request(app.getHttpServer())
+        .post('/staff/master-rec-1/photo')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ photo: validPhoto })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete('/staff/master-rec-1/photo')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      const detail = await request(app.getHttpServer())
+        .get('/staff/master-rec-1')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect((detail.body as { photo: string | null }).photo).toBeNull();
+    });
+
+    it('forbids MASTER from removing a photo', async () => {
+      const token = await loginAs('master1@b4u.local', master1Password);
+
+      await request(app.getHttpServer())
+        .delete('/staff/master-rec-1/photo')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
     });
   });
 

@@ -115,6 +115,10 @@ model Master {
   name      String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  // Фото мастера как base64 data URL (item41) — MVP-хранение в БД без внешнего файлового
+  // хранилища; клиент ресайзит/сжимает до отправки, сервер дополнительно проверяет формат
+  // (JPEG/PNG/WebP) и итоговый размер после декодирования (см. StaffService.assertPhotoSize).
+  photo     String?
 
   user            User?
   services        MasterService[]
