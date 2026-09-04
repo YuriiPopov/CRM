@@ -458,4 +458,43 @@ describe('CalendarGridView', () => {
       expect(getCell('2026-03-09').querySelector('.calendar-grid-block-chip-avatar')).not.toBeInTheDocument()
     })
   })
+
+  // item48: раньше все блоки одного дня рендерились перед всеми записями (два отдельных
+  // списка), независимо от времени — блокировка на 15:00 оказывалась выше записи на 10:00.
+  it('interleaves a later block with an earlier booking in the cell in chronological order', () => {
+    const days = getWeekGridDays('2026-03-12')
+    const earlyBooking = makeBooking({
+      id: 'b-early',
+      startTime: '2026-03-09T10:00:00.000Z',
+      endTime: '2026-03-09T11:00:00.000Z',
+    })
+    const lateBlock = makeBlock({ id: 'block-late', startTime: '2026-03-09T15:00:00.000Z', endTime: '2026-03-09T16:00:00.000Z' })
+    const bookingsByDay = new Map(days.map((d) => [d.date, d.date === '2026-03-09' ? [earlyBooking] : []]))
+    const blocksByDay = new Map(days.map((d) => [d.date, d.date === '2026-03-09' ? [lateBlock] : []]))
+
+    render(
+      <CalendarGridView
+        days={days}
+        layout="week"
+        bookingsByDay={bookingsByDay}
+        blocksByDay={blocksByDay}
+        clientsById={new Map([[client.id, client]])}
+        mastersById={new Map([[master.id, master]])}
+        servicesById={new Map([[service.id, service]])}
+        paidBookingIds={new Set()}
+        role="ADMIN"
+        currentMasterId={null}
+        canDragReschedule
+        blockedDates={new Set()}
+        busyBookingId={null}
+        onReschedule={noop}
+        onDropBooking={noop}
+      />,
+    )
+
+    const items = getCell('2026-03-09').querySelectorAll('.calendar-grid-cell-bookings > li')
+    expect(items).toHaveLength(2)
+    expect(items[0]!.className).toContain('booking-grid-card')
+    expect(items[1]!.className).toContain('calendar-grid-block-chip')
+  })
 })

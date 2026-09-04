@@ -3,6 +3,7 @@ import type { DragEvent } from 'react'
 import { BookingGridCard } from './BookingGridCard'
 import { formatTimeRange, toDateOnly } from './dateUtils'
 import { masterBlockCreatedByLabel } from './masterBlockCreatedBy'
+import { mergeScheduleItems } from './mergeScheduleItems'
 import { MasterAvatar } from '../../components/MasterAvatar'
 import type { CalendarGridDay } from './calendarGrid'
 import type { Booking } from '../../types/booking'
@@ -129,45 +130,49 @@ export function CalendarGridView({
             >
               <div className="calendar-grid-cell-date">{formatCellDayNumber(day.date)}</div>
 
-              {dayBlocks.map((block) => {
-                const blockMaster = mastersById.get(block.masterId)
-                const createdByLabel = masterBlockCreatedByLabel(block)
-                const title = [
-                  formatTimeRange(block.startTime, block.endTime),
-                  block.reason ?? 'Недоступен',
-                  createdByLabel,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-                return (
-                  <div key={block.id} className="calendar-grid-block-chip" title={title}>
-                    {blockMaster && (
-                      <MasterAvatar master={blockMaster} className="calendar-grid-block-chip-avatar" />
-                    )}
-                    {formatTimeRange(block.startTime, block.endTime)}
-                  </div>
-                )
-              })}
-
               <ul className="calendar-grid-cell-bookings">
-                {visibleBookings.map((booking) => (
-                  <BookingGridCard
-                    key={booking.id}
-                    booking={booking}
-                    client={clientsById.get(booking.clientId)}
-                    master={mastersById.get(booking.masterId)}
-                    service={servicesById.get(booking.serviceId)}
-                    role={role}
-                    currentMasterId={currentMasterId}
-                    isPaid={paidBookingIds.has(booking.id)}
-                    canDragReschedule={canDragReschedule}
-                    isDragging={draggingBooking?.id === booking.id}
-                    busy={busyBookingId === booking.id}
-                    onReschedule={() => onReschedule(booking)}
-                    onDragStart={setDraggingBooking}
-                    onDragEnd={clearDragState}
-                  />
-                ))}
+                {mergeScheduleItems(visibleBookings, dayBlocks).map((item) => {
+                  if (item.kind === 'block') {
+                    const block = item.block
+                    const blockMaster = mastersById.get(block.masterId)
+                    const createdByLabel = masterBlockCreatedByLabel(block)
+                    const title = [
+                      formatTimeRange(block.startTime, block.endTime),
+                      block.reason ?? 'Недоступен',
+                      createdByLabel,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                    return (
+                      <li key={block.id} className="calendar-grid-block-chip" title={title}>
+                        {blockMaster && (
+                          <MasterAvatar master={blockMaster} className="calendar-grid-block-chip-avatar" />
+                        )}
+                        {formatTimeRange(block.startTime, block.endTime)}
+                      </li>
+                    )
+                  }
+
+                  const booking = item.booking
+                  return (
+                    <BookingGridCard
+                      key={booking.id}
+                      booking={booking}
+                      client={clientsById.get(booking.clientId)}
+                      master={mastersById.get(booking.masterId)}
+                      service={servicesById.get(booking.serviceId)}
+                      role={role}
+                      currentMasterId={currentMasterId}
+                      isPaid={paidBookingIds.has(booking.id)}
+                      canDragReschedule={canDragReschedule}
+                      isDragging={draggingBooking?.id === booking.id}
+                      busy={busyBookingId === booking.id}
+                      onReschedule={() => onReschedule(booking)}
+                      onDragStart={setDraggingBooking}
+                      onDragEnd={clearDragState}
+                    />
+                  )
+                })}
               </ul>
 
               {hiddenCount > 0 && <div className="calendar-grid-cell-more">+{hiddenCount}</div>}

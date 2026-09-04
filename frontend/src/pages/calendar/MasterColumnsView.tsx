@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { groupBookingsByMaster } from './groupBookingsByMaster'
+import { mergeScheduleItems } from './mergeScheduleItems'
 import { MasterAvatar } from '../../components/MasterAvatar'
 import type { Booking } from '../../types/booking'
 import type { Master } from '../../types/staff'
@@ -58,8 +59,9 @@ export function MasterColumnsView({
               </p>
             ) : (
               <ul className="booking-list">
-                {masterBlocks.map((block) => renderBlock(block))}
-                {masterBookings.map((booking) => renderBooking(booking))}
+                {mergeScheduleItems(masterBookings, masterBlocks).map((item) =>
+                  item.kind === 'block' ? renderBlock(item.block) : renderBooking(item.booking),
+                )}
               </ul>
             )}
           </div>

@@ -210,6 +210,42 @@ describe('CalendarPage', () => {
     expect(within(row).getByText('Master One')).toBeInTheDocument()
   })
 
+  // item48: раньше все блокировки рендерились отдельным списком перед всеми записями,
+  // независимо от времени — блокировка на 15:00 оказывалась выше записи на 10:00.
+  it('interleaves a later block with an earlier booking in chronological order in the "Список" view', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([booking])
+    mockedListClients.mockResolvedValue([client])
+    mockedListStaff.mockResolvedValue([master])
+    mockedListServices.mockResolvedValue([service])
+    mockedListPayments.mockResolvedValue([])
+    mockedListMasterBlocks.mockResolvedValue([
+      {
+        id: 'block-1',
+        salonId: 'salon-1',
+        masterId: 'master-1',
+        startTime: '2026-03-10T15:00:00.000Z',
+        endTime: '2026-03-10T16:00:00.000Z',
+        reason: null,
+        createdAt: '2026-03-01T00:00:00.000Z',
+        createdById: null,
+      },
+    ])
+
+    render(<CalendarPage />)
+    await selectDate('2026-03-10')
+    await screen.findByText('Anna Client')
+
+    const items = document.querySelectorAll('.booking-list > li')
+    expect(items).toHaveLength(2)
+    expect(within(items[0] as HTMLElement).getByText('Anna Client')).toBeInTheDocument()
+    expect(within(items[1] as HTMLElement).getByText('Заблокировано')).toBeInTheDocument()
+
+    // vi.clearAllMocks() (afterEach) clears calls, not the resolved value set above — restore
+    // the file's shared "no blocks" default so later tests aren't affected by this one.
+    mockedListMasterBlocks.mockResolvedValue([])
+  })
+
   it('shows nothing for a day with no bookings', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListBookings.mockResolvedValue([booking])

@@ -16,6 +16,7 @@ import {
 } from './calendar/filterBookings'
 import { filterBlocksForDay, filterBlocksForRange } from './calendar/filterBlocksForDay'
 import { groupBlocksByMaster } from './calendar/groupBlocksByMaster'
+import { mergeScheduleItems } from './calendar/mergeScheduleItems'
 import { groupBookingsByDay } from './calendar/groupBookingsByDay'
 import { groupBlocksByDay } from './calendar/groupBlocksByDay'
 import {
@@ -595,8 +596,9 @@ export function CalendarPage() {
         <p>Нет записей, соответствующих выбранным фильтрам</p>
       ) : (
         <ul className="booking-list">
-          {dayBlocks.map((block) => renderBlockItem(block, true))}
-          {visibleBookings.map((booking) => renderBookingItem(booking, false))}
+          {mergeScheduleItems(visibleBookings, dayBlocks).map((item) =>
+            item.kind === 'block' ? renderBlockItem(item.block, true) : renderBookingItem(item.booking, false),
+          )}
         </ul>
       )}
 
