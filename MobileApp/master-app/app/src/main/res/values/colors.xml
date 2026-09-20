@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Токены дизайна из design_handoff_master_app/README.md -->
+    <color name="canvas">#EDE6E1</color>
+    <color name="app_background">#FAF3EE</color>
+    <color name="ink_strong">#3D2027</color>
+    <color name="ink">#4A2530</color>
+    <color name="muted">#8B6F73</color>
+    <color name="muted_light">#B98A93</color>
+    <color name="border">#F0E1E2</color>
+    <color name="nav_bar">#C08658</color>
+    <color name="card_bg">#FFFFFF</color>
+
+    <color name="status_confirmed_fg">#3F9C5C</color>
+    <color name="status_confirmed_bg">#EAF4EC</color>
+    <color name="status_pending_fg">#B8791F</color>
+    <color name="status_pending_bg">#FBF0DE</color>
+    <color name="status_cancelled_fg">#C24B4B</color>
+    <color name="status_cancelled_bg">#FBEAEA</color>
+    <color name="status_done_fg">#8B8B8B</color>
+    <color name="status_done_bg">#F1F0EF</color>
+
+    <color name="ic_launcher_background">#4A2530</color>
+</resources>

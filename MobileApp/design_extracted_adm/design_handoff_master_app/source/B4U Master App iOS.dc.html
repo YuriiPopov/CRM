@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body{margin:0}
+    a{color:#C97B8E}
+    a:hover{color:#A85B7A}
+    @keyframes b4u-pulse{0%{opacity:.55}50%{opacity:1}100%{opacity:.55}}
+    @keyframes b4u-toast-in{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+    @keyframes b4u-sheet-in{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  </style>
+</helmet>
+<div style="min-height:100vh;background:#EDE6E1;display:flex;flex-direction:column;align-items:center;gap:18px;padding:40px 16px;box-sizing:border-box;font-family:Inter,system-ui,sans-serif">
+  <div style="max-width:390px;text-align:center">
+    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#4A2530">B4U — Panel mistrza (iOS)</div>
+    <div style="font-size:13px;color:#8B6F73;margin-top:4px">Panel, Kalendarz, Profil</div>
+  </div>
+
+  <div style="width:390px;height:844px;flex-shrink:0">
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="390,844">
+    <div style="height:100%;display:flex;flex-direction:column;background:#FAF3EE;position:relative;overflow:hidden">
+      <div style="flex:1;min-height:0;overflow:auto;padding-top:56px">
+
+        <!-- ===================== DASHBOARD ===================== -->
+        <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:8px 18px 24px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px">
+            <div>
+              <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:#4A2530;letter-spacing:.2px">Cześć, {{ me.name }}</div>
+              <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:600;color:#8B6F73;margin-top:2px">{{ todayLabel }}</div>
+            </div>
+            <div style="width:56px;height:56px;border-radius:50%;flex-shrink:0;background-color:#F3E7E4;background-size:cover;background-position:center;background-image:url({{ me.photo }});border:2px solid {{ me.color }}"></div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:20px">
+            <div style="flex:1;background:#fff;border:1px solid #F0E1E2;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:18px;font-weight:700;color:#4A2530">{{ stats.todayCount }}</div>
+              <div style="font-size:11px;color:#8B6F73;margin-top:2px">wizyt dziś</div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid #F0E1E2;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:18px;font-weight:700;color:#4A2530">{{ stats.weekCount }}</div>
+              <div style="font-size:11px;color:#8B6F73;margin-top:2px">wizyt w tyg.</div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid #F0E1E2;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:18px;font-weight:700;color:#4A2530">{{ stats.doneCount }}</div>
+              <div style="font-size:11px;color:#8B6F73;margin-top:2px">zakończonych</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:26px;margin-bottom:10px">
+            <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#4A2530">Dzisiaj</div>
+            <div style="font-size:12px;color:#B98A93">{{ stats.todayCount }} wizyt</div>
+          </div>
+
+          <sc-if value="{{ todayEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1.5px dashed #E3CBCE;border-radius:16px;padding:28px 20px;text-align:center;background:#FDF8F6">
+              <div style="width:44px;height:44px;border-radius:50%;background:#F3E3E5;margin:0 auto 10px"></div>
+              <div style="font-size:14.5px;font-weight:600;color:#4A2530">Brak wizyt na dzisiaj</div>
+              <div style="font-size:12.5px;color:#8B6F73;margin-top:4px">Wolny dzień — czas na odpoczynek</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ !todayEmpty }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#fff;border-radius:16px;border:1px solid #F0E1E2;overflow:hidden">
+              <sc-for list="{{ todaySlots }}" as="slot" hint-placeholder-count="4">
+                <div onclick="{{ slot.onOpen }}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #F5EBEC;cursor:pointer">
+                  <div style="width:42px;font-size:12.5px;font-weight:700;color:#4A2530;flex-shrink:0">{{ slot.time }}</div>
+                  <div style="width:4px;align-self:stretch;border-radius:2px;flex-shrink:0;background-color:{{ me.color }}"></div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13.5px;font-weight:600;color:#3D2027;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ slot.service }}</div>
+                    <div style="font-size:12px;color:#8B6F73;margin-top:1px">{{ slot.client }}</div>
+                  </div>
+                  <div style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;flex-shrink:0;color:{{ slot.statusColor }};background-color:{{ slot.statusBg }}">{{ slot.statusLabel }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#4A2530;margin-top:26px;margin-bottom:12px">Tydzień</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">
+            <sc-for list="{{ weekDays }}" as="day" hint-placeholder-count="7">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 2px;border-radius:12px;background-color:{{ day.bg }}">
+                <div style="font-size:10.5px;color:#8B6F73;font-weight:600">{{ day.label }}</div>
+                <div style="font-size:12.5px;font-weight:700;color:#4A2530">{{ day.date }}</div>
+                <div style="width:16px;height:4px;border-radius:2px;background-color:{{ day.barColor }}"></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===================== CALENDAR ===================== -->
+        <sc-if value="{{ isCalendar }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:8px 18px 40px">
+          <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:#4A2530">Kalendarz</div>
+          <div style="font-size:13px;color:#8B6F73;margin-top:2px">Twoje wizyty</div>
+
+          <div style="display:flex;gap:5px;margin-top:16px">
+            <sc-for list="{{ weekStrip }}" as="wd" hint-placeholder-count="7">
+              <button onclick="{{ wd.onSelect }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:12px;border:none;cursor:pointer;background-color:{{ wd.bg }}">
+                <div style="font-size:10px;color:#8B6F73;font-weight:600">{{ wd.label }}</div>
+                <div style="font-size:14px;font-weight:700;color:{{ wd.color }}">{{ wd.date }}</div>
+              </button>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;background:#F3E7E4;border-radius:12px;padding:3px;margin-top:14px">
+            <button onclick="{{ setViewList }}" style="flex:1;border:none;padding:9px 0;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;background-color:{{ listBtnBg }};color:{{ listBtnColor }}">Lista</button>
+            <button onclick="{{ setViewTimeline }}" style="flex:1;border:none;padding:9px 0;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;background-color:{{ timelineBtnBg }};color:{{ timelineBtnColor }}">Timeline</button>
+          </div>
+
+          <button onclick="{{ cycleStatus }}" style="display:flex;align-items:center;gap:6px;border:1px solid #F0E1E2;background:#fff;border-radius:999px;padding:7px 12px;font-size:12.5px;color:#4A2530;font-weight:500;cursor:pointer;margin-top:12px">Status: {{ filterStatusLabel }} <span style="color:#B98A93">▾</span></button>
+
+          <sc-if value="{{ showListView }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top:16px;display:flex;flex-direction:column;gap:9px">
+            <sc-if value="{{ calEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1.5px dashed #E3CBCE;border-radius:16px;padding:30px 20px;text-align:center;background:#FDF8F6">
+                <div style="font-size:14.5px;font-weight:600;color:#4A2530">Brak wizyt dla wybranego dnia</div>
+              </div>
+            </sc-if>
+            <sc-for list="{{ calendarFiltered }}" as="a" hint-placeholder-count="5">
+              <div onclick="{{ a.onOpen }}" style="background:#fff;border:1px solid #F0E1E2;border-radius:14px;padding:12px 14px;display:flex;gap:11px;align-items:center;cursor:pointer">
+                <div style="width:4px;align-self:stretch;border-radius:2px;flex-shrink:0;background-color:{{ me.color }}"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13.5px;font-weight:600;color:#3D2027">{{ a.service }}</div>
+                  <div style="font-size:12px;color:#8B6F73;margin-top:2px">{{ a.client }}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex-shrink:0">
+                  <div style="font-size:11px;color:#8B6F73;text-align:center;white-space:nowrap">{{ a.time }}</div>
+                  <div style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;color:{{ a.statusColor }};background-color:{{ a.statusBg }}">{{ a.statusLabel }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ showTimelineView }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:16px;display:grid;grid-template-columns:40px 1fr;position:relative">
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ timelineHours }}" as="h" hint-placeholder-count="40">
+                <div style="height:24px;text-align:right;padding-right:6px;box-sizing:border-box">
+                  <div style="font-size:{{ h.fontSize }}px;font-weight:{{ h.fontWeight }};color:{{ h.color }};line-height:24px">{{ h.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="position:relative;border-left:1px solid #F0E1E2;height:{{ timelineTotalHeight }}px">
+              <sc-for list="{{ timelineHourLines }}" as="hl" hint-placeholder-count="40">
+                <div style="position:absolute;left:0;right:0;top:{{ hl.top }}px;border-top:1px {{ hl.lineStyle }} #F0E1E2"></div>
+              </sc-for>
+              <sc-for list="{{ timelineBlocks }}" as="b" hint-placeholder-count="4">
+                <div onclick="{{ b.onOpen }}" style="position:absolute;left:6px;right:6px;top:{{ b.top }}px;height:{{ b.height }}px;border-radius:8px;padding:5px 8px;overflow:hidden;cursor:pointer;box-sizing:border-box;background-color:{{ b.bg }};border-left:3px solid {{ me.color }}">
+                  <div style="font-size:10.5px;font-weight:700;color:#3D2027;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.time }} · {{ b.client }}</div>
+                  <div style="font-size:10px;color:#5C4247;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.service }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ timelineEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1.5px dashed #E3CBCE;border-radius:16px;padding:30px 20px;text-align:center;background:#FDF8F6;margin-top:12px">
+              <div style="font-size:14.5px;font-weight:600;color:#4A2530">Brak wizyt na wybrany dzień</div>
+            </div>
+          </sc-if>
+          </sc-if>
+        </div>
+        </sc-if>
+
+        <!-- ===================== PROFILE ===================== -->
+        <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:8px 18px 40px">
+          <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:#4A2530">Profil</div>
+
+          <div style="display:flex;align-items:center;gap:14px;margin-top:16px">
+            <div style="width:64px;height:64px;border-radius:50%;flex-shrink:0;background-color:#F3E7E4;background-size:cover;background-position:center;background-image:url({{ me.photo }});border:2px solid {{ me.color }}"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:18px;font-weight:700;color:#3D2027">{{ me.name }}</div>
+              <div style="font-size:12.5px;color:#8B6F73;margin-top:2px">{{ me.specialty }}</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:18px">
+            <div style="flex:1;background:#fff;border:1px solid #F0E1E2;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:18px;font-weight:700;color:#4A2530">{{ stats.totalDone }}</div>
+              <div style="font-size:11px;color:#8B6F73;margin-top:2px">wizyt łącznie</div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid #F0E1E2;border-radius:14px;padding:12px;text-align:center">
+              <div style="font-size:18px;font-weight:700;color:#4A2530">{{ me.rating }}</div>
+              <div style="font-size:11px;color:#8B6F73;margin-top:2px">ocena</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:22px;margin-bottom:10px">
+            <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:#4A2530">Godziny pracy</div>
+            <div style="font-size:11px;color:#8B6F73">{{ currentWeekLabel }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <sc-for list="{{ workHours }}" as="w" hint-placeholder-count="7">
+              <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #F0E1E2;border-radius:12px;padding:10px 14px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="font-size:13px;font-weight:600;color:#3D2027;width:88px;flex-shrink:0">{{ w.day }}</div>
+                  <div style="font-size:11px;color:#B98A93;width:44px;flex-shrink:0">{{ w.date }}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <sc-if value="{{ w.changed }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:9px;font-weight:700;color:#B8791F;background:#FBF0DE;padding:2px 6px;border-radius:999px">ZMIENIONO</div>
+                  </sc-if>
+                  <div style="font-size:12.5px;color:{{ w.color }};font-weight:600">{{ w.hours }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <button onclick="{{ openSchedule }}" style="width:100%;margin-top:10px;border:1px solid #F0E1E2;background:#fff;color:#4A2530;font-size:13px;font-weight:600;padding:11px 0;border-radius:12px;cursor:pointer">Ustawienia grafiku pracy</button>
+
+          <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:#4A2530;margin-top:22px;margin-bottom:10px">Kontakt</div>
+          <div style="background:#fff;border:1px solid #F0E1E2;border-radius:14px;padding:12px 14px">
+            <div style="font-size:13px;color:#3D2027;font-weight:600">{{ me.phone }}</div>
+            <div style="font-size:12px;color:#8B6F73;margin-top:4px">{{ me.email }}</div>
+          </div>
+
+          <button onclick="{{ logout }}" style="width:100%;margin-top:22px;border:1px solid #F1C7C7;background:#fff;color:#C24B4B;font-size:13.5px;font-weight:600;padding:13px 0;border-radius:12px;cursor:pointer">Wyloguj się</button>
+        </div>
+        </sc-if>
+
+      </div>
+
+      <div style="flex-shrink:0;display:flex;border-top:1px solid #F0E1E2;background:#C08658;padding:8px 8px 12px">
+        <button onclick="{{ goDashboard }}" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0">
+          <div style="width:22px;height:22px;border-radius:5px;background-color:{{ navDashColor }};opacity:{{ navDashOpacity }}"></div>
+          <div style="font-size:10px;font-weight:600;color:{{ navDashColor }}">Panel</div>
+        </button>
+        <button onclick="{{ goCalendar }}" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0">
+          <div style="width:22px;height:22px;border-radius:5px;background-color:{{ navCalColor }};opacity:{{ navCalOpacity }}"></div>
+          <div style="font-size:10px;font-weight:600;color:{{ navCalColor }}">Kalendarz</div>
+        </button>
+        <button onclick="{{ goProfile }}" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0">
+          <div style="width:22px;height:22px;border-radius:5px;background-color:{{ navProfileColor }};opacity:{{ navProfileOpacity }}"></div>
+          <div style="font-size:10px;font-weight:600;color:{{ navProfileColor }}">Profil</div>
+        </button>
+      </div>
+
+      <!-- ===================== APPOINTMENT DETAIL SHEET ===================== -->
+      <sc-if value="{{ showDetail }}" hint-placeholder-val="{{ false }}">
+        <div onclick="{{ closeDetail }}" style="position:absolute;inset:0;background:rgba(61,32,39,0.35);z-index:10"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#FFFDFB;border-radius:22px 22px 0 0;padding:18px 20px 28px;z-index:11;animation:b4u-sheet-in .22s ease-out;box-shadow:0 -8px 24px rgba(0,0,0,0.15);max-height:80%;overflow:auto">
+          <div style="width:36px;height:4px;background:#E3CBCE;border-radius:2px;margin:0 auto 16px"></div>
+          <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:#4A2530">{{ detail.service }}</div>
+          <div style="font-size:13px;color:#8B6F73;margin-top:4px">{{ detail.date }}, {{ detail.time }}</div>
+          <div style="font-size:14px;font-weight:600;color:#3D2027;margin-top:14px">{{ detail.client }}</div>
+          <div style="margin-top:16px">
+            <div style="font-size:11.5px;font-weight:600;color:#8B6F73;margin-bottom:6px">STATUS</div>
+            <div style="width:100%;box-sizing:border-box;border:1px solid #F0E1E2;border-radius:12px;padding:11px 14px;font-size:13.5px;font-weight:600;color:{{ detail.statusColor }};background-color:{{ detail.statusBg }}">{{ detail.statusLabel }}</div>
+            <div style="font-size:11px;color:#8B6F73;margin-top:6px">Status wizyty ustala administrator</div>
+          </div>
+          <button onclick="{{ closeDetail }}" style="width:100%;margin-top:20px;border:1px solid #F0E1E2;background:#fff;color:#4A2530;font-size:13.5px;font-weight:700;padding:13px 0;border-radius:12px;cursor:pointer">Zamknij</button>
+        </div>
+      </sc-if>
+
+      <!-- ===================== SCHEDULE SHEET ===================== -->
+      <sc-if value="{{ showSchedule }}" hint-placeholder-val="{{ false }}">
+        <div onclick="{{ closeSchedule }}" style="position:absolute;inset:0;background:rgba(61,32,39,0.35);z-index:10"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#FFFDFB;border-radius:22px 22px 0 0;padding:18px 20px 24px;z-index:11;animation:b4u-sheet-in .22s ease-out;box-shadow:0 -8px 24px rgba(0,0,0,0.15);max-height:88%;overflow:auto">
+          <div style="width:36px;height:4px;background:#E3CBCE;border-radius:2px;margin:0 auto 16px"></div>
+          <div style="font-family:'Playfair Display',serif;font-size:19px;font-weight:700;color:#4A2530">Grafik pracy</div>
+          <div style="font-size:12px;color:#8B6F73;margin-top:3px">Wybierz jeden lub kilka dni, aby ustawić godziny pracy lub oznaczyć jako wolne</div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px">
+            <button onclick="{{ prevMonth }}" style="border:1px solid #F0E1E2;background:#fff;border-radius:10px;width:32px;height:32px;cursor:pointer;color:#4A2530;font-size:14px">‹</button>
+            <div style="font-size:14.5px;font-weight:700;color:#4A2530">{{ scheduleMonthLabel }}</div>
+            <button onclick="{{ nextMonth }}" style="border:1px solid #F0E1E2;background:#fff;border-radius:10px;width:32px;height:32px;cursor:pointer;color:#4A2530;font-size:14px">›</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px">
+            <sc-for list="{{ weekdayLabels }}" as="wl" hint-placeholder-count="7">
+              <div style="text-align:center;font-size:10.5px;color:#8B6F73;font-weight:600">{{ wl }}</div>
+            </sc-for>
+            <sc-for list="{{ monthCells }}" as="c" hint-placeholder-count="35">
+              <button onclick="{{ c.onToggle }}" disabled="{{ c.empty }}" style="aspect-ratio:1;border:none;border-radius:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background-color:{{ c.bg }};color:{{ c.color }};font-size:12.5px;font-weight:700;position:relative">
+                {{ c.label }}
+                <sc-if value="{{ c.markColor }}" hint-placeholder-val="{{ false }}">
+                  <div style="width:5px;height:5px;border-radius:50%;background-color:{{ c.markColor }}"></div>
+                </sc-if>
+              </button>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:14px;font-size:10.5px;color:#8B6F73;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:50%;background:#3F9C5C"></div>Praca</div>
+            <div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:50%;background:#C24B4B"></div>Wolne</div>
+            <div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:50%;background:#B8791F"></div>Oczekuje na zatwierdzenie</div>
+          </div>
+
+          <sc-if value="{{ pendingSchedule }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:12px;background:#FBF0DE;border:1px solid #F0DDB0;border-radius:12px;padding:10px 12px;font-size:12px;color:#8A5A0F;line-height:1.4">Zmiany czekają na zatwierdzenie przez administratora. Do tego czasu obowiązuje poprzedni grafik.</div>
+          </sc-if>
+
+          <div style="font-size:12px;color:#4A2530;font-weight:600;margin-top:16px">{{ selectedCountLabel }}</div>
+
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <div style="flex:1">
+              <div style="font-size:11px;font-weight:600;color:#8B6F73;margin-bottom:5px">OD</div>
+              <input value="{{ scheduleStart }}" onchange="{{ onScheduleStartChange }}" style="width:100%;box-sizing:border-box;border:1px solid #F0E1E2;background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;color:#3D2027;font-weight:600" />
+            </div>
+            <div style="flex:1">
+              <div style="font-size:11px;font-weight:600;color:#8B6F73;margin-bottom:5px">DO</div>
+              <input value="{{ scheduleEnd }}" onchange="{{ onScheduleEndChange }}" style="width:100%;box-sizing:border-box;border:1px solid #F0E1E2;background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;color:#3D2027;font-weight:600" />
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:14px">
+            <button onclick="{{ applyWork }}" style="flex:1;border:none;background:#3F9C5C;color:#fff;font-size:13px;font-weight:700;padding:12px 0;border-radius:12px;cursor:pointer">Ustaw godziny</button>
+            <button onclick="{{ applyOff }}" style="flex:1;border:1px solid #F1C7C7;background:#fff;color:#C24B4B;font-size:13px;font-weight:700;padding:12px 0;border-radius:12px;cursor:pointer">Oznacz jako wolne</button>
+          </div>
+          <button onclick="{{ closeSchedule }}" style="width:100%;margin-top:10px;border:none;background:#C97B8E;color:#fff;font-size:13.5px;font-weight:700;padding:13px 0;border-radius:12px;cursor:pointer">Zapisz i zamknij</button>
+          <sc-if value="{{ pendingSchedule }}" hint-placeholder-val="{{ false }}">
+            <button onclick="{{ simulateApproval }}" style="width:100%;margin-top:8px;border:1px dashed #E3CBCE;background:none;color:#B98A93;font-size:11.5px;font-weight:600;padding:9px 0;border-radius:12px;cursor:pointer">Podgląd: symuluj potwierdzenie administratora</button>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:50%;bottom:80px;transform:translateX(-50%);background:#3D2027;color:#fff;font-size:12.5px;font-weight:500;padding:9px 16px;border-radius:999px;white-space:nowrap;animation:b4u-toast-in .2s ease-out;box-shadow:0 6px 16px rgba(0,0,0,0.25);z-index:20">{{ toast }}</div>
+      </sc-if>
+    </div>
+  </x-import>
+  </div>
+
+  <div style="max-width:390px;font-size:11.5px;color:#8B6F73;line-height:1.5;text-align:center">
+    Podgląd: dolna nawigacja przełącza Panel / Kalendarz / Profil mistrza. Dotknięcie wizyty otwiera podgląd szczegółów.
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const ME = { id: 'm1', name: 'Maria', color: '#4F8A82', photo: './masters/maria.webp', specialty: 'Fryzjer, koloryzacja', phone: '+48 600 111 222', email: 'maria@b4u-salon.pl', rating: '4.9' };
+const STATUS = {
+  confirmed: { label: 'Potwierdzona', color: '#3F9C5C', bg: '#EAF4EC' },
+  pending: { label: 'Oczekująca', color: '#B8791F', bg: '#FBF0DE' },
+  cancelled: { label: 'Odwołana', color: '#C24B4B', bg: '#FBEAEA' },
+  no_show: { label: 'Nieobecna', color: '#9B3A3A', bg: '#F6DADA' },
+  done: { label: 'Zakończona', color: '#8B8B8B', bg: '#F1F0EF' },
+};
+const STATUS_ORDER = ['confirmed', 'pending', 'cancelled', 'no_show', 'done'];
+const SERVICES_DURATION = { 'Strzyżenie + stylizacja': 60, 'Koloryzacja': 90, 'Stylizacja': 40, 'Strzyżenie': 45, 'Koloryzacja + pielęgnacja': 120, 'Strzyżenie damskie': 60 };
+const ROW_H = 24, DAY_START = 9 * 60, DAY_END = 19 * 60, TOTAL_MIN = DAY_END - DAY_START;
+function timeToMin(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+function estimateDuration(a) { return SERVICES_DURATION[a.service] || 45; }
+const WEEK = [
+  { label: 'Pon', date: '8', barColor: '#4F8A82' },
+  { label: 'Wt', date: '9', barColor: '#4F8A82', today: true },
+  { label: 'Śr', date: '10', barColor: '#F0E1E2' },
+  { label: 'Czw', date: '11', barColor: '#4F8A82' },
+  { label: 'Pt', date: '12', barColor: '#4F8A82' },
+  { label: 'Sob', date: '13', barColor: '#4F8A82' },
+  { label: 'Nie', date: '14', barColor: '#F0E1E2' },
+];
+const INITIAL_APPTS = [
+  { id: 1, date: 'Dzisiaj', time: '09:00', service: 'Strzyżenie + stylizacja', client: 'Anna Kowalska', status: 'confirmed' },
+  { id: 3, date: 'Dzisiaj', time: '11:00', service: 'Koloryzacja', client: 'Olga Sobczak', status: 'confirmed' },
+  { id: 4, date: 'Dzisiaj', time: '13:00', service: 'Stylizacja', client: 'Wiktoria Rutkowska', status: 'confirmed' },
+  { id: 7, date: 'Dzisiaj', time: '17:30', service: 'Strzyżenie', client: 'Swietlana Tomczyk', status: 'pending' },
+  { id: 8, date: 'Jutro', time: '10:00', service: 'Koloryzacja + pielęgnacja', client: 'Inna Witkowska', status: 'confirmed' },
+  { id: 9, date: 'Wt', time: '09:30', service: 'Strzyżenie damskie', client: 'Julia Mazur', status: 'done' },
+  { id: 10, date: 'Śr', time: '14:00', service: 'Koloryzacja', client: 'Natalia Duda', status: 'done' },
+];
+const WEEKLY_TEMPLATE = [
+  { day: 'Poniedziałek', start: '09:00', end: '17:00' },
+  { day: 'Wtorek', start: '09:00', end: '19:00' },
+  { day: 'Środa', start: null, end: null },
+  { day: 'Czwartek', start: '09:00', end: '19:00' },
+  { day: 'Piątek', start: '09:00', end: '19:00' },
+  { day: 'Sobota', start: '10:00', end: '15:00' },
+  { day: 'Niedziela', start: null, end: null },
+];
+
+function join(a) { const st = STATUS[a.status] || STATUS.confirmed; return { ...a, statusLabel: st.label, statusColor: st.color, statusBg: st.bg }; }
+
+class Component extends DCLogic {
+  state = {
+    screen: 'dashboard',
+    appointments: INITIAL_APPTS,
+    filterStatusIdx: 0,
+    calWeekIdx: 1,
+    calView: 'list',
+    toast: null,
+    showDetail: false,
+    detailId: null,
+    showSchedule: false,
+    scheduleMonthOffset: 0,
+    selectedDates: [],
+    dateOverrides: {},
+    pendingSchedule: false,
+    scheduleStart: '09:00',
+    scheduleEnd: '19:00',
+  };
+
+  goDashboard = () => this.setState({ screen: 'dashboard' });
+  goCalendar = () => this.setState({ screen: 'calendar' });
+  goProfile = () => this.setState({ screen: 'profile' });
+  selectWeekDay = (i) => this.setState({ calWeekIdx: i });
+  setViewList = () => this.setState({ calView: 'list' });
+  setViewTimeline = () => this.setState({ calView: 'timeline' });
+  cycleStatus = () => this.setState(s => ({ filterStatusIdx: (s.filterStatusIdx + 1) % (STATUS_ORDER.length + 1) }));
+
+  showToast = (msg) => {
+    this.setState({ toast: msg });
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => this.setState({ toast: null }), 2200);
+  };
+
+  openDetail = (a) => this.setState({ showDetail: true, detailId: a.id });
+  closeDetail = () => this.setState({ showDetail: false });
+  logout = () => this.showToast('Wylogowano (podgląd)');
+
+  openSchedule = () => this.setState({ showSchedule: true, selectedDates: [], scheduleMonthOffset: 0 });
+  closeSchedule = () => {
+    const hasPending = this.state.pendingSchedule;
+    this.setState({ showSchedule: false });
+    this.showToast(hasPending ? 'Wysłano do administratora do zatwierdzenia' : 'Zamknięto');
+  };
+  prevMonth = () => this.setState(s => ({ scheduleMonthOffset: s.scheduleMonthOffset - 1 }));
+  nextMonth = () => this.setState(s => ({ scheduleMonthOffset: s.scheduleMonthOffset + 1 }));
+  toggleDate = (key) => this.setState(s => ({ selectedDates: s.selectedDates.includes(key) ? s.selectedDates.filter(d => d !== key) : [...s.selectedDates, key] }));
+  onScheduleStartChange = (e) => this.setState({ scheduleStart: e.target.value });
+  onScheduleEndChange = (e) => this.setState({ scheduleEnd: e.target.value });
+  applyWork = () => {
+    const { selectedDates, scheduleStart, scheduleEnd } = this.state;
+    if (!selectedDates.length) return;
+    this.setState(s => {
+      const dateOverrides = { ...s.dateOverrides };
+      selectedDates.forEach(k => { dateOverrides[k] = { type: 'work', start: scheduleStart, end: scheduleEnd, status: 'pending' }; });
+      return { dateOverrides, selectedDates: [], pendingSchedule: true };
+    });
+  };
+  applyOff = () => {
+    const { selectedDates } = this.state;
+    if (!selectedDates.length) return;
+    this.setState(s => {
+      const dateOverrides = { ...s.dateOverrides };
+      selectedDates.forEach(k => { dateOverrides[k] = { type: 'off', status: 'pending' }; });
+      return { dateOverrides, selectedDates: [], pendingSchedule: true };
+    });
+  };
+  simulateApproval = () => {
+    this.setState(s => {
+      const dateOverrides = {};
+      Object.entries(s.dateOverrides).forEach(([k, v]) => { dateOverrides[k] = { ...v, status: 'confirmed' }; });
+      return { dateOverrides, pendingSchedule: false };
+    });
+    this.showToast('Administrator potwierdził grafik');
+  };
+
+  computeTimeline(filtered) {
+    const quarterCount = TOTAL_MIN / 15;
+    const timelineHours = Array.from({ length: quarterCount }, (_, i) => {
+      const min = DAY_START + i * 15;
+      const isHour = min % 60 === 0;
+      return { label: isHour ? `${String(Math.floor(min / 60)).padStart(2, '0')}:00` : String(min % 60).padStart(2, '0'), fontSize: isHour ? 11.5 : 10, fontWeight: isHour ? 700 : 500, color: isHour ? '#4A2530' : '#B7A0A3' };
+    });
+    const timelineHourLines = Array.from({ length: quarterCount }, (_, i) => ({ top: i * ROW_H, lineStyle: (DAY_START + i * 15) % 60 === 0 ? 'solid' : 'dashed' }));
+    const timelineBlocks = filtered.map(a => {
+      const startMin = Math.max(0, timeToMin(a.time) - DAY_START);
+      const dur = estimateDuration(a);
+      return { top: (startMin / 15) * ROW_H, height: Math.max(ROW_H, (dur / 15) * ROW_H), time: a.time, client: a.client, service: a.service, bg: a.statusBg, onOpen: a.onOpen };
+    });
+    return { timelineHours, timelineHourLines, timelineBlocks, timelineTotalHeight: quarterCount * ROW_H, timelineEmpty: timelineBlocks.length === 0 };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const now = new Date();
+    const todayLabel = now.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).replace(/^./, c => c.toUpperCase());
+
+    const all = s.appointments.map(join).map(a => ({ ...a, onOpen: () => this.openDetail(a) }));
+    const todaySlots = all.filter(a => a.date === 'Dzisiaj').sort((a, b) => a.time.localeCompare(b.time));
+    const weekDays = WEEK.map(d => ({ ...d, bg: d.today ? '#F3E7E4' : 'transparent' }));
+
+    const statusFilter = s.filterStatusIdx === 0 ? null : STATUS_ORDER[s.filterStatusIdx - 1];
+    const dayLabel = WEEK[s.calWeekIdx].today ? 'Dzisiaj' : WEEK[s.calWeekIdx].label;
+    let filtered = all.filter(a => a.date === dayLabel || (WEEK[s.calWeekIdx].today && a.date === 'Dzisiaj'));
+    if (statusFilter) filtered = filtered.filter(a => a.status === statusFilter);
+
+    const detailSrc = all.find(a => a.id === s.detailId) || { service: '', date: '', time: '', client: '', statusLabel: '', statusColor: '', statusBg: '' };
+
+    return {
+      dw: 412, dh: 924,
+      me: ME, todayLabel,
+      isDashboard: s.screen === 'dashboard',
+      isCalendar: s.screen === 'calendar',
+      isProfile: s.screen === 'profile',
+      stats: {
+        todayCount: todaySlots.length,
+        weekCount: all.length,
+        doneCount: all.filter(a => a.status === 'done').length,
+        totalDone: all.filter(a => a.status === 'done').length + 128,
+      },
+      todayEmpty: todaySlots.length === 0,
+      todaySlots, weekDays,
+      goDashboard: this.goDashboard, goCalendar: this.goCalendar, goProfile: this.goProfile,
+
+      weekStrip: WEEK.map((d, i) => ({ label: d.label, date: d.date, bg: i === s.calWeekIdx ? '#F3E7E4' : 'transparent', color: i === s.calWeekIdx ? '#C9445A' : '#4A2530', onSelect: () => this.selectWeekDay(i) })),
+      filterStatusLabel: statusFilter ? STATUS[statusFilter].label : 'Wszystkie',
+      cycleStatus: this.cycleStatus,
+      calEmpty: filtered.length === 0,
+      calendarFiltered: filtered,
+      showListView: s.calView === 'list',
+      showTimelineView: s.calView === 'timeline',
+      listBtnBg: s.calView === 'list' ? '#fff' : 'transparent',
+      listBtnColor: s.calView === 'list' ? '#4A2530' : '#8B6F73',
+      timelineBtnBg: s.calView === 'timeline' ? '#fff' : 'transparent',
+      timelineBtnColor: s.calView === 'timeline' ? '#4A2530' : '#8B6F73',
+      setViewList: this.setViewList, setViewTimeline: this.setViewTimeline,
+      ...this.computeTimeline(filtered),
+
+      ...this.computeCurrentWeek(s),
+      logout: this.logout,
+
+      showDetail: s.showDetail,
+      closeDetail: this.closeDetail,
+      detail: detailSrc,
+
+      toast: s.toast,
+
+      navDashColor: s.screen === 'dashboard' ? '#fff' : 'rgba(255,255,255,0.45)',
+      navCalColor: s.screen === 'calendar' ? '#fff' : 'rgba(255,255,255,0.45)',
+      navProfileColor: s.screen === 'profile' ? '#fff' : 'rgba(255,255,255,0.45)',
+      navDashOpacity: s.screen === 'dashboard' ? 1 : 0.6,
+      navCalOpacity: s.screen === 'calendar' ? 1 : 0.6,
+      navProfileOpacity: s.screen === 'profile' ? 1 : 0.6,
+
+      openSchedule: this.openSchedule,
+      closeSchedule: this.closeSchedule,
+      showSchedule: s.showSchedule,
+      prevMonth: this.prevMonth,
+      nextMonth: this.nextMonth,
+      weekdayLabels: ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nie'],
+      scheduleStart: s.scheduleStart,
+      scheduleEnd: s.scheduleEnd,
+      onScheduleStartChange: this.onScheduleStartChange,
+      onScheduleEndChange: this.onScheduleEndChange,
+      applyWork: this.applyWork,
+      applyOff: this.applyOff,
+      selectedCountLabel: s.selectedDates.length ? `Wybrano dni: ${s.selectedDates.length}` : 'Nie wybrano dni',
+      pendingSchedule: s.pendingSchedule,
+      simulateApproval: this.simulateApproval,
+      ...this.computeMonth(s),
+    };
+  }
+
+  computeCurrentWeek(s) {
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const fmt = (d) => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const workHours = WEEKLY_TEMPLATE.map((t, i) => {
+      const d = new Date(monday); d.setDate(monday.getDate() + i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const override = s.dateOverrides[key];
+      const useOverride = override && override.status === 'confirmed';
+      let hours, color, changed = false;
+      if (useOverride) {
+        changed = true;
+        hours = override.type === 'work' ? `${override.start}–${override.end}` : 'Wolne';
+        color = override.type === 'work' ? '#4A2530' : '#B98A93';
+      } else {
+        hours = t.start ? `${t.start}–${t.end}` : 'Wolne';
+        color = t.start ? '#4A2530' : '#B98A93';
+      }
+      return { day: t.day, date: fmt(d), hours, color, changed };
+    });
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    return { workHours, currentWeekLabel: `${fmt(monday)}–${fmt(sunday)}` };
+  }
+
+  computeMonth(s) {
+    const base = new Date();
+    const view = new Date(base.getFullYear(), base.getMonth() + s.scheduleMonthOffset, 1);
+    const y = view.getFullYear(), m = view.getMonth();
+    const monthNames = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+    const scheduleMonthLabel = `${monthNames[m]} ${y}`;
+    const firstDay = new Date(y, m, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < startOffset; i++) cells.push({ empty: true, label: '', bg: 'transparent', color: 'transparent', onToggle: () => {} });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const selected = s.selectedDates.includes(key);
+      const override = s.dateOverrides[key];
+      const markColor = override ? (override.status === 'pending' ? '#B8791F' : (override.type === 'work' ? '#3F9C5C' : '#C24B4B')) : false;
+      cells.push({
+        empty: false, label: d, key,
+        bg: selected ? '#C97B8E' : '#fff',
+        color: selected ? '#fff' : '#3D2027',
+        markColor,
+        onToggle: () => this.toggleDate(key),
+      });
+    }
+    return { scheduleMonthLabel, monthCells: cells };
+  }
+}
+
+</script>
+</body>
+</html>

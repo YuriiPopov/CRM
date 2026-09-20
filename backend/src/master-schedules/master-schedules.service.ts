@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { NON_BLOCKING_BOOKING_STATUSES } from '../bookings/booking-overlap.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
@@ -14,7 +16,12 @@ import { dayRange, isDateInMonth, monthRange } from './master-schedule.util';
 export class MasterSchedulesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // MASTER читает только свой график (мастер-приложение) — вне зависимости от query.masterId,
+  // тот же приём self-scope, что и в MasterBlocksService.findAll/remove.
   async findMonth(query: GetMasterScheduleQueryDto, user: AuthenticatedUser) {
+    if (user.role === Role.MASTER && query.masterId !== user.masterId) {
+      throw new ForbiddenException('Masters can only read their own schedule');
+    }
     await this.assertMasterInSalon(query.masterId, user.salonId);
 
     const { start, end } = monthRange(query.year, query.month);

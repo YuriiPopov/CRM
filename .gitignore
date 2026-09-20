@@ -6,3 +6,9 @@ build/
 .DS_Store
 backend/generated/
 frontend/dist/
+
+# Android/Gradle (MobileApp/*/) — local.properties содержит путь к SDK на конкретной машине
+local.properties
+.gradle/
+*.apk
+*.aab

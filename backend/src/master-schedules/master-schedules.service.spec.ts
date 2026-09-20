@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BookingStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +24,14 @@ describe('MasterSchedulesService', () => {
     role: Role.ADMIN,
     salonId: 'salon-1',
     masterId: null,
+  };
+
+  const master: AuthenticatedUser = {
+    id: 'user-master-1',
+    email: 'master@b4u.local',
+    role: Role.MASTER,
+    salonId: 'salon-1',
+    masterId: 'master-1',
   };
 
   beforeEach(async () => {
@@ -69,6 +81,25 @@ describe('MasterSchedulesService', () => {
       await expect(
         service.findMonth({ masterId: 'missing', year: 2026, month: 3 }, admin),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('allows a MASTER to read their own schedule', async () => {
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-1' });
+      prisma.masterSchedule.findMany.mockResolvedValue([]);
+
+      await service.findMonth(
+        { masterId: 'master-1', year: 2026, month: 3 },
+        master,
+      );
+
+      expect(prisma.masterSchedule.findMany).toHaveBeenCalled();
+    });
+
+    it('forbids a MASTER from reading another master schedule', async () => {
+      await expect(
+        service.findMonth({ masterId: 'master-2', year: 2026, month: 3 }, master),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.master.findFirst).not.toHaveBeenCalled();
     });
   });
 

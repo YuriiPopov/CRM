@@ -18,7 +18,9 @@ import { UpsertMasterScheduleDto } from './dto/upsert-master-schedule.dto';
 import { MasterSchedulesService } from './master-schedules.service';
 
 // Регулярный график работы мастеров задаёт только ADMIN (item28, подзадача №33) — MASTER доступа
-// к этим эндпоинтам не имеет (см. тот же приём в NotificationsController).
+// к записи не имеет (см. тот же приём в NotificationsController). Исключение — findMonth ниже:
+// мастер-приложению нужно читать свой уже утверждённый график (см. master-app), доступ
+// самостоятельно ограничен своим masterId в сервисе (см. MasterSchedulesService.findMonth).
 @Controller('master-schedules')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -28,6 +30,7 @@ export class MasterSchedulesController {
   ) {}
 
   @Get()
+  @Roles(Role.ADMIN, Role.MASTER)
   findMonth(
     @Query() query: GetMasterScheduleQueryDto,
     @CurrentUser() user: AuthenticatedUser,
