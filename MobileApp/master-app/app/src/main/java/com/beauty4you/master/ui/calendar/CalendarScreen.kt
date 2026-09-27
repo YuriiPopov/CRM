@@ -172,17 +172,25 @@ fun CalendarScreen(onAppointmentClick: (String) -> Unit) {
                 }
             }
             CalendarViewMode.TIMELINE -> {
+                // Сетка таймлайна показывается всегда (мастер должен видеть, что таймлайн
+                // работает, даже без записей на день) — "Brak wizyt" не подменяет её, а
+                // выводится отдельной подписью над ней, когда на выбранный день нет записей
+                // (свободный/выходной/отпуск — отдельного статуса "отпуск" график не различает).
                 if (dayAppointments.isEmpty()) {
-                    EmptyState(text = "Brak wizyt")
-                } else {
-                    TimelineView(
-                        appointments = dayAppointments,
-                        accentColor = accentColor,
-                        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                        daySchedule = state.selectedDaySchedule,
-                        onAppointmentClick = onAppointmentClick,
+                    Text(
+                        text = "Brak wizyt",
+                        style = B4UType.Body,
+                        color = Muted,
+                        modifier = Modifier.padding(bottom = 8.dp),
                     )
                 }
+                TimelineView(
+                    appointments = dayAppointments,
+                    accentColor = accentColor,
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    daySchedule = state.selectedDaySchedule,
+                    onAppointmentClick = onAppointmentClick,
+                )
             }
         }
     }

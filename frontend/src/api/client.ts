@@ -23,8 +23,14 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
   unauthorizedHandler = handler
 }
 
+// По умолчанию бэкенд ищем на том же хосте, с которого открыта страница (порт 3000) —
+// так работает и доступ по LAN IP с телефона по Wi-Fi, и по `adb reverse` через USB-кабель
+// (там страница открывается как localhost, и baseURL должен быть тоже localhost).
+// VITE_API_URL, если задан явно, имеет приоритет.
+const defaultApiUrl = `${window.location.protocol}//${window.location.hostname}:3000`
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: import.meta.env.VITE_API_URL || defaultApiUrl,
 })
 
 apiClient.interceptors.request.use((config) => {

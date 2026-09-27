@@ -97,7 +97,10 @@ describe('MasterSchedulesService', () => {
 
     it('forbids a MASTER from reading another master schedule', async () => {
       await expect(
-        service.findMonth({ masterId: 'master-2', year: 2026, month: 3 }, master),
+        service.findMonth(
+          { masterId: 'master-2', year: 2026, month: 3 },
+          master,
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.master.findFirst).not.toHaveBeenCalled();
     });
