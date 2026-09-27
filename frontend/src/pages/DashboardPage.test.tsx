@@ -1,8 +1,9 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { DashboardPage } from './DashboardPage'
 import { useAuth } from '../auth/useAuth'
-import { listBookings } from '../api/bookings'
+import { listBookings, updateBookingStatus } from '../api/bookings'
 import { listClients } from '../api/clients'
 import { listStaff } from '../api/staff'
 import { listServices } from '../api/services'
@@ -20,7 +21,7 @@ import type { MasterBlock } from '../types/masterBlock'
 import type { MasterScheduleRecord } from '../types/masterSchedule'
 
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
-vi.mock('../api/bookings', () => ({ listBookings: vi.fn() }))
+vi.mock('../api/bookings', () => ({ listBookings: vi.fn(), updateBookingStatus: vi.fn() }))
 vi.mock('../api/clients', () => ({ listClients: vi.fn() }))
 vi.mock('../api/staff', () => ({ listStaff: vi.fn() }))
 vi.mock('../api/services', () => ({ listServices: vi.fn() }))
@@ -31,6 +32,7 @@ vi.mock('../api/dashboardSettings', () => ({ getEffectiveDashboardWidgets: vi.fn
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListBookings = vi.mocked(listBookings)
+const mockedUpdateBookingStatus = vi.mocked(updateBookingStatus)
 const mockedListClients = vi.mocked(listClients)
 const mockedListStaff = vi.mocked(listStaff)
 const mockedListServices = vi.mocked(listServices)
@@ -656,5 +658,111 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('Таймлайн на сегодня')).not.toBeInTheDocument()
     expect(screen.queryByText('Таймлайн на неделю')).not.toBeInTheDocument()
     expect(screen.queryByText('Ближайшие записи')).not.toBeInTheDocument()
+  })
+
+  // item61 — онлайн-записи из клиентского приложения
+  describe('pending online bookings (item61)', () => {
+    const ALL_WIDGETS_WITH_PENDING = [
+      'pending-online-bookings',
+      'today-bookings-summary',
+      'monthly-revenue',
+      'daily-timeline',
+      'weekly-timeline',
+      'upcoming-bookings',
+    ]
+    const onlinePending = makeBooking({ id: 'online-pending', source: 'ONLINE' })
+    const crmBooking = makeBooking({
+      id: 'crm',
+      clientId: 'client-2',
+      startTime: '2026-03-10T16:00:00.000Z',
+      endTime: '2026-03-10T17:00:00.000Z',
+    })
+
+    // Тот же listBookings отвечает и Дашборду (без фильтров), и виджету (с фильтрами) —
+    // имитируем серверную фильтрацию по source/status/from.
+    function mockBookings(bookings: Booking[]) {
+      mockedListBookings.mockImplementation((filters) =>
+        Promise.resolve(
+          filters
+            ? bookings.filter(
+                (b) => b.source === filters.source && b.status === filters.status && b.startTime >= filters.from!,
+              )
+            : bookings,
+        ),
+      )
+    }
+
+    function upcomingSection(): HTMLElement {
+      return screen.getByRole('heading', { name: 'Ближайшие записи' }).nextElementSibling as HTMLElement
+    }
+
+    it('shows the "Ждут подтверждения" widget first for ADMIN, with only the pending online booking', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedGetEffectiveDashboardWidgets.mockResolvedValueOnce(ALL_WIDGETS_WITH_PENDING)
+      mockBookings([onlinePending, crmBooking])
+      mockedListClients.mockResolvedValue([client, clientTwo])
+      mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+      renderPage()
+
+      const headings = await screen.findAllByRole('heading', { level: 2 })
+      expect(headings[0]).toHaveTextContent('Ждут подтверждения')
+
+      const confirmButtons = await screen.findAllByRole('button', { name: 'Подтвердить' })
+      expect(confirmButtons).toHaveLength(1)
+      expect(within(confirmButtons[0].closest('li')!).getByText('Anna Client')).toBeInTheDocument()
+    })
+
+    it('marks only the ONLINE booking with the source badge in "Ближайшие записи"', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedGetEffectiveDashboardWidgets.mockResolvedValueOnce(ALL_WIDGETS_WITH_PENDING)
+      mockBookings([onlinePending, crmBooking])
+      mockedListClients.mockResolvedValue([client, clientTwo])
+      mockedGetRevenueReport.mockResolvedValue(revenueReport)
+
+      renderPage()
+
+      await screen.findByRole('heading', { name: 'Ближайшие записи' })
+      const rows = within(upcomingSection()).getAllByRole('listitem')
+      const onlineRow = rows.find((row) => within(row).queryByText('Anna Client'))!
+      const crmRow = rows.find((row) => within(row).queryByText('Boris Client'))!
+      expect(within(onlineRow).getByRole('img', { name: 'Из приложения' })).toBeInTheDocument()
+      expect(within(crmRow).queryByRole('img', { name: 'Из приложения' })).not.toBeInTheDocument()
+    })
+
+    it('confirming in the widget removes the row and updates the status in "Ближайшие записи"', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedGetEffectiveDashboardWidgets.mockResolvedValueOnce(ALL_WIDGETS_WITH_PENDING)
+      mockBookings([onlinePending])
+      mockedListClients.mockResolvedValue([client])
+      mockedGetRevenueReport.mockResolvedValue(revenueReport)
+      mockedUpdateBookingStatus.mockResolvedValue({ ...onlinePending, status: 'CONFIRMED' })
+
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Подтвердить' }))
+
+      expect(mockedUpdateBookingStatus).toHaveBeenCalledWith('online-pending', 'CONFIRMED')
+      expect(await screen.findByText('Нет онлайн-записей, ожидающих подтверждения')).toBeInTheDocument()
+      expect(within(upcomingSection()).getByText('Подтверждена')).toBeInTheDocument()
+      expect(within(upcomingSection()).getByRole('img', { name: 'Из приложения' })).toBeInTheDocument()
+    })
+
+    it('never renders the widget for MASTER, even if the key were returned', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+      mockedGetEffectiveDashboardWidgets.mockResolvedValueOnce(ALL_WIDGETS_WITH_PENDING)
+      mockBookings([onlinePending])
+      mockedListClients.mockResolvedValue([client])
+
+      renderPage()
+
+      await screen.findByRole('heading', { name: 'Ближайшие записи' })
+      expect(screen.queryByRole('heading', { name: 'Ждут подтверждения' })).not.toBeInTheDocument()
+      expect(mockedListBookings).toHaveBeenCalledTimes(1)
+      expect(mockedListBookings).toHaveBeenCalledWith()
+      // Но бейдж своей онлайн-записи MASTER видит
+      expect(within(upcomingSection()).getByRole('img', { name: 'Из приложения' })).toBeInTheDocument()
+    })
   })
 })

@@ -8,7 +8,7 @@ import {
   setUserOverride,
 } from '../../api/dashboardSettings'
 import { getApiErrorMessage } from '../../api/errors'
-import { DASHBOARD_WIDGET_LABELS } from '../../types/dashboardSettings'
+import { DASHBOARD_WIDGET_LABELS, isWidgetAllowedForRole } from '../../types/dashboardSettings'
 import type { DashboardSettingsConfig } from '../../types/dashboardSettings'
 import type { UserSummary } from '../../types/user'
 import type { Role } from '../../types/auth'
@@ -60,6 +60,16 @@ export function DashboardSettingsPage() {
 
   const usersById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users])
 
+  // ADMIN-only виджеты (item61) не предлагаются для переопределения у MASTER — бэкенд их отклонит
+  const overrideRole = usersById.get(overrideUserId)?.role
+  const overrideWidgetKeys = useMemo(
+    () => (config?.widgetKeys ?? []).filter((key) => !overrideRole || isWidgetAllowedForRole(key, overrideRole)),
+    [config, overrideRole],
+  )
+  const effectiveOverrideWidgetKey = overrideWidgetKeys.includes(overrideWidgetKey)
+    ? overrideWidgetKey
+    : (overrideWidgetKeys[0] ?? '')
+
   const handleRoleDefaultChange = (role: Role, widgetKey: string, visible: boolean) => {
     setActionError(null)
     setRoleDefault({ role, widgetKey, visible })
@@ -69,11 +79,11 @@ export function DashboardSettingsPage() {
 
   const handleAddOverride = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!overrideUserId || !overrideWidgetKey) return
+    if (!overrideUserId || !effectiveOverrideWidgetKey) return
 
     setActionError(null)
     setSavingOverride(true)
-    setUserOverride({ userId: overrideUserId, widgetKey: overrideWidgetKey, visible: overrideVisible })
+    setUserOverride({ userId: overrideUserId, widgetKey: effectiveOverrideWidgetKey, visible: overrideVisible })
       .then(setConfig)
       .catch((error: unknown) => setActionError(getApiErrorMessage(error, 'Не удалось сохранить переопределение')))
       .finally(() => setSavingOverride(false))
@@ -117,14 +127,18 @@ export function DashboardSettingsPage() {
                   <th scope="row">{DASHBOARD_WIDGET_LABELS[widgetKey as keyof typeof DASHBOARD_WIDGET_LABELS] ?? widgetKey}</th>
                   {ROLES.map((role) => (
                     <td key={role}>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={config.roleDefaults[role]?.[widgetKey] ?? true}
-                          onChange={(event) => handleRoleDefaultChange(role, widgetKey, event.target.checked)}
-                        />
-                        Видим
-                      </label>
+                      {isWidgetAllowedForRole(widgetKey, role) ? (
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={config.roleDefaults[role]?.[widgetKey] ?? true}
+                            onChange={(event) => handleRoleDefaultChange(role, widgetKey, event.target.checked)}
+                          />
+                          Видим
+                        </label>
+                      ) : (
+                        <span>Недоступен</span>
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -154,10 +168,10 @@ export function DashboardSettingsPage() {
               Виджет
               <select
                 id="override-widget"
-                value={overrideWidgetKey}
+                value={effectiveOverrideWidgetKey}
                 onChange={(event) => setOverrideWidgetKey(event.target.value)}
               >
-                {config.widgetKeys.map((widgetKey) => (
+                {overrideWidgetKeys.map((widgetKey) => (
                   <option key={widgetKey} value={widgetKey}>
                     {DASHBOARD_WIDGET_LABELS[widgetKey as keyof typeof DASHBOARD_WIDGET_LABELS] ?? widgetKey}
                   </option>
@@ -174,7 +188,7 @@ export function DashboardSettingsPage() {
               Видим
             </label>
 
-            <button type="submit" disabled={savingOverride || !overrideUserId || !overrideWidgetKey}>
+            <button type="submit" disabled={savingOverride || !overrideUserId || !effectiveOverrideWidgetKey}>
               Добавить переопределение
             </button>
           </form>

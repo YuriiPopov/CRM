@@ -267,4 +267,31 @@ describe('ClientDetailPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/уже были удалены/i)
     expect(screen.getByRole('heading', { name: 'Anna Kowalska' })).toBeInTheDocument()
   })
+
+  it('marks visits booked from the client app with the "Из приложения" badge (item61)', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    const base = makeExport()
+    mockedExportClientData.mockResolvedValue({
+      ...base,
+      bookings: [
+        base.bookings[0],
+        {
+          ...base.bookings[0],
+          id: 'booking-online',
+          serviceName: 'Manicure',
+          status: 'CANCELLED',
+          source: 'ONLINE',
+          payment: null,
+        },
+      ],
+    })
+    mockedListStaff.mockResolvedValue([master])
+
+    renderPage()
+
+    const onlineRow = (await screen.findByText('Manicure')).closest('li')!
+    const crmRow = screen.getByText('Massage').closest('li')!
+    expect(within(onlineRow).getByRole('img', { name: 'Из приложения' })).toBeInTheDocument()
+    expect(within(crmRow).queryByRole('img', { name: 'Из приложения' })).not.toBeInTheDocument()
+  })
 })

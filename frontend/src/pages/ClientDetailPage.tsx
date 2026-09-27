@@ -8,6 +8,7 @@ import { formatTimeRange, toDateOnly } from './calendar/dateUtils'
 import { getStatusBadgeClass, STATUS_LABELS } from './calendar/statusTransitions'
 import { EditClientModal } from './clients/EditClientModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { BookingSourceBadge } from '../components/BookingSourceBadge'
 import { downloadJson } from '../utils/downloadJson'
 import { isFullPayment } from '../types/payment'
 import type { ClientExport } from '../types/clientExport'
@@ -162,6 +163,7 @@ export function ClientDetailPage() {
                     : 'Не оплачено'}
                 </span>
               </div>
+              <BookingSourceBadge source={booking.source} />
               <div className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
                 {STATUS_LABELS[booking.status]}
               </div>

@@ -1,8 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Role, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
-import { DASHBOARD_WIDGET_KEYS } from './dashboard-widget-keys';
+import {
+  DASHBOARD_WIDGET_KEYS,
+  isWidgetAllowedForRole,
+} from './dashboard-widget-keys';
 import { SetRoleDefaultDto } from './dto/set-role-default.dto';
 import { SetUserOverrideDto } from './dto/set-user-override.dto';
 
@@ -32,9 +39,11 @@ export class DashboardSettingsService {
         Object.fromEntries(
           DASHBOARD_WIDGET_KEYS.map((widgetKey) => [
             widgetKey,
-            roleDefaultRows.find(
-              (row) => row.role === role && row.widgetKey === widgetKey,
-            )?.visible ?? true,
+            isWidgetAllowedForRole(widgetKey, role) &&
+              (roleDefaultRows.find(
+                (row) => row.role === role && row.widgetKey === widgetKey,
+              )?.visible ??
+                true),
           ]),
         ),
       ]),
@@ -52,6 +61,8 @@ export class DashboardSettingsService {
   }
 
   async setRoleDefault(dto: SetRoleDefaultDto, user: AuthenticatedUser) {
+    this.assertWidgetAllowed(dto.widgetKey, dto.role);
+
     await this.prisma.dashboardWidgetRoleDefault.upsert({
       where: {
         salonId_role_widgetKey: {
@@ -72,7 +83,8 @@ export class DashboardSettingsService {
   }
 
   async setUserOverride(dto: SetUserOverrideDto, user: AuthenticatedUser) {
-    await this.assertUserInSalon(dto.userId, user.salonId);
+    const target = await this.assertUserInSalon(dto.userId, user.salonId);
+    this.assertWidgetAllowed(dto.widgetKey, target.role);
 
     await this.prisma.dashboardWidgetUserOverride.upsert({
       where: {
@@ -118,6 +130,8 @@ export class DashboardSettingsService {
     ]);
 
     return DASHBOARD_WIDGET_KEYS.filter((widgetKey) => {
+      if (!isWidgetAllowedForRole(widgetKey, user.role)) return false;
+
       const override = overrideRows.find((row) => row.widgetKey === widgetKey);
       if (override) return override.visible;
 
@@ -133,12 +147,23 @@ export class DashboardSettingsService {
   private async assertUserInSalon(
     userId: string,
     salonId: string,
-  ): Promise<void> {
+  ): Promise<User> {
     const target = await this.prisma.user.findFirst({
       where: { id: userId, salonId },
     });
     if (!target) {
       throw new NotFoundException('User not found');
+    }
+    return target;
+  }
+
+  // ADMIN-only виджет нельзя настроить для MASTER — ни включить, ни выключить: он для этой
+  // роли недоступен вовсе, а не скрыт по умолчанию.
+  private assertWidgetAllowed(widgetKey: string, role: Role): void {
+    if (!isWidgetAllowedForRole(widgetKey, role)) {
+      throw new BadRequestException(
+        `Widget ${widgetKey} is not available for role ${role}`,
+      );
     }
   }
 }

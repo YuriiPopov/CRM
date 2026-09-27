@@ -23,6 +23,7 @@ import {
   findOverlappingBooking,
 } from './booking-overlap.util';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 
@@ -93,11 +94,33 @@ export class BookingsService {
     return booking;
   }
 
-  findAll(user: AuthenticatedUser) {
+  findAll(user: AuthenticatedUser, query: ListBookingsQueryDto = {}) {
+    // Фильтры только сужают скоуп роли — ключи не пересекаются с scopeWhere (salonId/masterId/id)
+    const filters: Prisma.BookingWhereInput = {
+      ...(query.source ? { source: query.source } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.from ? { startTime: { gte: new Date(query.from) } } : {}),
+    };
+
     return this.prisma.booking.findMany({
-      where: this.scopeWhere(user),
+      where: { ...this.scopeWhere(user), ...filters },
       orderBy: { startTime: 'asc' },
     });
+  }
+
+  // Онлайн-записи из клиентского приложения, ждущие подтверждения салона (item61) — счётчик
+  // в навигации веб-CRM. Прошедшие не считаются: подтверждать их уже поздно. Только ADMIN
+  // (см. контроллер), поэтому скоуп — весь салон.
+  async countPendingOnline(salonId: string): Promise<{ count: number }> {
+    const count = await this.prisma.booking.count({
+      where: {
+        salonId,
+        source: BookingSource.ONLINE,
+        status: BookingStatus.CREATED,
+        startTime: { gte: new Date() },
+      },
+    });
+    return { count };
   }
 
   async findOne(id: string, user: AuthenticatedUser) {

@@ -1,17 +1,23 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './AppLayout'
 import { useAuth } from '../auth/useAuth'
 import { getMaster } from '../api/staff'
+import { getPendingOnlineCount } from '../api/bookings'
 import { getMasterColor } from '../pages/dashboard/masterColor'
 import type { AuthenticatedUser } from '../types/auth'
 import type { MasterDetail } from '../types/staff'
 
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/staff', () => ({ getMaster: vi.fn() }))
+vi.mock('../api/bookings', () => ({ getPendingOnlineCount: vi.fn() }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetMaster = vi.mocked(getMaster)
+const mockedGetPendingOnlineCount = vi.mocked(getPendingOnlineCount)
+
+// По умолчанию онлайн-записей, ждущих подтверждения, нет — счётчик скрыт
+mockedGetPendingOnlineCount.mockResolvedValue(0)
 
 const adminUser: AuthenticatedUser = {
   id: 'admin-1',
@@ -96,5 +102,67 @@ describe('AppLayout user avatar', () => {
       const placeholder = screen.getByText('AM')
       expect(placeholder).toHaveStyle({ backgroundColor: getMasterColor('master-1') })
     })
+  })
+})
+
+describe('AppLayout pending online bookings counter', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    mockedGetPendingOnlineCount.mockReset()
+    mockedGetPendingOnlineCount.mockResolvedValue(0)
+  })
+
+  function calendarNavLink() {
+    return screen.getByRole('link', { name: /Календарь записей/ })
+  }
+
+  it('shows the number of pending online bookings next to "Календарь записей" for ADMIN', async () => {
+    mockedGetPendingOnlineCount.mockResolvedValue(3)
+    renderLayout(adminUser)
+
+    const badge = await within(calendarNavLink()).findByLabelText('Ждут подтверждения: 3')
+    expect(badge).toHaveTextContent('3')
+  })
+
+  it('hides the counter when nothing is pending', async () => {
+    mockedGetPendingOnlineCount.mockResolvedValue(0)
+    renderLayout(adminUser)
+
+    await waitFor(() => expect(mockedGetPendingOnlineCount).toHaveBeenCalled())
+    expect(within(calendarNavLink()).queryByLabelText(/Ждут подтверждения/)).not.toBeInTheDocument()
+  })
+
+  it('never requests the counter for MASTER', async () => {
+    mockedGetMaster.mockResolvedValue(masterDetail)
+    renderLayout(masterUser)
+
+    await waitFor(() => expect(mockedGetMaster).toHaveBeenCalled())
+    expect(mockedGetPendingOnlineCount).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText(/Ждут подтверждения/)).not.toBeInTheDocument()
+  })
+
+  it('polls every 60 seconds and stops after unmount', async () => {
+    vi.useFakeTimers()
+    mockedGetPendingOnlineCount.mockResolvedValueOnce(0).mockResolvedValueOnce(2)
+    const { unmount } = renderLayout(adminUser)
+
+    expect(mockedGetPendingOnlineCount).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(59_000)
+    })
+    expect(mockedGetPendingOnlineCount).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(mockedGetPendingOnlineCount).toHaveBeenCalledTimes(2)
+    expect(within(calendarNavLink()).getByLabelText('Ждут подтверждения: 2')).toBeInTheDocument()
+
+    unmount()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000)
+    })
+    expect(mockedGetPendingOnlineCount).toHaveBeenCalledTimes(2)
   })
 })

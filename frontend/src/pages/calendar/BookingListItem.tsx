@@ -5,6 +5,7 @@ import {
   STATUS_ACTION_LABELS,
   STATUS_LABELS,
 } from './statusTransitions'
+import { BookingSourceBadge } from '../../components/BookingSourceBadge'
 import { formatOriginalTime, formatRescheduledAt, formatTimeRange } from './dateUtils'
 import type { Booking, BookingStatus } from '../../types/booking'
 import type { Client } from '../../types/client'
@@ -70,6 +71,7 @@ export function BookingListItem({
           </span>
         )}
       </div>
+      <BookingSourceBadge source={booking.source} />
       <div className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
         {STATUS_LABELS[booking.status]}
         {isPaid && <span className="booking-item-paid-badge">Оплачено</span>}

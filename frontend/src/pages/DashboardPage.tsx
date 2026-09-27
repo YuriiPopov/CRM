@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { listBookings } from '../api/bookings'
@@ -24,6 +24,8 @@ import { getMasterColor } from './dashboard/masterColor'
 import { WeekTimelineView } from './dashboard/WeekTimelineView'
 import { masterBlockCreatedByLabel } from './calendar/masterBlockCreatedBy'
 import { MasterAvatar } from '../components/MasterAvatar'
+import { BookingSourceBadge } from '../components/BookingSourceBadge'
+import { PendingOnlineBookingsWidget } from './dashboard/PendingOnlineBookingsWidget'
 import type { Booking, BookingStatus } from '../types/booking'
 import type { Client } from '../types/client'
 import type { Master } from '../types/staff'
@@ -166,6 +168,11 @@ export function DashboardPage() {
     () => Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 }, (_, i) => TIMELINE_START_HOUR + i),
     [],
   )
+  // Статус, сменённый в виджете «Ждут подтверждения», сразу виден и в остальных виджетах
+  const handleBookingUpdated = useCallback((updated: Booking) => {
+    setBookings((prev) => prev.map((booking) => (booking.id === updated.id ? updated : booking)))
+  }, [])
+
   const hourToPercent = (hour: number) =>
     ((hour - TIMELINE_START_HOUR) / (TIMELINE_END_HOUR - TIMELINE_START_HOUR)) * 100
 
@@ -178,6 +185,15 @@ export function DashboardPage() {
       <h1>Дашборд</h1>
 
       {loadError && <p role="alert">{loadError}</p>}
+
+      {isAdmin && visibleWidgets.has('pending-online-bookings') && (
+        <PendingOnlineBookingsWidget
+          clientsById={clientsById}
+          mastersById={mastersById}
+          servicesById={servicesById}
+          onBookingUpdated={handleBookingUpdated}
+        />
+      )}
 
       <div className="dashboard-grid">
         {visibleWidgets.has('today-bookings-summary') && (
@@ -367,6 +383,7 @@ export function DashboardPage() {
                         </strong>
                         <span>{service?.name ?? 'Услуга не найдена'}</span>
                         <span>{isAdmin ? (mastersById.get(booking.masterId)?.name ?? 'Мастер не найден') : 'Вы'}</span>
+                        <BookingSourceBadge source={booking.source} />
                       </div>
                       <span className={`booking-item-status ${getStatusBadgeClass(booking.status)}`}>
                         {STATUS_LABELS[booking.status]}

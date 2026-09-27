@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { BookingStatus, Role } from '@prisma/client';
+import { BookingSource, BookingStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
@@ -22,6 +22,7 @@ describe('BookingsService', () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
+      count: jest.Mock;
     };
     masterBlock: { findFirst: jest.Mock };
     masterSchedule: { findFirst: jest.Mock };
@@ -59,6 +60,7 @@ describe('BookingsService', () => {
         findMany: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+        count: jest.fn(),
       },
       masterBlock: { findFirst: jest.fn() },
       masterSchedule: { findFirst: jest.fn() },
@@ -232,6 +234,70 @@ describe('BookingsService', () => {
         where: { salonId: 'salon-1', masterId: 'master-rec-1' },
         orderBy: { startTime: 'asc' },
       });
+    });
+
+    it('narrows the ADMIN scope by source, status and from', async () => {
+      prisma.booking.findMany.mockResolvedValue([]);
+
+      await service.findAll(admin, {
+        source: BookingSource.ONLINE,
+        status: BookingStatus.CREATED,
+        from: '2026-03-10T00:00:00.000Z',
+      });
+
+      expect(prisma.booking.findMany).toHaveBeenCalledWith({
+        where: {
+          salonId: 'salon-1',
+          source: BookingSource.ONLINE,
+          status: BookingStatus.CREATED,
+          startTime: { gte: new Date('2026-03-10T00:00:00.000Z') },
+        },
+        orderBy: { startTime: 'asc' },
+      });
+    });
+
+    it('keeps the MASTER scope when filters are applied', async () => {
+      prisma.booking.findMany.mockResolvedValue([]);
+
+      await service.findAll(master, { source: BookingSource.ONLINE });
+
+      expect(prisma.booking.findMany).toHaveBeenCalledWith({
+        where: {
+          salonId: 'salon-1',
+          masterId: 'master-rec-1',
+          source: BookingSource.ONLINE,
+        },
+        orderBy: { startTime: 'asc' },
+      });
+    });
+  });
+
+  describe('countPendingOnline', () => {
+    it('counts future ONLINE bookings in CREATED status of the given salon in the database', async () => {
+      prisma.booking.count.mockResolvedValue(3);
+      const before = Date.now();
+
+      const result = await service.countPendingOnline('salon-1');
+
+      expect(result).toEqual({ count: 3 });
+      expect(prisma.booking.findMany).not.toHaveBeenCalled();
+      const [{ where }] = prisma.booking.count.mock.calls[0] as [
+        {
+          where: {
+            salonId: string;
+            source: BookingSource;
+            status: BookingStatus;
+            startTime: { gte: Date };
+          };
+        },
+      ];
+      expect(where).toMatchObject({
+        salonId: 'salon-1',
+        source: BookingSource.ONLINE,
+        status: BookingStatus.CREATED,
+      });
+      expect(where.startTime.gte.getTime()).toBeGreaterThanOrEqual(before);
+      expect(where.startTime.gte.getTime()).toBeLessThanOrEqual(Date.now());
     });
   });
 

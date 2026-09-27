@@ -1267,3 +1267,51 @@
 .finance-chart-bar-net {
   background: #16a34a;
 }
+
+/* item61 — пометка онлайн-записи из клиентского приложения (см. BookingSourceBadge) */
+.booking-source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--status-created-bg);
+  border: 1px solid var(--status-created-border);
+  color: var(--status-created);
+  vertical-align: middle;
+}
+
+.booking-grid-card-status .booking-source-badge {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+}
+
+/* item61 — счётчик онлайн-записей, ждущих подтверждения, у пункта «Календарь записей» */
+.nav-badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--status-cancelled);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.pending-online-master {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pending-online-master-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}

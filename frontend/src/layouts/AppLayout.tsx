@@ -3,6 +3,8 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { MasterAvatar } from '../components/MasterAvatar'
 import { getMaster } from '../api/staff'
+import { PendingOnlineCountProvider } from '../pendingOnline/PendingOnlineCountProvider'
+import { usePendingOnlineCount } from '../pendingOnline/usePendingOnlineCount'
 import type { Master } from '../types/staff'
 
 interface NavItem {
@@ -36,7 +38,32 @@ const MASTER_NAV: NavItem[] = [
   { to: '/clients', label: 'Клиенты' },
 ]
 
+// Пункт меню со счётчиком онлайн-записей, ждущих подтверждения (item61) — отдельный компонент,
+// потому что читает контекст, который AppLayout сам же и предоставляет.
+function CalendarNavLabel({ label }: { label: string }) {
+  const { count } = usePendingOnlineCount()
+  return (
+    <>
+      {label}
+      {count > 0 && (
+        <span className="nav-badge" title="Онлайн-записи ждут подтверждения" aria-label={`Ждут подтверждения: ${count}`}>
+          {count}
+        </span>
+      )}
+    </>
+  )
+}
+
 export function AppLayout() {
+  const { user } = useAuth()
+  return (
+    <PendingOnlineCountProvider enabled={user?.role === 'ADMIN'}>
+      <AppShell />
+    </PendingOnlineCountProvider>
+  )
+}
+
+function AppShell() {
   const { user, logout } = useAuth()
   const navItems = user?.role === 'ADMIN' ? ADMIN_NAV : MASTER_NAV
   const [currentMaster, setCurrentMaster] = useState<Master | null>(null)
@@ -71,7 +98,9 @@ export function AppLayout() {
           <ul>
             {navItems.map((item) => (
               <li key={item.to}>
-                <NavLink to={item.to}>{item.label}</NavLink>
+                <NavLink to={item.to}>
+                  {item.to === '/calendar' ? <CalendarNavLabel label={item.label} /> : item.label}
+                </NavLink>
               </li>
             ))}
           </ul>

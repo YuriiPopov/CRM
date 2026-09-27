@@ -34,7 +34,8 @@ interface BookingWhere {
   salonId?: string;
   masterId?: string;
   status?: BookingStatus | { notIn?: BookingStatus[] };
-  startTime?: { lt?: Date };
+  source?: BookingSource;
+  startTime?: { lt?: Date; gte?: Date };
   endTime?: { gt?: Date };
   AND?: BookingWhere[];
 }
@@ -142,6 +143,12 @@ class FakePrismaService {
       );
       return Promise.resolve(found ?? null);
     },
+    count: ({ where }: { where: BookingWhere }): Promise<number> => {
+      return Promise.resolve(
+        [...this.bookingsById.values()].filter((b) => this.matches(b, where))
+          .length,
+      );
+    },
     update: ({
       where,
       data,
@@ -224,7 +231,11 @@ class FakePrismaService {
         return false;
       }
     }
+    if (where.source && booking.source !== where.source) return false;
     if (where.startTime?.lt && !(booking.startTime < where.startTime.lt)) {
+      return false;
+    }
+    if (where.startTime?.gte && !(booking.startTime >= where.startTime.gte)) {
       return false;
     }
     if (where.endTime?.gt && !(booking.endTime > where.endTime.gt)) {
@@ -571,6 +582,177 @@ describe('Bookings (e2e)', () => {
 
       const body = response.body as Booking[];
       expect(body.map((b) => b.id)).toEqual(['booking-master-1']);
+    });
+  });
+
+  describe('GET /bookings with filters', () => {
+    const future = (days: number) =>
+      new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    function seed(
+      id: string,
+      overrides: Partial<Booking> & Pick<Booking, 'startTime'>,
+    ) {
+      prisma.seedBooking({
+        id,
+        salonId: 'salon-1',
+        clientId: CLIENT_A_ID,
+        masterId: MASTER_1_ID,
+        serviceId: SERVICE_A_ID,
+        endTime: new Date(overrides.startTime.getTime() + 60 * 60 * 1000),
+        status: BookingStatus.CREATED,
+        source: BookingSource.ADMIN,
+        createdAt: new Date(),
+        rescheduledAt: null,
+        originalStartTime: null,
+        originalEndTime: null,
+        ...overrides,
+      });
+    }
+
+    beforeEach(() => {
+      seed('online-pending', {
+        startTime: future(1),
+        source: BookingSource.ONLINE,
+      });
+      seed('online-confirmed', {
+        startTime: future(2),
+        source: BookingSource.ONLINE,
+        status: BookingStatus.CONFIRMED,
+      });
+      seed('online-past', {
+        startTime: future(-1),
+        source: BookingSource.ONLINE,
+      });
+      seed('admin-pending', { startTime: future(3) });
+      seed('online-master-2', {
+        startTime: future(4),
+        source: BookingSource.ONLINE,
+        masterId: MASTER_2_ID,
+      });
+      seed('online-other-salon', {
+        startTime: future(5),
+        source: BookingSource.ONLINE,
+        salonId: 'salon-2',
+      });
+    });
+
+    async function getIds(token: string, query: Record<string, string>) {
+      const response = await request(app.getHttpServer())
+        .get('/bookings')
+        .query(query)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      return (response.body as Booking[]).map((b) => b.id).sort();
+    }
+
+    it('filters by source', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      expect(await getIds(token, { source: 'ONLINE' })).toEqual([
+        'online-confirmed',
+        'online-master-2',
+        'online-past',
+        'online-pending',
+      ]);
+    });
+
+    it('filters by status', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      expect(await getIds(token, { status: 'CONFIRMED' })).toEqual([
+        'online-confirmed',
+      ]);
+    });
+
+    it('filters by from (inclusive lower bound on startTime)', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      expect(
+        await getIds(token, { from: new Date().toISOString() }),
+      ).not.toContain('online-past');
+    });
+
+    it('combines all filters', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      expect(
+        await getIds(token, {
+          source: 'ONLINE',
+          status: 'CREATED',
+          from: new Date().toISOString(),
+        }),
+      ).toEqual(['online-master-2', 'online-pending']);
+    });
+
+    it('keeps the MASTER scope when filtering', async () => {
+      const token = await loginAs('master1@b4u.local', master1Password);
+
+      expect(
+        await getIds(token, { source: 'ONLINE', status: 'CREATED' }),
+      ).toEqual(['online-past', 'online-pending']);
+    });
+
+    it('rejects invalid filter values', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      for (const query of [
+        { source: 'WEB' },
+        { status: 'DONE' },
+        { from: 'yesterday' },
+      ]) {
+        await request(app.getHttpServer())
+          .get('/bookings')
+          .query(query)
+          .set('Authorization', `Bearer ${token}`)
+          .expect(400);
+      }
+    });
+
+    describe('GET /bookings/pending-online/count', () => {
+      it('counts only future ONLINE bookings in CREATED status of the admin salon', async () => {
+        const token = await loginAs('admin@b4u.local', adminPassword);
+
+        const response = await request(app.getHttpServer())
+          .get('/bookings/pending-online/count')
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+
+        // online-pending + online-master-2; не считаются: подтверждённая, прошедшая,
+        // созданная в CRM и запись другого салона
+        expect(response.body).toEqual({ count: 2 });
+      });
+
+      it('drops to zero once the pending bookings are confirmed or cancelled', async () => {
+        const token = await loginAs('admin@b4u.local', adminPassword);
+
+        await request(app.getHttpServer())
+          .patch('/bookings/online-pending/status')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ status: BookingStatus.CONFIRMED })
+          .expect(200);
+        await request(app.getHttpServer())
+          .patch('/bookings/online-master-2/status')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ status: BookingStatus.CANCELLED })
+          .expect(200);
+
+        const response = await request(app.getHttpServer())
+          .get('/bookings/pending-online/count')
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+
+        expect(response.body).toEqual({ count: 0 });
+      });
+
+      it('forbids MASTER', async () => {
+        const token = await loginAs('master1@b4u.local', master1Password);
+
+        await request(app.getHttpServer())
+          .get('/bookings/pending-online/count')
+          .set('Authorization', `Bearer ${token}`)
+          .expect(403);
+      });
     });
   });
 

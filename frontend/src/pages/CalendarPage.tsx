@@ -27,6 +27,8 @@ import {
 } from './calendar/masterScheduleAvailability'
 import { getMonthGridDays, getWeekGridDays, navigateGridAnchor } from './calendar/calendarGrid'
 import { ALL_BOOKING_STATUSES, filterBookingsByVisibility } from './calendar/bookingVisibilityFilter'
+import { ALL_SOURCES, filterBookingsBySource, SOURCE_FILTER_OPTIONS } from './calendar/bookingSourceFilter'
+import type { BookingSourceFilter } from './calendar/bookingSourceFilter'
 import { shiftIsoToDateOnly, todayDateOnly } from './calendar/dateUtils'
 import { STATUS_LABELS } from './calendar/statusTransitions'
 import { BookingListItem } from './calendar/BookingListItem'
@@ -66,6 +68,8 @@ export function CalendarPage() {
     showPaid: true,
     showUnpaid: true,
   })
+  // Источник записи (item61) — как и статус/оплата, не сбрасывается при смене даты
+  const [sourceFilter, setSourceFilter] = useState<BookingSourceFilter>(ALL_SOURCES)
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -274,13 +278,16 @@ export function CalendarPage() {
   // filterBookingsByVisibility, без изменений.
   const visibleRangeBookings = useMemo(
     () =>
-      filterBookingsByVisibility(
-        rangeBookings,
-        selectedStatuses,
-        paidBookingIds,
-        isAdmin ? paymentFilter : { showPaid: true, showUnpaid: true },
+      filterBookingsBySource(
+        filterBookingsByVisibility(
+          rangeBookings,
+          selectedStatuses,
+          paidBookingIds,
+          isAdmin ? paymentFilter : { showPaid: true, showUnpaid: true },
+        ),
+        sourceFilter,
       ),
-    [rangeBookings, selectedStatuses, paidBookingIds, paymentFilter, isAdmin],
+    [rangeBookings, selectedStatuses, paidBookingIds, paymentFilter, isAdmin, sourceFilter],
   )
   const bookingsByDay = useMemo(
     () => groupBookingsByDay(visibleRangeBookings, gridDates),
@@ -297,13 +304,16 @@ export function CalendarPage() {
   // см. эффект выше), поэтому для MASTER он всегда пропускает всё, как будто оба чекбокса включены.
   const visibleBookings = useMemo(
     () =>
-      filterBookingsByVisibility(
-        dayBookings,
-        selectedStatuses,
-        paidBookingIds,
-        isAdmin ? paymentFilter : { showPaid: true, showUnpaid: true },
+      filterBookingsBySource(
+        filterBookingsByVisibility(
+          dayBookings,
+          selectedStatuses,
+          paidBookingIds,
+          isAdmin ? paymentFilter : { showPaid: true, showUnpaid: true },
+        ),
+        sourceFilter,
       ),
-    [dayBookings, selectedStatuses, paidBookingIds, paymentFilter, isAdmin],
+    [dayBookings, selectedStatuses, paidBookingIds, paymentFilter, isAdmin, sourceFilter],
   )
 
   const toggleStatus = (status: BookingStatus) => {
@@ -457,6 +467,21 @@ export function CalendarPage() {
             {services.map((service) => (
               <option key={service.id} value={service.id}>
                 {service.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label htmlFor="calendar-source-filter">
+          Источник
+          <select
+            id="calendar-source-filter"
+            value={sourceFilter}
+            onChange={(event) => setSourceFilter(event.target.value as BookingSourceFilter)}
+          >
+            {SOURCE_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>

@@ -3,6 +3,7 @@ import { canReschedule, getStatusBadgeClass, STATUS_LABELS } from './statusTrans
 import { formatOriginalTime, formatRescheduledAt, formatTime, formatTimeRange } from './dateUtils'
 import { getMasterColor } from '../dashboard/masterColor'
 import { MasterAvatar } from '../../components/MasterAvatar'
+import { BookingSourceBadge } from '../../components/BookingSourceBadge'
 import type { Booking } from '../../types/booking'
 import type { Client } from '../../types/client'
 import type { Master } from '../../types/staff'
@@ -108,6 +109,7 @@ export function BookingGridCard({
         {originalTimeLabel && <span className="booking-item-rescheduled">{originalTimeLabel}</span>}
       </div>
       <div className={`booking-grid-card-status ${getStatusBadgeClass(booking.status)}`}>
+        <BookingSourceBadge source={booking.source} />
         {STATUS_LABELS[booking.status]}
         {isPaid && <span className="booking-item-paid-badge">Оплачено</span>}
       </div>

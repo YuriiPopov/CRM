@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -91,6 +91,55 @@ describe('DashboardSettingsService', () => {
 
       expect(result).toContain('monthly-revenue');
     });
+
+    it('shows the pending online bookings widget to ADMIN by default, first in order', async () => {
+      const result = await service.getEffectiveWidgets(admin);
+
+      expect(result[0]).toBe('pending-online-bookings');
+    });
+
+    it('never shows the ADMIN-only widget to MASTER, even with a visible override', async () => {
+      prisma.dashboardWidgetRoleDefault.findMany.mockResolvedValue([
+        { widgetKey: 'pending-online-bookings', visible: true },
+      ]);
+      prisma.dashboardWidgetUserOverride.findMany.mockResolvedValue([
+        { widgetKey: 'pending-online-bookings', visible: true },
+      ]);
+
+      const result = await service.getEffectiveWidgets(master);
+
+      expect(result).not.toContain('pending-online-bookings');
+    });
+  });
+
+  describe('getConfig', () => {
+    it('reports the ADMIN-only widget as off for MASTER and on for ADMIN by default', async () => {
+      const config = await service.getConfig(admin);
+
+      expect(config.roleDefaults[Role.ADMIN]['pending-online-bookings']).toBe(
+        true,
+      );
+      expect(config.roleDefaults[Role.MASTER]['pending-online-bookings']).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('setRoleDefault', () => {
+    it('rejects configuring the ADMIN-only widget for MASTER', async () => {
+      await expect(
+        service.setRoleDefault(
+          {
+            role: Role.MASTER,
+            widgetKey: 'pending-online-bookings',
+            visible: true,
+          },
+          admin,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prisma.dashboardWidgetRoleDefault.upsert).not.toHaveBeenCalled();
+    });
   });
 
   describe('setUserOverride', () => {
@@ -134,6 +183,46 @@ describe('DashboardSettingsService', () => {
         },
         update: { visible: false },
       });
+    });
+  });
+
+  describe('setUserOverride for an ADMIN-only widget', () => {
+    it('rejects the override when the target user is a MASTER', async () => {
+      prisma.user.findFirst.mockResolvedValue({
+        id: 'master-user-1',
+        role: Role.MASTER,
+      });
+
+      await expect(
+        service.setUserOverride(
+          {
+            userId: 'master-user-1',
+            widgetKey: 'pending-online-bookings',
+            visible: true,
+          },
+          admin,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prisma.dashboardWidgetUserOverride.upsert).not.toHaveBeenCalled();
+    });
+
+    it('allows the override for an ADMIN user', async () => {
+      prisma.user.findFirst.mockResolvedValue({
+        id: 'admin-2',
+        role: Role.ADMIN,
+      });
+
+      await service.setUserOverride(
+        {
+          userId: 'admin-2',
+          widgetKey: 'pending-online-bookings',
+          visible: false,
+        },
+        admin,
+      );
+
+      expect(prisma.dashboardWidgetUserOverride.upsert).toHaveBeenCalled();
     });
   });
 

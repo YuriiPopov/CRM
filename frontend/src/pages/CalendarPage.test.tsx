@@ -1032,4 +1032,162 @@ describe('CalendarPage', () => {
       expect(screen.getByRole('heading', { name: 'Master Two' })).toBeInTheDocument()
     })
   })
+
+  // item61 — онлайн-записи из клиентского приложения
+  describe('booking source (item61)', () => {
+    const onlineBooking: Booking = {
+      ...booking,
+      id: 'booking-online',
+      startTime: '2026-03-10T12:00:00.000Z',
+      endTime: '2026-03-10T13:00:00.000Z',
+      source: 'ONLINE',
+    }
+    const onlineConfirmed: Booking = {
+      ...onlineBooking,
+      id: 'booking-online-confirmed',
+      startTime: '2026-03-10T14:00:00.000Z',
+      endTime: '2026-03-10T15:00:00.000Z',
+      status: 'CONFIRMED',
+    }
+
+    function mockAdminData(bookings: Booking[]) {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue(bookings)
+      mockedListClients.mockResolvedValue([client])
+      mockedListStaff.mockResolvedValue([master])
+      mockedListServices.mockResolvedValue([service])
+      mockedListPayments.mockResolvedValue([])
+      // Тесты графика выше оставляют свои ответы getMasterSchedule/listMasterBlocks — сбрасываем,
+      // иначе колонка мастера в "По мастерам" скрывается как нерабочая.
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedListMasterBlocks.mockResolvedValue([])
+    }
+
+    function sourceBadgesIn(element: HTMLElement) {
+      return within(element).queryAllByRole('img', { name: 'Из приложения' })
+    }
+
+    it('marks only the ONLINE booking with the "Из приложения" badge in the list', async () => {
+      mockAdminData([booking, onlineBooking])
+
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findAllByText('Anna Client')
+
+      const [crmRow, onlineRow] = screen.getAllByRole('listitem')
+      expect(sourceBadgesIn(crmRow)).toHaveLength(0)
+      expect(sourceBadgesIn(onlineRow)).toHaveLength(1)
+    })
+
+    it('shows the badge on a cancelled ONLINE booking too', async () => {
+      mockAdminData([{ ...onlineBooking, status: 'CANCELLED' }])
+
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findByText('Anna Client')
+
+      expect(screen.getByRole('img', { name: 'Из приложения' })).toBeInTheDocument()
+    })
+
+    it('shows the badge in the "По мастерам" columns and in the week grid', async () => {
+      mockAdminData([booking, onlineBooking])
+
+      const user = userEvent.setup()
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findAllByText('Anna Client')
+
+      await user.click(screen.getByRole('button', { name: 'По мастерам' }))
+      const column = (await screen.findByRole('heading', { name: 'Master One' })).closest<HTMLElement>('.master-column')!
+      expect(sourceBadgesIn(column)).toHaveLength(1)
+
+      await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+      const cell = document.querySelector<HTMLElement>('[data-date="2026-03-10"]')!
+      expect(within(cell).getAllByRole('listitem')).toHaveLength(2)
+      expect(sourceBadgesIn(cell)).toHaveLength(1)
+    })
+
+    it('shows the badge to MASTER on their own ONLINE bookings', async () => {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: masterUser, login: vi.fn(), logout: vi.fn() })
+      mockedListBookings.mockResolvedValue([onlineBooking])
+      mockedListClients.mockResolvedValue([client])
+      mockedListServices.mockResolvedValue([service])
+
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findByText('Anna Client')
+
+      expect(screen.getByRole('img', { name: 'Из приложения' })).toBeInTheDocument()
+    })
+
+    it('defaults the source filter to "Все" and narrows the list by source', async () => {
+      mockAdminData([booking, onlineBooking])
+
+      const user = userEvent.setup()
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findAllByText('Anna Client')
+
+      const sourceSelect = screen.getByLabelText('Источник')
+      expect(sourceSelect).toHaveValue('all')
+      expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+      await user.selectOptions(sourceSelect, 'Из приложения')
+      let rows = screen.getAllByRole('listitem')
+      expect(rows).toHaveLength(1)
+      expect(sourceBadgesIn(rows[0])).toHaveLength(1)
+
+      await user.selectOptions(sourceSelect, 'Созданные в CRM')
+      rows = screen.getAllByRole('listitem')
+      expect(rows).toHaveLength(1)
+      expect(sourceBadgesIn(rows[0])).toHaveLength(0)
+
+      await user.selectOptions(sourceSelect, 'Все')
+      expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    })
+
+    it('combines the source filter with the status filter', async () => {
+      mockAdminData([booking, onlineBooking, onlineConfirmed])
+
+      const user = userEvent.setup()
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findAllByText('Anna Client')
+
+      await user.selectOptions(screen.getByLabelText('Источник'), 'Из приложения')
+      expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
+      await user.click(screen.getByRole('checkbox', { name: 'Создана' }))
+      const rows = screen.getAllByRole('listitem')
+      expect(rows).toHaveLength(1)
+      expect(within(rows[0]).getByText('Подтверждена')).toBeInTheDocument()
+      expect(sourceBadgesIn(rows[0])).toHaveLength(1)
+    })
+
+    it('shows the filter-specific empty state when no booking matches the source', async () => {
+      mockAdminData([booking])
+
+      const user = userEvent.setup()
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await screen.findByText('Anna Client')
+
+      await user.selectOptions(screen.getByLabelText('Источник'), 'Из приложения')
+      expect(screen.getByText(/соответствующих выбранным фильтрам/i)).toBeInTheDocument()
+    })
+
+    it('applies the source filter to the week grid', async () => {
+      mockAdminData([booking, onlineBooking])
+
+      const user = userEvent.setup()
+      render(<CalendarPage />)
+      await selectDate('2026-03-10')
+      await user.click(screen.getByRole('button', { name: /^неделя$/i }))
+      await user.selectOptions(screen.getByLabelText('Источник'), 'Из приложения')
+
+      const cell = document.querySelector<HTMLElement>('[data-date="2026-03-10"]')!
+      await waitFor(() => expect(within(cell).getAllByRole('listitem')).toHaveLength(1))
+      expect(sourceBadgesIn(cell)).toHaveLength(1)
+    })
+  })
 })

@@ -169,4 +169,70 @@ describe('DashboardSettingsPage', () => {
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
   })
+
+  // item61 — «Ждут подтверждения» доступен только ADMIN
+  describe('ADMIN-only widget', () => {
+    function configWithPending(): DashboardSettingsConfig {
+      const config = baseConfig()
+      return {
+        ...config,
+        widgetKeys: ['pending-online-bookings', ...config.widgetKeys],
+        roleDefaults: {
+          ADMIN: { 'pending-online-bookings': true, ...config.roleDefaults.ADMIN },
+          MASTER: { 'pending-online-bookings': false, ...config.roleDefaults.MASTER },
+        },
+      }
+    }
+
+    it('offers the checkbox only in the ADMIN column', async () => {
+      mockedGetDashboardSettingsConfig.mockResolvedValue(configWithPending())
+      mockedListUsers.mockResolvedValue([adminUser, masterUser])
+
+      renderPage()
+
+      const row = await findTableRow('Ждут подтверждения (онлайн-записи)')
+      const checkboxes = within(row).getAllByRole('checkbox')
+      expect(checkboxes).toHaveLength(1)
+      expect(checkboxes[0]).toBeChecked()
+      expect(within(row).getByText('Недоступен')).toBeInTheDocument()
+    })
+
+    it('does not offer the widget for a MASTER user override, but does for an ADMIN user', async () => {
+      const user = userEvent.setup()
+      mockedGetDashboardSettingsConfig.mockResolvedValue(configWithPending())
+      mockedListUsers.mockResolvedValue([adminUser, masterUser])
+
+      renderPage()
+
+      await screen.findByText('Пользовательские переопределения')
+      const widgetSelect = screen.getByLabelText('Виджет')
+
+      await user.selectOptions(screen.getByLabelText('Пользователь'), 'master-user-1')
+      expect(within(widgetSelect).queryByRole('option', { name: 'Ждут подтверждения (онлайн-записи)' })).toBeNull()
+
+      await user.selectOptions(screen.getByLabelText('Пользователь'), 'admin-1')
+      expect(within(widgetSelect).getByRole('option', { name: 'Ждут подтверждения (онлайн-записи)' })).toBeInTheDocument()
+    })
+
+    it('falls back to an allowed widget when switching the override to a MASTER user', async () => {
+      const user = userEvent.setup()
+      mockedGetDashboardSettingsConfig.mockResolvedValue(configWithPending())
+      mockedListUsers.mockResolvedValue([adminUser, masterUser])
+      mockedSetUserOverride.mockResolvedValue(configWithPending())
+
+      renderPage()
+
+      await screen.findByText('Пользовательские переопределения')
+      await user.selectOptions(screen.getByLabelText('Пользователь'), 'admin-1')
+      await user.selectOptions(screen.getByLabelText('Виджет'), 'pending-online-bookings')
+      await user.selectOptions(screen.getByLabelText('Пользователь'), 'master-user-1')
+      await user.click(screen.getByRole('button', { name: 'Добавить переопределение' }))
+
+      expect(mockedSetUserOverride).toHaveBeenCalledWith({
+        userId: 'master-user-1',
+        widgetKey: 'today-bookings-summary',
+        visible: true,
+      })
+    })
+  })
 })

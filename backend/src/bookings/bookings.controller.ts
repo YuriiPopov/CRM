@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
@@ -15,6 +16,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { RescheduleBookingDto } from './dto/reschedule-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 
@@ -34,8 +36,18 @@ export class BookingsController {
 
   @Get()
   @Roles(Role.ADMIN, Role.MASTER)
-  findAll(@CurrentUser() user: AuthenticatedUser) {
-    return this.bookingsService.findAll(user);
+  findAll(
+    @Query() query: ListBookingsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.bookingsService.findAll(user, query);
+  }
+
+  // Статический маршрут объявлен до ':id', чтобы его не перехватывали параметрические GET-ы
+  @Get('pending-online/count')
+  @Roles(Role.ADMIN)
+  countPendingOnline(@CurrentUser() user: AuthenticatedUser) {
+    return this.bookingsService.countPendingOnline(user.salonId);
   }
 
   @Get(':id')
