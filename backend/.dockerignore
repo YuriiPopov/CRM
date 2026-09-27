@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+generated
+test
+*.tsbuildinfo
+*.log
+# Секреты и локальная конфигурация не должны попадать в образ — переменные задаёт docker-compose
+.env
+.env.*
+!.env.example
+# Скомпилированный seed (коммитится по ошибке, см. корневой .gitignore) — в образе не нужен
+prisma/*.js
+prisma/*.js.map
+prisma/*.d.ts
