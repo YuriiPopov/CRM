@@ -10,6 +10,8 @@ CRM-система для многопрофильного beauty-салона (
 - **Frontend:** React + TypeScript + Vite
 - **Mobile (мастер):** Kotlin + Jetpack Compose — нативное Android-приложение, переиспользует backend веб-CRM
 - **Mobile (клиент):** Kotlin + Jetpack Compose — нативное Android-приложение клиента салона, вход по телефону + SMS-коду
+- **Наблюдаемость:** Winston (JSON-логи) → Filebeat → Logstash → Elasticsearch/Kibana; Prometheus + Grafana (HTTP-метрики с `/metrics`)
+- **Контейнеры:** Docker Compose — Postgres, backend-образ (`backend/Dockerfile`), стек мониторинга
 - **CI:** GitHub Actions
 
 ## Структура репозитория
@@ -17,13 +19,15 @@ CRM-система для многопрофильного beauty-салона (
 ```
 b4u-crm/
   backend/                — NestJS API (модули: auth, clients, staff, services, bookings, payments,
-                             inventory, notifications, master-schedules, ...)
+                             inventory, notifications, master-schedules, master-blocks,
+                             public-booking, client-portal, ...); Dockerfile — образ для compose
   frontend/                — React SPA (веб-CRM для администратора/ресепшена)
   MobileApp/
     master-app/            — нативное Android-приложение мастера (Kotlin + Jetpack Compose)
     client-app/            — нативное Android-приложение клиента (Kotlin + Jetpack Compose)
     design_extracted*/     — распакованные дизайн-макеты (design handoff) для мобильных приложений
-  docker-compose.yml       — локальный PostgreSQL
+  infra/                   — конфиги filebeat, logstash, prometheus, grafana (для docker-compose)
+  docker-compose.yml       — PostgreSQL, backend-образ, ELK, Prometheus/Grafana, экспортёры
   .github/workflows/ci.yml — CI: lint, тесты, сборка
 ```
 
@@ -66,7 +70,8 @@ npm install
 npm run dev
 ```
 
-Frontend поднимется на `http://localhost:5173`.
+Frontend поднимется на `http://localhost:5173` и слушает все интерфейсы (`vite --host`) — веб-CRM
+можно открыть с телефона по LAN IP. Без `VITE_API_URL` запросы идут на тот же хост, порт 3000.
 
 ### 4. Приложение мастера (Android)
 
@@ -139,7 +144,10 @@ workflow подтверждения — в следующей версии.
 Design.zip`). Язык интерфейса — польский, строки вынесены в `res/values/strings.xml`.
 
 Стек: Kotlin + Jetpack Compose, Material 3 с кастомными токенами дизайна (шрифты Playfair Display +
-Inter), один `ClientViewModel` на StateFlow.
+Inter), Retrofit2 + OkHttp + kotlinx.serialization, DataStore Preferences (токен клиента),
+`ClientViewModel` и `LoginViewModel` на StateFlow, ручной service locator (`AppContainer`) без DI-фреймворка.
+Как и приложение мастера, читает время записей «как есть» из UTC (время салона без таймзоны — см.
+комментарий в `data/Mappers.kt`).
 
 Нижняя навигация — **Aktualności**, **Główna**, **Usługi**, **Wizyty**, **Profil**; поверх вкладок
 открываются экраны **Mistrz** (карточка мастера) и **Program lojalnościowy**. Шторка **Nowa
@@ -147,7 +155,9 @@ rezerwacja** открывается с любого экрана и предза
 перебора значений по тапу из прототипа в ней выпадающие списки и календарь, а в списке мастеров —
 только те, кто оказывает выбранную услугу.
 
-**Вход:** по номеру телефона и одноразовому 6-значному SMS-коду (5 минут, 5 попыток). Если клиента
+**Вход:** по номеру телефона и одноразовому 6-значному SMS-коду (5 минут, 5 проверок — считается
+каждая, и верная тоже; попытка резервируется и код гасится атомарными условными UPDATE, поэтому
+параллельные запросы не обходят лимит и не создают дубль клиента). Если клиента
 с таким телефоном в салоне ещё нет, приложение спрашивает имя и согласие RODO и создаёт карточку
 клиента (та же, что видит администратор в веб-CRM). Реального SMS-провайдера пока нет —
 `ConsoleSmsProvider` пишет SMS в лог backend; подключается заменой провайдера по DI-токену
@@ -174,6 +184,37 @@ rezerwacja** открывается с любого экрана и предза
 **Пока на мок-данных (нет на backend):** программа лояльности (баланс, награды — живут в памяти
 приложения, «оплата баллами» сервер не затрагивает), новости и контакты салона. Рейтинг, портфолио
 и отзывы мастеров из макета не показываются — этих данных нет.
+
+## Наблюдаемость и Docker
+
+`docker compose up -d` (с `JWT_SECRET`, см. шаг 1) поднимает:
+
+| Сервис | Порт на хосте | Назначение |
+|---|---|---|
+| app | 3000 | backend в production-режиме (миграции применяются при старте контейнера) |
+| postgres | 5432 | БД |
+| elasticsearch / kibana | 9200 / 5601 | хранение и просмотр логов |
+| logstash / filebeat | 5044 / — | filebeat читает `/var/log/b4u-crm/*.log` (общий volume с app) и шлёт в logstash |
+| prometheus | 9090 | сбор метрик (`app:3000/metrics`, node-exporter, postgres-exporter) |
+| grafana | 3001 | дашборды; источник данных Prometheus провижинится из `infra/grafana` |
+
+**Логи:** Winston — в production JSON в консоль и в файлы `/var/log/b4u-crm/app.log` и `error.log`
+(их и читает filebeat), в dev — цветной человекочитаемый формат только в консоль.
+
+**Метрики:** `GET /metrics` — стандартные метрики Node.js и `b4u_http_requests_total` /
+`b4u_http_request_duration_seconds` с метками `method`, `path` (шаблон маршрута, например
+`/client/bookings/:id/cancel`) и `status_code`. Их пишет `MetricsMiddleware` по событию `finish`
+ответа, поэтому учитываются все исходы — включая 401/429 от guard'ов, 404 и 500. Запросы без
+совпавшего маршрута собираются под одной меткой `path="unmatched"`, чтобы сканеры не раздували
+число временных рядов.
+
+**Защита production-конфигурации:** при `NODE_ENV=production` backend не стартует, если
+`JWT_SECRET` не задан или равен дефолтному `change-me-in-production`, либо если включён
+`CLIENT_OTP_DEV_MODE` (`backend/src/common/config/assert-production-config.ts`).
+
+Известные ограничения стека мониторинга: пароль администратора Grafana задан прямо в
+`docker-compose.yml`, а Elasticsearch, Kibana, Prometheus и экспортёры опубликованы на хост без
+аутентификации — конфигурация рассчитана на локальный запуск, не на публичный сервер.
 
 ## Roadmap
 
