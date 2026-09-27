@@ -18,3 +18,8 @@ local.properties
 .gradle/
 *.apk
 *.aab
+
+# Локальные артефакты инструментов разработки (не часть проекта)
+.claude/
+graphify-out/
+Claude outputs/
