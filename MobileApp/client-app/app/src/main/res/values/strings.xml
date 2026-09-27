@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Польский — основная локаль (handoff README, "Interactions & Behavior"). Контент каталога
+     (названия услуг, новости) приходит из данных, здесь только UI-копирайт. -->
+<resources>
+    <string name="app_name">B4U</string>
+
+    <!-- Bottom nav -->
+    <string name="tab_news">Aktualności</string>
+    <string name="tab_home">Główna</string>
+    <string name="tab_services">Usługi</string>
+    <string name="tab_bookings">Wizyty</string>
+    <string name="tab_profile">Profil</string>
+
+    <!-- Common -->
+    <string name="back">Wstecz</string>
+    <string name="points_value">%1$d pkt</string>
+    <string name="price_zl">%1$s zł</string>
+    <string name="duration_min">%1$d min</string>
+    <string name="price_and_duration">%1$s zł · %2$d min</string>
+    <string name="duration_and_price">%1$d min · %2$s zł</string>
+    <string name="book">Zarezerwuj</string>
+    <string name="soon">Ta sekcja pojawi się wkrótce</string>
+    <string name="today">Dzisiaj</string>
+
+    <!-- Home -->
+    <string name="home_greeting">Dzień dobry</string>
+    <string name="home_search">Znajdź usługę lub mistrza</string>
+    <string name="home_my_bookings">Moje wizyty</string>
+    <string name="home_popular">Popularne usługi</string>
+    <string name="home_masters">Twoi mistrzowie</string>
+    <string name="home_masters_all">Wszyscy</string>
+    <string name="home_next_visit">Najbliższa wizyta</string>
+    <string name="home_next_visit_line">%1$s — %2$s, %3$s</string>
+
+    <!-- Services -->
+    <string name="services_all">Wszystkie</string>
+
+    <!-- Master detail -->
+    <string name="master_title">Mistrz</string>
+    <string name="master_services">Usługi mistrza</string>
+    <string name="master_choose">Wybierz</string>
+    <string name="master_book_with">Zarezerwuj u %1$s</string>
+
+    <!-- Bookings -->
+    <string name="bookings_upcoming">Nadchodzące</string>
+    <string name="bookings_past">Minione</string>
+    <string name="bookings_empty_title">Brak wizyt</string>
+    <string name="bookings_empty_text">Zarezerwuj swoją pierwszą wizytę</string>
+    <string name="bookings_meta">%1$s, %2$s · %3$s</string>
+    <string name="bookings_cancel">Odwołaj</string>
+    <string name="bookings_repeat">Powtórz</string>
+    <string name="bookings_new">Nowa rezerwacja</string>
+    <string name="status_confirmed">Potwierdzona</string>
+    <string name="status_pending">Oczekująca</string>
+    <string name="status_done">Zakończona</string>
+    <string name="status_cancelled">Odwołana</string>
+    <string name="toast_booked">Wizyta zarezerwowana!</string>
+    <string name="toast_cancelled">Wizyta odwołana</string>
+
+    <!-- Loyalty -->
+    <string name="loyalty_title">Program lojalnościowy</string>
+    <string name="loyalty_balance">Twoje saldo</string>
+    <string name="loyalty_to_next">Do nagrody „%1$s” — %2$d pkt</string>
+    <string name="loyalty_all_unlocked">Wszystkie nagrody są dostępne</string>
+    <string name="loyalty_earn">Jak zdobywać</string>
+    <string name="loyalty_earn_points">+%1$d pkt</string>
+    <string name="loyalty_redeem">Wymień punkty</string>
+    <string name="loyalty_disclaimer">Mechanika lojalności może się zmieniać — salon może w każdej chwili przełączyć na system poziomów lub kart pieczątek.</string>
+    <string name="toast_reward_ok">Nagroda odebrana!</string>
+    <string name="toast_reward_low">Za mało punktów</string>
+
+    <!-- News -->
+    <string name="news_subtitle">Nowości, digest tygodnia i inspiracje od naszego salonu.</string>
+    <string name="news_empty_title">Brak aktualności</string>
+    <string name="news_empty_text">Wróć tu wkrótce po nowości</string>
+
+    <!-- Profile -->
+    <string name="profile_news_sub">Nowości i digest od salonu</string>
+    <string name="profile_history">Historia wizyt</string>
+    <string name="profile_history_sub">Nadchodzące i minione</string>
+    <string name="profile_gift">Karty podarunkowe</string>
+    <string name="profile_gift_sub">Kup dla bliskiej osoby</string>
+    <string name="profile_settings">Ustawienia</string>
+    <string name="profile_settings_sub">Powiadomienia, język</string>
+    <string name="profile_contact">Kontakt</string>
+    <string name="profile_call">Zadzwoń</string>
+    <string name="profile_instagram">Instagram</string>
+    <string name="profile_facebook">Facebook</string>
+
+    <!-- Booking sheet -->
+    <string name="sheet_service">USŁUGA</string>
+    <string name="sheet_master">MISTRZ</string>
+    <string name="sheet_date">DATA</string>
+    <string name="sheet_time">GODZINA</string>
+    <string name="sheet_payment">PŁATNOŚĆ</string>
+    <string name="sheet_service_value">%1$s · %2$s zł</string>
+    <string name="sheet_total">Do zapłaty</string>
+    <string name="sheet_total_points">%1$s zł (+ punkty)</string>
+    <string name="sheet_confirm">Potwierdź rezerwację</string>
+    <string name="pay_in_salon">Płatność w salonie</string>
+    <string name="pay_with_points">Zapłać punktami (jeśli wystarczy)</string>
+    <string name="sheet_no_slots">Brak wolnych terminów</string>
+    <string name="sheet_loading_slots">Szukamy terminów…</string>
+    <string name="sheet_points_local">Punkty są na razie naliczane tylko w aplikacji.</string>
+    <string name="date_ok">OK</string>
+    <string name="date_cancel">Anuluj</string>
+
+    <!-- Profile: logout -->
+    <string name="profile_logout">Wyloguj się</string>
+    <string name="profile_logout_sub">Zaloguj się ponownie numerem telefonu</string>
+
+    <!-- Loading / errors -->
+    <string name="error_network">Brak połączenia z serwerem</string>
+    <string name="error_generic">Coś poszło nie tak. Spróbuj ponownie.</string>
+    <string name="error_too_many">Zbyt wiele prób. Spróbuj za minutę.</string>
+    <string name="error_slot_taken">Ten termin jest już zajęty — wybierz inny</string>
+    <string name="error_cannot_cancel">Tej wizyty nie można już odwołać</string>
+    <string name="error_service_unavailable">Ta usługa nie jest już dostępna</string>
+    <string name="retry">Spróbuj ponownie</string>
+
+    <!-- Login -->
+    <string name="login_title">Witaj w B4U</string>
+    <string name="login_subtitle">Zaloguj się numerem telefonu — wyślemy Ci kod SMS.</string>
+    <string name="login_phone_label">NUMER TELEFONU</string>
+    <string name="login_send_code">Wyślij kod</string>
+    <string name="login_code_title">Wpisz kod</string>
+    <string name="login_code_subtitle">Wysłaliśmy 6-cyfrowy kod na numer %1$s.</string>
+    <string name="login_code_label">KOD Z SMS</string>
+    <string name="login_dev_code">Tryb testowy: kod %1$s</string>
+    <string name="login_verify">Zaloguj się</string>
+    <string name="login_change_phone">Zmień numer</string>
+    <string name="login_resend">Wyślij kod ponownie</string>
+    <string name="login_profile_title">Miło Cię poznać!</string>
+    <string name="login_profile_subtitle">To Twoja pierwsza wizyta w aplikacji. Jak masz na imię?</string>
+    <string name="login_name_label">IMIĘ I NAZWISKO</string>
+    <string name="login_consent">Wyrażam zgodę na przetwarzanie moich danych osobowych przez salon w celu obsługi rezerwacji (RODO).</string>
+    <string name="login_create">Utwórz konto</string>
+    <string name="login_error_code">Nieprawidłowy lub wygasły kod</string>
+    <string name="login_error_phone">Nieprawidłowy numer telefonu</string>
+</resources>

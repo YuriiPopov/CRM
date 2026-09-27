@@ -9,5 +9,6 @@ import { PublicBookingService } from './public-booking.service';
   ],
   controllers: [PublicBookingController],
   providers: [PublicBookingService],
+  exports: [PublicBookingService],
 })
 export class PublicBookingModule {}

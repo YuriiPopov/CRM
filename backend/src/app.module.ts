@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { ClientPortalModule } from './client-portal/client-portal.module';
 import { ClientsModule } from './clients/clients.module';
 import { winstonOptions } from './common/logger/logger.module';
 import { MetricsModule } from './common/metrics/metrics.module';
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module';
     MasterSchedulesModule,
     DashboardSettingsModule,
     UsersModule,
+    ClientPortalModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Токены дизайна из design_handoff_b4u_android_app/README.md; в Compose — ui/theme/Color.kt -->
+    <color name="app_background">#FAF3EE</color>
+    <color name="ic_launcher_background">#4A2530</color>
+</resources>

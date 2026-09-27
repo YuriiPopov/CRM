@@ -9,6 +9,7 @@ CRM-система для многопрофильного beauty-салона (
 - **Backend:** NestJS + TypeScript + Prisma + PostgreSQL
 - **Frontend:** React + TypeScript + Vite
 - **Mobile (мастер):** Kotlin + Jetpack Compose — нативное Android-приложение, переиспользует backend веб-CRM
+- **Mobile (клиент):** Kotlin + Jetpack Compose — нативное Android-приложение клиента салона, вход по телефону + SMS-коду
 - **CI:** GitHub Actions
 
 ## Структура репозитория
@@ -20,6 +21,7 @@ b4u-crm/
   frontend/                — React SPA (веб-CRM для администратора/ресепшена)
   MobileApp/
     master-app/            — нативное Android-приложение мастера (Kotlin + Jetpack Compose)
+    client-app/            — нативное Android-приложение клиента (Kotlin + Jetpack Compose)
     design_extracted*/     — распакованные дизайн-макеты (design handoff) для мобильных приложений
   docker-compose.yml       — локальный PostgreSQL
   .github/workflows/ci.yml — CI: lint, тесты, сборка
@@ -30,7 +32,16 @@ b4u-crm/
 ### 1. Поднять базу данных
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
+```
+
+Для разработки нужен только Postgres — backend ниже запускается локально (`npm run start:dev`).
+`docker compose up -d` без аргументов поднимает весь стек: backend в контейнере (`backend/Dockerfile`,
+миграции применяются при старте), ELK, Prometheus и Grafana. Для него нужен `JWT_SECRET` в окружении
+или в корневом `.env` — без него (или с дефолтным значением) backend в production не стартует:
+
+```bash
+JWT_SECRET="$(openssl rand -hex 32)" docker compose up -d
 ```
 
 ### 2. Настроить backend
@@ -69,6 +80,21 @@ adb reverse tcp:3000 tcp:3000   # тоннель к backend на хосте че
 
 Backend должен быть уже поднят (шаг 2). Подробнее — в разделе ниже.
 
+### 5. Приложение клиента (Android)
+
+```bash
+cd MobileApp/client-app
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+export ANDROID_SDK_ROOT=/opt/homebrew/share/android-commandlinetools
+adb reverse tcp:3000 tcp:3000   # тоннель к backend на хосте через USB (как у приложения мастера)
+./gradlew installDebug          # или assembleDebug → app/build/outputs/apk/debug/app-debug.apk
+./gradlew testDebugUnitTest     # unit-тесты маппинга API и мока лояльности
+```
+
+Backend должен быть поднят (шаг 2). Для входа без SMS-провайдера в `backend/.env` должно быть
+`CLIENT_OTP_DEV_MODE=true` — тогда код приходит в ответе API и показывается прямо на экране входа
+(и всегда пишется в лог backend строкой `[mock sms]`).
+
 ## Модель данных
 
 Схема — в `backend/prisma/schema.prisma`, соответствует ER-модели из архитектурного документа. Каждая ключевая сущность содержит `salonId` — задел под мультифилиальность без дорогой миграции в будущем.
@@ -105,6 +131,49 @@ workflow подтверждения — в следующей версии.
 
 Запуск на реальном устройстве по USB, включая настройку `adb reverse` и переменных окружения для
 сборки — см. шаг 4 выше и комментарии в `MobileApp/master-app/app/build.gradle.kts`.
+
+## Мобильное приложение клиента (Android)
+
+`MobileApp/client-app/` — нативное Android-приложение для клиентов салона. Дизайн-макет — в
+`MobileApp/design_extracted/design_handoff_b4u_android_app/` (распакован из `B4U Mobile Client App
+Design.zip`). Язык интерфейса — польский, строки вынесены в `res/values/strings.xml`.
+
+Стек: Kotlin + Jetpack Compose, Material 3 с кастомными токенами дизайна (шрифты Playfair Display +
+Inter), один `ClientViewModel` на StateFlow.
+
+Нижняя навигация — **Aktualności**, **Główna**, **Usługi**, **Wizyty**, **Profil**; поверх вкладок
+открываются экраны **Mistrz** (карточка мастера) и **Program lojalnościowy**. Шторка **Nowa
+rezerwacja** открывается с любого экрана и предзаполняется выбранной услугой/мастером. Вместо
+перебора значений по тапу из прототипа в ней выпадающие списки и календарь, а в списке мастеров —
+только те, кто оказывает выбранную услугу.
+
+**Вход:** по номеру телефона и одноразовому 6-значному SMS-коду (5 минут, 5 попыток). Если клиента
+с таким телефоном в салоне ещё нет, приложение спрашивает имя и согласие RODO и создаёт карточку
+клиента (та же, что видит администратор в веб-CRM). Реального SMS-провайдера пока нет —
+`ConsoleSmsProvider` пишет SMS в лог backend; подключается заменой провайдера по DI-токену
+`SMS_PROVIDER`.
+
+**Backend — модуль `client-portal` (`/client/*`):**
+- `POST /client/auth/request-code`, `POST /client/auth/verify` — вход (анонимные, под rate limit);
+- `GET /client/me`, `GET /client/catalog` — профиль; услуги, категории и активные мастера салона (с фото);
+- `GET /client/slots` — свободные слоты мастера на день (та же логика, что у `/public/booking`);
+- `GET/POST /client/bookings`, `POST /client/bookings/:id/cancel` — собственные записи клиента;
+  создание и отмена идут через `BookingsService` с теми же проверками (пересечения, буфер,
+  блокировки, график мастера) и уведомлениями, что и запись администратором. Запись создаётся
+  со статусом `CREATED` и источником `ONLINE` — в приложении она «Oczekująca», пока салон её
+  не подтвердит.
+
+Токен клиента подписан тем же `JWT_SECRET`, но с отдельным audience (`b4u-client-app`) и
+проверяется своей passport-стратегией — клиентский токен не пускает на маршруты сотрудников, и
+наоборот. Коды хранятся только как bcrypt-хэш (таблица `client_otps`).
+
+Переменные окружения (`backend/.env.example`): `CLIENT_APP_SALON_ID` (без него — первый салон в
+БД), `CLIENT_JWT_EXPIRES_IN` (по умолчанию 30 дней), `CLIENT_OTP_DEV_MODE` (только для локальной
+разработки — возвращает код в ответе API; в production не включать).
+
+**Пока на мок-данных (нет на backend):** программа лояльности (баланс, награды — живут в памяти
+приложения, «оплата баллами» сервер не затрагивает), новости и контакты салона. Рейтинг, портфолио
+и отзывы мастеров из макета не показываются — этих данных нет.
 
 ## Roadmap
 

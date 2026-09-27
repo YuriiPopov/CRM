@@ -25,6 +25,7 @@ describe('BookingsService', () => {
     };
     masterBlock: { findFirst: jest.Mock };
     masterSchedule: { findFirst: jest.Mock };
+    masterService: { findUnique: jest.Mock };
   };
   let notifications: {
     notifyBookingConfirmed: jest.Mock;
@@ -61,6 +62,7 @@ describe('BookingsService', () => {
       },
       masterBlock: { findFirst: jest.fn() },
       masterSchedule: { findFirst: jest.fn() },
+      masterService: { findUnique: jest.fn() },
     };
     // По умолчанию блокировок нет — тесты, которым нужен конфликт с MasterBlock,
     // переопределяют это значение явно (см. describe('MasterBlock overlap')).
@@ -814,6 +816,130 @@ describe('BookingsService', () => {
           { startTime: '2026-01-10T10:00:00.000Z' },
           'salon-1',
         ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.booking.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // Клиентское мобильное приложение (client-portal)
+  describe('createForClient', () => {
+    const params = {
+      salonId: 'salon-1',
+      clientId: 'client-1',
+      masterId: 'master-rec-1',
+      serviceId: 'service-1',
+      startTime: new Date(Date.now() + 86_400_000).toISOString(),
+    };
+
+    beforeEach(() => {
+      prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+      prisma.service.findFirst.mockResolvedValue({
+        id: 'service-1',
+        durationMin: 60,
+      });
+      prisma.masterService.findUnique.mockResolvedValue({
+        masterId: 'master-rec-1',
+        serviceId: 'service-1',
+      });
+      prisma.booking.findFirst.mockResolvedValue(null);
+      prisma.booking.create.mockResolvedValue({ id: 'booking-1' });
+    });
+
+    it('creates an ONLINE booking for the client from the token', async () => {
+      await service.createForClient(params);
+
+      expect(prisma.master.findFirst).toHaveBeenCalledWith({
+        where: { id: 'master-rec-1', salonId: 'salon-1', isActive: true },
+      });
+      expect(prisma.booking.create).toHaveBeenCalledWith({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining() is typed `any` in @types/jest
+        data: expect.objectContaining({
+          clientId: 'client-1',
+          salonId: 'salon-1',
+          source: 'ONLINE',
+        }),
+      });
+      expect(notifications.notifyBookingConfirmed).toHaveBeenCalledWith(
+        'booking-1',
+      );
+    });
+
+    it('rejects a master who does not offer the service', async () => {
+      prisma.masterService.findUnique.mockResolvedValue(null);
+      await expect(service.createForClient(params)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a time in the past', async () => {
+      await expect(
+        service.createForClient({
+          ...params,
+          startTime: new Date(Date.now() - 60_000).toISOString(),
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects an overlapping slot', async () => {
+      prisma.booking.findFirst.mockResolvedValue({ id: 'other' });
+      await expect(service.createForClient(params)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+  });
+
+  describe('cancelForClient', () => {
+    const future = new Date(Date.now() + 86_400_000);
+
+    it('cancels only the client own booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue(null);
+      await expect(
+        service.cancelForClient('booking-1', 'client-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.booking.findFirst).toHaveBeenCalledWith({
+        where: { id: 'booking-1', clientId: 'client-1' },
+      });
+    });
+
+    it('cancels an active future booking and notifies', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.CREATED,
+        startTime: future,
+      });
+      prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+      await service.cancelForClient('booking-1', 'client-1');
+
+      expect(prisma.booking.update).toHaveBeenCalledWith({
+        where: { id: 'booking-1' },
+        data: { status: BookingStatus.CANCELLED },
+      });
+      expect(notifications.notifyBookingCancelled).toHaveBeenCalledWith(
+        'booking-1',
+      );
+    });
+
+    it('does not cancel a completed booking', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.COMPLETED,
+        startTime: future,
+      });
+      await expect(
+        service.cancelForClient('booking-1', 'client-1'),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('does not cancel a booking that has already started', async () => {
+      prisma.booking.findFirst.mockResolvedValue({
+        id: 'booking-1',
+        status: BookingStatus.CONFIRMED,
+        startTime: new Date(Date.now() - 60_000),
+      });
+      await expect(
+        service.cancelForClient('booking-1', 'client-1'),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.booking.update).not.toHaveBeenCalled();
     });

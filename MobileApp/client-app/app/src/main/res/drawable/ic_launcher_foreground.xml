@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Плейсхолдер: буква "B" (B4U), заменить на финальную иконку приложения -->
+    <path
+        android:fillColor="#FAF3EE"
+        android:pathData="M38,34 L56,34 C64,34 69,38 69,44.5 C69,48.5 67,51.5 63.5,53 C68,54.5 71,58 71,63 C71,70 65.5,74 57,74 L38,74 Z M46,41 L46,50.5 L55,50.5 C59,50.5 61,48.8 61,45.8 C61,42.7 59,41 55,41 Z M46,57.5 L46,67 L56,67 C60.5,67 63,65.2 63,62.2 C63,59.2 60.5,57.5 56,57.5 Z" />
+</vector>

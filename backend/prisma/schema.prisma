@@ -64,6 +64,7 @@ model Salon {
   masterSchedules              MasterSchedule[]
   dashboardWidgetRoleDefaults  DashboardWidgetRoleDefault[]
   dashboardWidgetUserOverrides DashboardWidgetUserOverride[]
+  clientOtps                   ClientOtp[]
 
   @@map("salons")
 }
@@ -354,6 +355,25 @@ model DashboardWidgetUserOverride {
   @@unique([userId, widgetKey])
   @@index([salonId])
   @@map("dashboard_widget_user_overrides")
+}
+
+// Одноразовый SMS-код входа в клиентское мобильное приложение (вход по телефону без пароля).
+// Привязан к телефону, а не к Client: код запрашивается и до регистрации — карточка клиента
+// создаётся только после успешной проверки кода (см. ClientAuthService.verifyCode). Хранится
+// только bcrypt-хэш кода; attempts ограничивает перебор, consumedAt делает код одноразовым.
+model ClientOtp {
+  id         String    @id @default(uuid())
+  salonId    String
+  salon      Salon     @relation(fields: [salonId], references: [id])
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([salonId, phone])
+  @@map("client_otps")
 }
 
 // GDPR — право на удаление (см. ТЗ, раздел "Нефункциональные требования")

@@ -6,7 +6,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Booking, BookingStatus, Prisma, Role } from '@prisma/client';
+import {
+  Booking,
+  BookingSource,
+  BookingStatus,
+  Prisma,
+  Role,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
@@ -26,6 +32,14 @@ const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   [BookingStatus.COMPLETED]: [],
   [BookingStatus.CANCELLED]: [],
 };
+
+export interface CreateClientBookingParams {
+  salonId: string;
+  clientId: string;
+  masterId: string;
+  serviceId: string;
+  startTime: string;
+}
 
 @Injectable()
 export class BookingsService {
@@ -195,6 +209,95 @@ export class BookingsService {
         this.notificationsService.notifyBookingCancelled(updated.id),
       );
     }
+
+    return updated;
+  }
+
+  // Запись из клиентского мобильного приложения — клиент берётся из его токена, а не из тела
+  // запроса. Те же проверки, что и у записи сотрудником (пересечения, блокировки, график), плюс
+  // проверки публичной записи: мастер активен и оказывает услугу, время не в прошлом.
+  async createForClient(params: CreateClientBookingParams) {
+    const { salonId, clientId, masterId, serviceId } = params;
+
+    const [master, service, link] = await Promise.all([
+      this.prisma.master.findFirst({
+        where: { id: masterId, salonId, isActive: true },
+      }),
+      this.prisma.service.findFirst({ where: { id: serviceId, salonId } }),
+      this.prisma.masterService.findUnique({
+        where: { masterId_serviceId: { masterId, serviceId } },
+      }),
+    ]);
+
+    if (!master) throw new NotFoundException('Master not found');
+    if (!service) throw new NotFoundException('Service not found');
+    if (!link) {
+      throw new NotFoundException(
+        'This master does not offer the requested service',
+      );
+    }
+
+    const startTime = new Date(params.startTime);
+    if (startTime.getTime() < Date.now()) {
+      throw new BadRequestException('Cannot book a time in the past');
+    }
+    const endTime = addMinutes(startTime, service.durationMin);
+
+    await this.assertNoOverlap(masterId, startTime, endTime);
+    await this.assertScheduleAllows(masterId, startTime, endTime);
+
+    const booking = await this.prisma.booking.create({
+      data: {
+        salonId,
+        clientId,
+        masterId,
+        serviceId,
+        startTime,
+        endTime,
+        source: BookingSource.ONLINE,
+      },
+    });
+
+    await this.notifySafely(() =>
+      this.notificationsService.notifyBookingConfirmed(booking.id),
+    );
+
+    return booking;
+  }
+
+  // Клиент может отменить только свою ещё не начавшуюся активную запись; завершение и
+  // подтверждение остаются за салоном.
+  async cancelForClient(bookingId: string, clientId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, clientId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (
+      !ALLOWED_STATUS_TRANSITIONS[booking.status].includes(
+        BookingStatus.CANCELLED,
+      )
+    ) {
+      throw new ConflictException(
+        `Cannot cancel a booking with status ${booking.status}`,
+      );
+    }
+
+    if (booking.startTime.getTime() < Date.now()) {
+      throw new ConflictException('Cannot cancel a booking that has started');
+    }
+
+    const updated = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.CANCELLED },
+    });
+
+    await this.notifySafely(() =>
+      this.notificationsService.notifyBookingCancelled(updated.id),
+    );
 
     return updated;
   }
