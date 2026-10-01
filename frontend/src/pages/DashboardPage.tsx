@@ -64,9 +64,12 @@ export function DashboardPage() {
       // поэтому грузим безусловно, в отличие от masters (см. комментарий ниже).
       listServices().then(setServices),
       // Блокировки времени (Backlog п.9/п.11) — backend сам скоупит по роли (MASTER видит только
-      // свои, см. MasterBlocksService.findAll), поэтому грузим безусловно и без параметров, как
-      // и listBookings() выше; фильтрация на "сегодня" — на клиенте, тем же приёмом, что и с bookings.
-      listMasterBlocks().then(setMasterBlocks),
+      // свои, см. MasterBlocksService.findAll). Без from/to: недельный таймлайн листается на любую
+      // неделю и берёт блокировки из того же списка. Сбой здесь не должен прятать записи и выручку —
+      // таймлайны просто покажутся без блокировок, поэтому ошибка гасится локально.
+      listMasterBlocks()
+        .then(setMasterBlocks)
+        .catch(() => setMasterBlocks([])),
       // Эффективная видимость виджетов (ролевой дефолт + персональное переопределение, см.
       // DashboardSettingsService.getEffectiveWidgets на бэкенде) — грузится безусловно для обеих
       // ролей; сами данные виджетов (bookings/revenue/...) продолжают грузиться как раньше вне
@@ -124,16 +127,6 @@ export function DashboardPage() {
     () => bookings.filter((booking) => toDateOnly(booking.startTime) === today),
     [bookings, today],
   )
-  // В отличие от todayBookings (сравнение по дате начала — записи короткие, в один день),
-  // блокировка (Backlog п.9) может быть многодневной (отпуск), поэтому берём пересечение с
-  // сегодняшними сутками по обеим границам, а не сравнение дат начала.
-  const todayMasterBlocks = useMemo(() => {
-    const todayStart = new Date(`${today}T00:00:00.000Z`)
-    const todayEnd = new Date(`${today}T23:59:59.999Z`)
-    return masterBlocks.filter(
-      (block) => new Date(block.startTime) <= todayEnd && new Date(block.endTime) >= todayStart,
-    )
-  }, [masterBlocks, today])
   // Недоступность по графику работ (item50) — только запись(и) на сегодня, по мастеру; graph
   // может содержать записи на весь месяц (getMasterSchedule берёт месяц целиком), но таймлайну
   // "На сегодня" нужна ровно сегодняшняя.
@@ -161,8 +154,9 @@ export function DashboardPage() {
   // Одна строка на каждого мастера, у кого сегодня есть активная запись (masters для MASTER
   // не грузится и остаётся [] — тогда получаем ровно одну строку с его же записями).
   const timelineRows = useMemo(
-    () => groupTimelineBlocksByMaster(timelineBookings, masters, todayMasterBlocks, todayScheduleByMasterId),
-    [timelineBookings, masters, todayMasterBlocks, todayScheduleByMasterId],
+    // Блокировки отбираются по окну 09:00–19:00 сегодняшнего дня внутри groupTimelineBlocksByMaster
+    () => groupTimelineBlocksByMaster(timelineBookings, masters, masterBlocks, todayScheduleByMasterId, today),
+    [timelineBookings, masters, masterBlocks, todayScheduleByMasterId, today],
   )
   const timelineHours = useMemo(
     () => Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 }, (_, i) => TIMELINE_START_HOUR + i),

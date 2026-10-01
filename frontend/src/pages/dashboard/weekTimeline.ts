@@ -90,10 +90,10 @@ export function groupBookingsByDayAndMaster(
       }))
 
     // Многодневная блокировка (например, отпуск) попадает в колонку каждого дня, который она
-    // пересекает, — то же пересечение по обеим границам, что и todayMasterBlocks в DashboardPage,
-    // но применённое к каждому из 7 дней недели, а не только к сегодняшним суткам.
+    // пересекает. Сравнение строгое (полуинтервал, как в MasterBlocksService.findAll): блокировка,
+    // закончившаяся ровно в 00:00, не попадает в колонку следующего дня.
     const unavailableBars = masterBlocks
-      .filter((block) => new Date(block.startTime) <= dayEnd && new Date(block.endTime) >= dayStart)
+      .filter((block) => new Date(block.startTime) <= dayEnd && new Date(block.endTime) > dayStart)
       .slice()
       .sort(byMasterThenStart)
       .map((block) => ({

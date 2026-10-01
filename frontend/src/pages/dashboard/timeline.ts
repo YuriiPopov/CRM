@@ -2,6 +2,7 @@ import type { Booking, BookingStatus } from '../../types/booking'
 import type { Master } from '../../types/staff'
 import type { MasterBlock } from '../../types/masterBlock'
 import type { MasterScheduleRecord } from '../../types/masterSchedule'
+import { todayDateOnly } from '../calendar/dateUtils'
 
 // "Активные" в терминах таймлайна дашборда — CANCELLED осознанно исключены: отменённые записи
 // не требуют внимания сегодня и только загромождали бы компактный виджет (см. backlog п.3).
@@ -64,23 +65,42 @@ export interface TimelineUnavailableBlock {
   widthPercent: number
 }
 
+// Окно таймлайна дня day ('YYYY-MM-DD') в абсолютных миллисекундах UTC — блокировки, в отличие
+// от записей, бывают многодневными (отпуск), поэтому сравнивать их нужно с конкретными сутками,
+// а не по времени суток.
+function timelineWindowMs(day: string): { windowStartMs: number; windowEndMs: number } {
+  const dayStartMs = Date.parse(`${day}T00:00:00.000Z`)
+  return {
+    windowStartMs: dayStartMs + TIMELINE_START_HOUR * 60 * 60 * 1000,
+    windowEndMs: dayStartMs + TIMELINE_END_HOUR * 60 * 60 * 1000,
+  }
+}
+
+// Блокировки, пересекающие окно 09:00–19:00 дня day — строгое сравнение с обеих сторон (тот же
+// полуинтервал, что и MasterBlocksService.findAll на бэкенде): блокировка, закончившаяся ровно в
+// момент открытия, или целиком вне рабочих часов не создаёт строку на таймлайне.
+export function filterMasterBlocksInTimelineWindow(blocks: MasterBlock[], day: string): MasterBlock[] {
+  const { windowStartMs, windowEndMs } = timelineWindowMs(day)
+  return blocks.filter(
+    (block) => Date.parse(block.startTime) < windowEndMs && Date.parse(block.endTime) > windowStartMs,
+  )
+}
+
 // Та же раскладка на шкале 09:00–19:00 UTC, что и layoutBookingsOnTimeline, но для блокировок
 // времени мастера (Backlog п.9/п.11) — отдельная функция, а не переиспользование той же сигнатуры,
-// т.к. MasterBlock не является Booking (нет клиента/услуги/статуса).
-export function layoutMasterBlocksOnTimeline(blocks: MasterBlock[]): TimelineUnavailableBlock[] {
-  const windowStart = TIMELINE_START_HOUR * 60
-  const windowEnd = TIMELINE_END_HOUR * 60
-  const windowMinutes = windowEnd - windowStart
+// т.к. MasterBlock не является Booking (нет клиента/услуги/статуса). Границы прижимаются к окну
+// дня day по абсолютному времени, а не по времени суток: многодневная блокировка, покрывающая
+// день целиком, занимает всю полосу.
+export function layoutMasterBlocksOnTimeline(blocks: MasterBlock[], day: string): TimelineUnavailableBlock[] {
+  const { windowStartMs, windowEndMs } = timelineWindowMs(day)
+  const windowMs = windowEndMs - windowStartMs
 
   return blocks.map((block) => {
-    const startMinutes = clamp(minutesSinceUtcMidnight(block.startTime), windowStart, windowEnd)
-    const endMinutes = clamp(minutesSinceUtcMidnight(block.endTime), windowStart, windowEnd)
+    const startMs = clamp(Date.parse(block.startTime), windowStartMs, windowEndMs)
+    const endMs = clamp(Date.parse(block.endTime), windowStartMs, windowEndMs)
 
-    const leftPercent = ((startMinutes - windowStart) / windowMinutes) * 100
-    const widthPercent = Math.max(
-      ((endMinutes - startMinutes) / windowMinutes) * 100,
-      MIN_BLOCK_WIDTH_PERCENT,
-    )
+    const leftPercent = ((startMs - windowStartMs) / windowMs) * 100
+    const widthPercent = Math.max(((endMs - startMs) / windowMs) * 100, MIN_BLOCK_WIDTH_PERCENT)
 
     return { block, leftPercent, widthPercent }
   })
@@ -169,12 +189,14 @@ export function truncateMasterName(name: string): string {
 // layoutBookingsOnTimeline/layoutMasterBlocksOnTimeline/scheduleUnavailableSegments, что и для
 // одиночной полосы, применённая к подмножеству этого мастера. Строки отсортированы по имени
 // мастера для стабильного порядка между рендерами. masterBlocks/todayScheduleByMasterId по
-// умолчанию пусты — старые вызовы (без п.11/item50) не ломаются.
+// умолчанию пусты — старые вызовы (без п.11/item50) не ломаются. masterBlocks можно передавать
+// без предварительной фильтрации: в строки попадают только пересекающие окно дня day.
 export function groupTimelineBlocksByMaster(
   bookings: Booking[],
   masters: Master[],
   masterBlocks: MasterBlock[] = [],
   todayScheduleByMasterId: Map<string, MasterScheduleRecord> = new Map(),
+  day: string = todayDateOnly(),
 ): TimelineRow[] {
   const mastersById = new Map(masters.map((master) => [master.id, master]))
   const bookingsByMasterId = new Map<string, Booking[]>()
@@ -189,7 +211,7 @@ export function groupTimelineBlocksByMaster(
     }
   }
 
-  for (const block of masterBlocks) {
+  for (const block of filterMasterBlocksInTimelineWindow(masterBlocks, day)) {
     const existing = blocksByMasterId.get(block.masterId)
     if (existing) {
       existing.push(block)
@@ -217,7 +239,7 @@ export function groupTimelineBlocksByMaster(
       masterId,
       masterName: mastersById.get(masterId)?.name ?? 'Мастер не найден',
       blocks: layoutBookingsOnTimeline(bookingsByMasterId.get(masterId) ?? []),
-      unavailableBlocks: layoutMasterBlocksOnTimeline(blocksByMasterId.get(masterId) ?? []),
+      unavailableBlocks: layoutMasterBlocksOnTimeline(blocksByMasterId.get(masterId) ?? [], day),
       scheduleUnavailable: scheduleUnavailableByMasterId.get(masterId) ?? [],
     }))
     .sort((a, b) => a.masterName.localeCompare(b.masterName))

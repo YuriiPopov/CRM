@@ -468,6 +468,21 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('img', { name: /таймлайн активных записей/i })).not.toBeInTheDocument()
   })
 
+  it('still shows bookings and revenue when loading master time blocks fails', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListBookings.mockResolvedValue([makeBooking({ id: 'b1', status: 'CREATED' })])
+    mockedListClients.mockResolvedValue([client])
+    mockedGetRevenueReport.mockResolvedValue(revenueReport)
+    mockedListMasterBlocks.mockRejectedValue(new Error('network error'))
+
+    renderPage()
+
+    const todayCard = (await screen.findByText('Записи сегодня')).closest<HTMLElement>('.dashboard-card')!
+    expect(within(todayCard).getByText('1')).toBeInTheDocument()
+    expect(screen.getByText('4800')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('shows a master’s time block on the timeline (Backlog п.11), even without bookings today', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListBookings.mockResolvedValue([])

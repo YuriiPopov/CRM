@@ -2,6 +2,7 @@ import {
   filterActiveTimelineBookings,
   groupTimelineBlocksByMaster,
   layoutBookingsOnTimeline,
+  filterMasterBlocksInTimelineWindow,
   layoutMasterBlocksOnTimeline,
   scheduleUnavailableSegments,
   TIMELINE_END_HOUR,
@@ -225,7 +226,7 @@ describe('groupTimelineBlocksByMaster', () => {
 
   it('creates a row for a master who only has a time block and no bookings', () => {
     const block = makeMasterBlock({ masterId: 'master-2' })
-    const rows = groupTimelineBlocksByMaster([], [masterOne, masterTwo], [block])
+    const rows = groupTimelineBlocksByMaster([], [masterOne, masterTwo], [block], new Map(), '2026-03-10')
     expect(rows).toHaveLength(1)
     expect(rows[0].masterId).toBe('master-2')
     expect(rows[0].blocks).toEqual([])
@@ -235,10 +236,15 @@ describe('groupTimelineBlocksByMaster', () => {
   it('attaches unavailable blocks to the same row as that master\'s bookings', () => {
     const bookingA = makeBooking({ id: 'a', masterId: 'master-1' })
     const block = makeMasterBlock({ id: 'block-1', masterId: 'master-1' })
-    const rows = groupTimelineBlocksByMaster([bookingA], [masterOne], [block])
+    const rows = groupTimelineBlocksByMaster([bookingA], [masterOne], [block], new Map(), '2026-03-10')
     expect(rows).toHaveLength(1)
     expect(rows[0].blocks.map((b) => b.booking.id)).toEqual(['a'])
     expect(rows[0].unavailableBlocks.map((b) => b.block.id)).toEqual(['block-1'])
+  })
+
+  it('does not create a row for a master whose only block is outside the working window', () => {
+    const block = makeMasterBlock({ masterId: 'master-2', startTime: '2026-03-10T07:00:00.000Z', endTime: '2026-03-10T08:00:00.000Z' })
+    expect(groupTimelineBlocksByMaster([], [masterOne, masterTwo], [block], new Map(), '2026-03-10')).toEqual([])
   })
 
   it('defaults to no unavailable blocks when none are passed', () => {
@@ -328,22 +334,66 @@ describe('layoutMasterBlocksOnTimeline', () => {
       startTime: `2026-03-10T${String(TIMELINE_START_HOUR).padStart(2, '0')}:00:00.000Z`,
       endTime: `2026-03-10T${String(TIMELINE_END_HOUR).padStart(2, '0')}:00:00.000Z`,
     })
-    const [layout] = layoutMasterBlocksOnTimeline([block])
+    const [layout] = layoutMasterBlocksOnTimeline([block], '2026-03-10')
     expect(layout.leftPercent).toBe(0)
     expect(layout.widthPercent).toBe(100)
   })
 
   it('clamps a block that starts before the working window to the left edge', () => {
     const block = makeMasterBlock({ startTime: '2026-03-10T00:00:00.000Z', endTime: '2026-03-10T09:30:00.000Z' })
-    const [layout] = layoutMasterBlocksOnTimeline([block])
+    const [layout] = layoutMasterBlocksOnTimeline([block], '2026-03-10')
     expect(layout.leftPercent).toBe(0)
   })
 
   it('pairs each layout entry with its own block', () => {
     const blockA = makeMasterBlock({ id: 'a' })
     const blockB = makeMasterBlock({ id: 'b', startTime: '2026-03-10T09:00:00.000Z', endTime: '2026-03-10T09:30:00.000Z' })
-    const layouts = layoutMasterBlocksOnTimeline([blockA, blockB])
+    const layouts = layoutMasterBlocksOnTimeline([blockA, blockB], '2026-03-10')
     expect(layouts.map((layout) => layout.block.id)).toEqual(['a', 'b'])
+  })
+
+  it('spans the whole track for a multi-day block that covers the given day', () => {
+    const block = makeMasterBlock({ startTime: '2026-03-09T00:00:00.000Z', endTime: '2026-03-12T00:00:00.000Z' })
+    const [layout] = layoutMasterBlocksOnTimeline([block], '2026-03-10')
+    expect(layout.leftPercent).toBe(0)
+    expect(layout.widthPercent).toBe(100)
+  })
+
+  it('positions a block that started yesterday by its end time today', () => {
+    const block = makeMasterBlock({ startTime: '2026-03-09T15:00:00.000Z', endTime: '2026-03-10T14:00:00.000Z' })
+    const [layout] = layoutMasterBlocksOnTimeline([block], '2026-03-10')
+    expect(layout.leftPercent).toBe(0)
+    expect(layout.widthPercent).toBe(50)
+  })
+
+  it('positions a block that ends tomorrow from its start time today to the right edge', () => {
+    const block = makeMasterBlock({ startTime: '2026-03-10T14:00:00.000Z', endTime: '2026-03-11T12:00:00.000Z' })
+    const [layout] = layoutMasterBlocksOnTimeline([block], '2026-03-10')
+    expect(layout.leftPercent).toBe(50)
+    expect(layout.widthPercent).toBe(50)
+  })
+})
+
+describe('filterMasterBlocksInTimelineWindow', () => {
+  it('keeps blocks overlapping the working window of the given day', () => {
+    const inside = makeMasterBlock({ id: 'inside' })
+    const multiDay = makeMasterBlock({ id: 'multi', startTime: '2026-03-09T00:00:00.000Z', endTime: '2026-03-12T00:00:00.000Z' })
+    expect(filterMasterBlocksInTimelineWindow([inside, multiDay], '2026-03-10').map((b) => b.id)).toEqual([
+      'inside',
+      'multi',
+    ])
+  })
+
+  it('drops a block that ends exactly at midnight of the given day', () => {
+    const block = makeMasterBlock({ startTime: '2026-03-09T10:00:00.000Z', endTime: '2026-03-10T00:00:00.000Z' })
+    expect(filterMasterBlocksInTimelineWindow([block], '2026-03-10')).toEqual([])
+  })
+
+  it('drops blocks entirely outside working hours or touching the window edge', () => {
+    const early = makeMasterBlock({ id: 'early', startTime: '2026-03-10T07:00:00.000Z', endTime: '2026-03-10T08:00:00.000Z' })
+    const endsAtOpen = makeMasterBlock({ id: 'open', startTime: '2026-03-10T08:00:00.000Z', endTime: '2026-03-10T09:00:00.000Z' })
+    const startsAtClose = makeMasterBlock({ id: 'close', startTime: '2026-03-10T19:00:00.000Z', endTime: '2026-03-10T20:00:00.000Z' })
+    expect(filterMasterBlocksInTimelineWindow([early, endsAtOpen, startsAtClose], '2026-03-10')).toEqual([])
   })
 })
 

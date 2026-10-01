@@ -188,6 +188,13 @@ describe('groupBookingsByDayAndMaster', () => {
     expect(daysWithBlock).toEqual(['2026-03-11', '2026-03-12', '2026-03-13'])
   })
 
+  it('does not put a block ending exactly at midnight into the next day column', () => {
+    const block = makeMasterBlock({ masterId: 'master-1', startTime: '2026-03-12T20:00:00.000Z', endTime: '2026-03-13T00:00:00.000Z' })
+    const columns = groupBookingsByDayAndMaster([], [masterOne], monday, [block])
+    const daysWithBlock = columns.filter((c) => c.unavailableBars.length > 0).map((c) => c.date)
+    expect(daysWithBlock).toEqual(['2026-03-12'])
+  })
+
   it('defaults to no unavailable bars when no master blocks are passed', () => {
     const columns = groupBookingsByDayAndMaster([], [masterOne], monday)
     expect(columns.every((c) => c.unavailableBars.length === 0)).toBe(true)
