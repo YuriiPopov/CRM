@@ -87,7 +87,7 @@ fun MasterDetailScreen(vm: ClientViewModel, catalog: Catalog, masterId: String) 
                             Text(stringResource(R.string.duration_min, sv.durationMin), style = B4UType.Caption.copy(fontSize = 11.5.sp), color = Muted)
                         }
                         Text(stringResource(R.string.price_zl, formatPrice(sv.price)), style = B4UType.Body.copy(fontWeight = FontWeight.Bold), color = Ink)
-                        AccentButton(stringResource(R.string.master_choose), onClick = { vm.startBooking(sv.id, master.id) })
+                        AccentButton(stringResource(R.string.master_choose), onClick = { vm.startBooking(sv.id, master.id, fromMaster = true) })
                     }
                 }
             }
@@ -98,7 +98,7 @@ fun MasterDetailScreen(vm: ClientViewModel, catalog: Catalog, masterId: String) 
         Box(Modifier.fillMaxWidth().background(AppBackground).padding(horizontal = PagePadding, vertical = 14.dp)) {
             AccentButton(
                 stringResource(R.string.master_book_with, master.name),
-                onClick = { vm.startBooking(masterId = master.id) },
+                onClick = { vm.startBooking(masterId = master.id, fromMaster = true) },
                 modifier = Modifier.fillMaxWidth(),
                 large = true,
             )

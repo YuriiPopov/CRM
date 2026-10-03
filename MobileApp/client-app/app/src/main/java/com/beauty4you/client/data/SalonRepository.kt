@@ -42,8 +42,10 @@ class SalonRepository(
         _bookings.value = apiCall { api.bookings() }.map { it.toDomain() }
     }
 
-    suspend fun slots(masterId: String, serviceId: String, date: LocalDate): List<Slot> =
-        apiCall { api.slots(masterId, serviceId, date.toString()) }.slots.map { it.toDomain() }
+    suspend fun daySlots(masterId: String, serviceId: String, date: LocalDate): DaySlots {
+        val response = apiCall { api.slots(masterId, serviceId, date.toString()) }
+        return DaySlots(response.isWorkingDay, response.slots.map { it.toDomain() })
+    }
 
     suspend fun createBooking(masterId: String, serviceId: String, slot: Slot): Booking {
         val booking = apiCall { api.createBooking(CreateBookingBody(masterId, serviceId, slot.startIso)) }.toDomain()

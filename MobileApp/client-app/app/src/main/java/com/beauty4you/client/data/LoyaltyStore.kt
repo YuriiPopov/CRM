@@ -17,19 +17,6 @@ class LoyaltyStore(initialPoints: Int = MockData.initialPoints) {
     private val _points = MutableStateFlow(initialPoints)
     val points: StateFlow<Int> = _points.asStateFlow()
 
-    /** Сколько баллов спишется при оплате баллами услуги ценой [price] (не больше баланса). */
-    fun pointsCoverage(price: Double): Int = minOf(_points.value, price.toInt())
-
-    fun onBookingCreated(price: Double, payment: PaymentMethod) {
-        _points.update { balance ->
-            when (payment) {
-                PaymentMethod.POINTS -> balance - minOf(balance, price.toInt())
-                // Начисление 10% от цены услуги (handoff README, "Interactions & Behavior").
-                PaymentMethod.IN_SALON -> balance + Math.round(price * 0.1).toInt()
-            }
-        }
-    }
-
     /** @return false, если баллов недостаточно. */
     fun redeem(rewardId: String): Boolean {
         val reward = rewards.first { it.id == rewardId }

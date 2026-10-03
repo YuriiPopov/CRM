@@ -46,7 +46,7 @@ import com.beauty4you.client.ui.common.AccentButton
 import com.beauty4you.client.ui.common.EmptyState
 import com.beauty4you.client.ui.common.PagePadding
 import com.beauty4you.client.ui.login.LoginScreen
-import com.beauty4you.client.ui.booking.BookingSheet
+import com.beauty4you.client.ui.booking.BookingScreen
 import com.beauty4you.client.ui.common.IconImageTile
 import com.beauty4you.client.ui.screens.BookingsScreen
 import com.beauty4you.client.ui.screens.HomeScreen
@@ -112,6 +112,8 @@ private fun MainContent(vm: ClientViewModel, catalog: Catalog, client: Client) {
     val toast by vm.toast.collectAsStateWithLifecycle()
 
     BackHandler(enabled = nav.pushed != null) { vm.back() }
+    // Объявлен позже — при открытой записи «Назад» закрывает её и возвращает туда, откуда пришли
+    BackHandler(enabled = draft != null) { vm.closeBooking() }
 
     Column(
         Modifier
@@ -120,7 +122,11 @@ private fun MainContent(vm: ClientViewModel, catalog: Catalog, client: Client) {
             .statusBarsPadding(),
     ) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            when (val pushed = nav.pushed) {
+            val currentDraft = draft
+            // Запись — полноэкранный экран поверх вкладки/pushed-экрана; nav не трогаем, чтобы вернуться туда же
+            if (currentDraft != null) {
+                BookingScreen(vm, catalog, currentDraft)
+            } else when (val pushed = nav.pushed) {
                 is Pushed.MasterDetail -> MasterDetailScreen(vm, catalog, pushed.masterId)
                 Pushed.Loyalty -> LoyaltyScreen(vm)
                 null -> when (nav.tab) {
@@ -132,13 +138,16 @@ private fun MainContent(vm: ClientViewModel, catalog: Catalog, client: Client) {
                 }
             }
 
-            ToastHost(toast, onTimeout = vm::clearToast, modifier = Modifier.align(Alignment.BottomCenter))
+            ToastHost(
+                toast,
+                onTimeout = vm::clearToast,
+                // На экране записи — над закреплённой панелью с итогом и кнопкой
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (draft != null) 124.dp else 0.dp),
+            )
         }
 
-        BottomBar(activeTab = nav.tab, onSelect = vm::selectTab)
+        if (draft == null) BottomBar(activeTab = nav.tab, onSelect = vm::selectTab)
     }
-
-    draft?.let { BookingSheet(vm, catalog, it) }
 }
 
 @Composable

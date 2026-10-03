@@ -87,23 +87,43 @@
     <string name="profile_instagram">Instagram</string>
     <string name="profile_facebook">Facebook</string>
 
-    <!-- Booking sheet -->
-    <string name="sheet_service">USŁUGA</string>
-    <string name="sheet_master">MISTRZ</string>
-    <string name="sheet_date">DATA</string>
-    <string name="sheet_time">GODZINA</string>
-    <string name="sheet_payment">PŁATNOŚĆ</string>
-    <string name="sheet_service_value">%1$s · %2$s zł</string>
-    <string name="sheet_total">Do zapłaty</string>
-    <string name="sheet_total_points">%1$s zł (+ punkty)</string>
-    <string name="sheet_confirm">Potwierdź rezerwację</string>
-    <string name="pay_in_salon">Płatność w salonie</string>
-    <string name="pay_with_points">Zapłać punktami (jeśli wystarczy)</string>
-    <string name="sheet_no_slots">Brak wolnych terminów</string>
-    <string name="sheet_loading_slots">Szukamy terminów…</string>
-    <string name="sheet_points_local">Punkty są na razie naliczane tylko w aplikacji.</string>
-    <string name="date_ok">OK</string>
-    <string name="date_cancel">Anuluj</string>
+    <!-- Booking screen (Rezerwacja) -->
+    <string name="booking_title">Rezerwacja</string>
+    <string name="booking_service">Usługa</string>
+    <string name="booking_master">Wybierz mistrza</string>
+    <string name="booking_time">Wybierz godzinę</string>
+    <string name="booking_prev_week">Poprzedni tydzień</string>
+    <string name="booking_next_week">Następny tydzień</string>
+    <string name="booking_pick_service_first">Najpierw wybierz usługę</string>
+    <string name="booking_pick_master_first">Wybierz usługę i mistrza, aby zobaczyć wolne terminy</string>
+    <string name="booking_no_days">Brak dostępnych dni w tym tygodniu — sprawdź następny</string>
+    <string name="booking_day_off">Mistrz nie pracuje tego dnia</string>
+    <string name="booking_no_slots">Brak wolnych terminów</string>
+    <string name="booking_confirm">Zarezerwuj wizytę</string>
+    <string-array name="months_short">
+        <item>Sty</item>
+        <item>Lut</item>
+        <item>Mar</item>
+        <item>Kwi</item>
+        <item>Maj</item>
+        <item>Cze</item>
+        <item>Lip</item>
+        <item>Sie</item>
+        <item>Wrz</item>
+        <item>Paź</item>
+        <item>Lis</item>
+        <item>Gru</item>
+    </string-array>
+    <!-- Od poniedziałku -->
+    <string-array name="weekdays_short">
+        <item>Pn</item>
+        <item>Wt</item>
+        <item>Śr</item>
+        <item>Cz</item>
+        <item>Pt</item>
+        <item>So</item>
+        <item>Nd</item>
+    </string-array>
 
     <!-- Profile: logout -->
     <string name="profile_logout">Wyloguj się</string>

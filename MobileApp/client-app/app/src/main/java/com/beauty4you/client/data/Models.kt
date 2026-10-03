@@ -71,7 +71,8 @@ data class Booking(
 /** Свободный слот: [startIso] уходит на бэкенд как есть, [time] — для отображения. */
 data class Slot(val startIso: String, val time: LocalTime)
 
-enum class PaymentMethod { IN_SALON, POINTS }
+/** Ответ /client/slots на один день: [isWorkingDay] = false — выходной мастера по графику. */
+data class DaySlots(val isWorkingDay: Boolean, val slots: List<Slot>)
 
 data class Reward(val id: String, val name: String, val cost: Int)
 

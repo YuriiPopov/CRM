@@ -10,11 +10,23 @@ import com.beauty4you.client.R
 import com.beauty4you.client.data.AuthRepository
 import com.beauty4you.client.data.LoyaltyStore
 import com.beauty4you.client.data.MockData
-import com.beauty4you.client.data.PaymentMethod
+import com.beauty4you.client.data.DaySlots
 import com.beauty4you.client.data.SalonRepository
 import com.beauty4you.client.data.Slot
 import com.beauty4you.client.data.remote.ApiException
+import com.beauty4you.client.ui.booking.canConfirm
+import com.beauty4you.client.ui.booking.canGoToPreviousWeek
+import com.beauty4you.client.ui.booking.newBookingDraft
+import com.beauty4you.client.ui.booking.pickDate
+import com.beauty4you.client.ui.booking.weekDays
+import com.beauty4you.client.ui.booking.withDate
+import com.beauty4you.client.ui.booking.withMaster
+import com.beauty4you.client.ui.booking.withService
+import com.beauty4you.client.ui.booking.withWeek
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,15 +44,24 @@ sealed interface Pushed {
 }
 
 data class BookingDraft(
-    val serviceId: String,
-    val masterId: String,
-    val date: LocalDate,
-    val payment: PaymentMethod,
-    val slots: List<Slot> = emptyList(),
-    val slotsLoading: Boolean = true,
+    val serviceId: String?,
+    val masterId: String?,
+    /** Вход из карточки мастера: список услуг сужен до его услуг. */
+    val narrowToMasterId: String? = null,
+    /** Понедельник показываемой недели календаря. */
+    val weekStart: LocalDate,
+    val date: LocalDate? = null,
+    /** Слоты мастера на неделю; null — не запрашивались (не выбраны услуга или мастер). */
+    val week: WeekSlots? = null,
     val selectedSlot: Slot? = null,
     val submitting: Boolean = false,
 )
+
+sealed interface WeekSlots {
+    data object Loading : WeekSlots
+    data class Ready(val days: Map<LocalDate, DaySlots>) : WeekSlots
+    data class Failed(@StringRes val message: Int) : WeekSlots
+}
 
 data class Toast(@StringRes val message: Int, val id: Long = System.nanoTime())
 
@@ -57,8 +78,8 @@ sealed interface LoadState {
     data class Failed(@StringRes val message: Int) : LoadState
 }
 
-// Сколько дней вперёд искать первый день со свободными слотами при открытии шторки записи
-private const val SLOT_SEARCH_DAYS = 14L
+// На сколько недель вперёд листать при открытии записи, если в текущей неделе нет свободных слотов
+private const val SLOT_SEARCH_WEEKS = 2
 
 class ClientViewModel(
     val repo: SalonRepository,
@@ -157,25 +178,13 @@ class ClientViewModel(
     // --- Запись ---
 
     /**
-     * Открывает шторку записи, предзаполненную услугой/мастером. Мастер подбирается среди тех,
-     * кто оказывает выбранную услугу; дата — первый день с свободными слотами.
+     * Открывает экран записи. [fromMaster] — вход из карточки мастера: мастер предвыбран, услуги сужены
+     * до его услуг. Если в текущей неделе нет свободных слотов, календарь сам листает вперёд.
      */
-    fun startBooking(serviceId: String? = null, masterId: String? = null) {
+    fun startBooking(serviceId: String? = null, masterId: String? = null, fromMaster: Boolean = false) {
         val catalog = catalog.value ?: return
-        val service = serviceId?.let(catalog::service)
-            ?: masterId?.let(catalog::master)?.serviceIds?.firstNotNullOfOrNull(catalog::service)
-            ?: catalog.services.firstOrNull()
-            ?: return
-        val candidates = catalog.mastersFor(service.id)
-        val master = candidates.firstOrNull { it.id == masterId } ?: candidates.firstOrNull() ?: return
-
-        _draft.value = BookingDraft(
-            serviceId = service.id,
-            masterId = master.id,
-            date = LocalDate.now(),
-            payment = PaymentMethod.IN_SALON,
-        )
-        loadSlots(searchForward = true)
+        _draft.value = newBookingDraft(catalog, serviceId, masterId, fromMaster, LocalDate.now())
+        loadWeek(autoAdvance = true)
     }
 
     fun closeBooking() {
@@ -185,72 +194,104 @@ class ClientViewModel(
 
     fun selectDraftService(serviceId: String) {
         val catalog = catalog.value ?: return
-        _draft.update { d ->
-            d ?: return
-            val candidates = catalog.mastersFor(serviceId)
-            val masterId = if (candidates.any { it.id == d.masterId }) d.masterId else candidates.first().id
-            d.copy(serviceId = serviceId, masterId = masterId)
-        }
-        loadSlots(searchForward = false)
+        if (_draft.value?.serviceId == serviceId) return
+        _draft.update { it?.withService(catalog, serviceId) }
+        loadWeek(autoAdvance = false)
     }
 
     fun selectDraftMaster(masterId: String) {
-        _draft.update { it?.copy(masterId = masterId) }
-        loadSlots(searchForward = false)
+        if (_draft.value?.masterId == masterId) return
+        _draft.update { it?.withMaster(masterId) }
+        loadWeek(autoAdvance = false)
     }
 
-    fun selectDraftDate(date: LocalDate) {
-        _draft.update { it?.copy(date = date) }
-        loadSlots(searchForward = false)
+    // Слоты всей недели уже загружены — смена дня запроса не требует
+    fun selectDraftDate(date: LocalDate) = _draft.update { it?.withDate(date) }
+
+    fun showNextWeek() = changeWeek(+1)
+    fun showPreviousWeek() = changeWeek(-1)
+
+    private fun changeWeek(delta: Long) {
+        val d = _draft.value ?: return
+        val target = d.weekStart.plusWeeks(delta)
+        if (delta < 0 && !canGoToPreviousWeek(d.weekStart, LocalDate.now())) return
+        _draft.value = d.withWeek(target)
+        loadWeek(autoAdvance = false)
     }
+
+    fun retrySlots() = loadWeek(autoAdvance = false)
 
     fun selectDraftSlot(slot: Slot) = _draft.update { it?.copy(selectedSlot = slot) }
-    fun selectDraftPayment(payment: PaymentMethod) = _draft.update { it?.copy(payment = payment) }
 
-    private fun loadSlots(searchForward: Boolean) {
+    private fun loadWeek(autoAdvance: Boolean) {
         slotsJob?.cancel()
         val initial = _draft.value ?: return
-        _draft.update { it?.copy(slotsLoading = true, slots = emptyList(), selectedSlot = null) }
+        val serviceId = initial.serviceId
+        val masterId = initial.masterId
+        if (serviceId == null || masterId == null) return
+        _draft.update { it?.copy(week = WeekSlots.Loading, selectedSlot = null) }
         slotsJob = viewModelScope.launch {
+            val today = LocalDate.now()
             try {
-                var date = initial.date
-                var slots = repo.slots(initial.masterId, initial.serviceId, date)
-                if (searchForward) {
-                    val last = initial.date.plusDays(SLOT_SEARCH_DAYS)
-                    while (slots.isEmpty() && date.isBefore(last)) {
-                        date = date.plusDays(1)
-                        slots = repo.slots(initial.masterId, initial.serviceId, date)
+                var weekStart = initial.weekStart
+                var days = fetchWeek(masterId, serviceId, weekStart, today)
+                if (autoAdvance && days.values.none { it.slots.isNotEmpty() }) {
+                    for (i in 1..SLOT_SEARCH_WEEKS) {
+                        val next = initial.weekStart.plusWeeks(i.toLong())
+                        val nextDays = fetchWeek(masterId, serviceId, next, today)
+                        if (nextDays.values.any { it.slots.isNotEmpty() }) {
+                            weekStart = next
+                            days = nextDays
+                            break
+                        }
                     }
-                    if (slots.isEmpty()) date = initial.date
                 }
                 _draft.update {
-                    it?.copy(date = date, slots = slots, selectedSlot = slots.firstOrNull(), slotsLoading = false)
+                    it?.copy(
+                        weekStart = weekStart,
+                        week = WeekSlots.Ready(days),
+                        date = pickDate(if (weekStart == it.weekStart) it.date else null, days, today),
+                    )
                 }
             } catch (e: ApiException) {
-                _draft.update { it?.copy(slotsLoading = false) }
-                showToast(errorMessage(e))
+                _draft.update { it?.copy(week = WeekSlots.Failed(errorMessage(e))) }
             }
         }
     }
 
+    /** Слоты на каждый ещё не прошедший день недели — параллельно; заодно дают выходные мастера. */
+    private suspend fun fetchWeek(
+        masterId: String,
+        serviceId: String,
+        weekStart: LocalDate,
+        today: LocalDate,
+    ): Map<LocalDate, DaySlots> = coroutineScope {
+        weekDays(weekStart)
+            .filterNot { it.isBefore(today) }
+            .map { day -> async { day to repo.daySlots(masterId, serviceId, day) } }
+            .awaitAll()
+            .toMap()
+    }
+
     fun confirmBooking() {
         val d = _draft.value ?: return
+        if (!d.canConfirm) return
+        val serviceId = d.serviceId ?: return
+        val masterId = d.masterId ?: return
         val slot = d.selectedSlot ?: return
-        val service = catalog.value?.service(d.serviceId) ?: return
         _draft.update { it?.copy(submitting = true) }
         viewModelScope.launch {
             try {
-                repo.createBooking(d.masterId, d.serviceId, slot)
-                loyalty.onBookingCreated(service.price, d.payment)
+                repo.createBooking(masterId, serviceId, slot)
                 _draft.value = null
                 _nav.update { it.copy(tab = Tab.BOOKINGS, pushed = null, bookingsShowUpcoming = true) }
                 showToast(R.string.toast_booked)
             } catch (e: ApiException) {
                 _draft.update { it?.copy(submitting = false) }
                 if (e.kind == ApiException.Kind.CONFLICT) {
-                    // Слот успели занять (или он вне графика) — обновляем список, оставляя шторку открытой
+                    // Слот успели занять — перезагружаем слоты; услуга, мастер и день остаются, сбрасывается только время
                     showToast(R.string.error_slot_taken)
-                    loadSlots(searchForward = false)
+                    loadWeek(autoAdvance = false)
                 } else {
                     showToast(errorMessage(e))
                 }
