@@ -1,7 +1,13 @@
 import type { Booking, BookingStatus } from '../../types/booking'
 
 // Единый источник правды для набора статусов, доступных в фильтре — зеркалит BookingStatus.
-export const ALL_BOOKING_STATUSES: BookingStatus[] = ['CREATED', 'CONFIRMED', 'COMPLETED', 'CANCELLED']
+export const ALL_BOOKING_STATUSES: BookingStatus[] = [
+  'CREATED',
+  'CONFIRMED',
+  'COMPLETED',
+  'CANCELLED',
+  'NO_SHOW',
+]
 
 export interface PaymentVisibilityFilter {
   showPaid: boolean

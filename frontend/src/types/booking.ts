@@ -1,4 +1,4 @@
-export type BookingStatus = 'CREATED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
+export type BookingStatus = 'CREATED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW'
 export type BookingSource = 'ADMIN' | 'ONLINE'
 
 export interface Booking {

@@ -6,6 +6,7 @@ import { createBooking } from '../../api/bookings'
 import { getApiErrorMessage } from '../../api/errors'
 import { SlotPicker } from './SlotPicker'
 import { CreateClientModal } from '../clients/CreateClientModal'
+import { isUnreliableClient, UnreliableBadge } from '../clients/UnreliableBadge'
 import { filterMastersForService, filterServicesForMaster, isMasterServiceLinked } from './masterServiceFilter'
 import type { AvailableSlot } from '../../api/publicBooking'
 import type { Client } from '../../types/client'
@@ -88,6 +89,7 @@ export function CreateBookingModal({
     setSelectedSlot(null)
   }
 
+  const selectedClient = clients.find((client) => client.id === clientId)
   const canSubmit = Boolean(clientId && masterId && serviceId && selectedSlot) && !submitting
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -129,11 +131,13 @@ export function CreateBookingModal({
             </option>
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
+                {isUnreliableClient(client) ? '🚩 ' : ''}
                 {client.name} ({client.phone})
               </option>
             ))}
           </select>
         </label>
+        {selectedClient && <UnreliableBadge client={selectedClient} />}
 
         {/* Единственный способ завести нового клиента для MASTER (вкладка "Клиенты" ему
             недоступна, см. AppRoutes) — доступно и ADMIN как более быстрый путь из формы записи. */}

@@ -2,6 +2,7 @@ package com.beauty4you.admin.domain
 
 import com.beauty4you.admin.domain.BookingStatus.CANCELLED
 import com.beauty4you.admin.domain.BookingStatus.CREATED
+import com.beauty4you.admin.domain.BookingStatus.NO_SHOW
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -57,6 +58,21 @@ class CalendarLogicTest {
         assertEquals(
             listOf("cancelled"),
             CalendarLogic.timelineBookings(bookings, CalendarFilter(status = CANCELLED), DAY).map { it.id },
+        )
+    }
+
+    @Test
+    fun `timeline hides no-shows like cancellations unless filtered by Nieobecna`() {
+        val withNoShow = bookings + booking("no-show", at(13), masterId = "m1", status = NO_SHOW)
+        assertEquals(listOf("early", "late"), CalendarLogic.timelineBookings(withNoShow, CalendarFilter(), DAY).map { it.id })
+        assertEquals(
+            listOf("no-show"),
+            CalendarLogic.timelineBookings(withNoShow, CalendarFilter(status = NO_SHOW), DAY).map { it.id },
+        )
+        // Список (Lista) показывает неявку под своим статусом
+        assertEquals(
+            listOf("early", "cancelled", "no-show", "late"),
+            CalendarLogic.filterBookings(withNoShow, CalendarFilter(), DAY).map { it.id },
         )
     }
 

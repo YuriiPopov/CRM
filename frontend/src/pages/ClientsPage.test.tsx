@@ -74,6 +74,23 @@ describe('ClientsPage', () => {
     expect(screen.getByText('Boris Nowak')).toBeInTheDocument()
   })
 
+  // item74 — флаг unreliable приходит с backend (noShowCount >= 3)
+  it('shows the 🚩 badge only for the client with 3 no-shows, not 2', async () => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedListClients.mockResolvedValue([
+      makeClient({ id: 'c-anna', name: 'Anna Kowalska', noShowCount: 2, unreliable: false }),
+      makeClient({ id: 'c-boris', name: 'Boris Nowak', phone: '+48222222222', noShowCount: 3, unreliable: true }),
+    ])
+
+    renderPage()
+
+    const anna = await screen.findByRole('link', { name: /anna kowalska/i })
+    const boris = screen.getByRole('link', { name: /boris nowak/i })
+    expect(anna).not.toHaveTextContent('🚩')
+    expect(boris).toHaveTextContent('🚩 Ненадёжный')
+    expect(screen.getAllByText(/🚩/)).toHaveLength(1)
+  })
+
   it('filters the list as the user types in the search box', async () => {
     mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
     mockedListClients.mockResolvedValue([

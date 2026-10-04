@@ -30,6 +30,12 @@ export async function listClients(): Promise<Client[]> {
   return response.data
 }
 
+// Карточка с вычисляемыми полями noShowCount/unreliable (item74) — их нет в GDPR-выгрузке /export
+export async function getClient(id: string): Promise<Client> {
+  const response = await apiClient.get<Client>(`/clients/${id}`)
+  return response.data
+}
+
 export async function createClient(input: CreateClientInput): Promise<Client> {
   const response = await apiClient.post<Client>('/clients', input)
   return response.data

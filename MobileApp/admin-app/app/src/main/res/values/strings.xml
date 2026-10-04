@@ -30,6 +30,8 @@
     <string name="status_confirmed">Potwierdzona</string>
     <string name="status_completed">Zakończona</string>
     <string name="status_cancelled">Odwołana</string>
+    <string name="status_no_show">Nieobecna</string>
+    <string name="client_unreliable">🚩 Niewiarygodny</string>
 
     <!-- Panel -->
     <string name="dashboard_greeting">Cześć, %1$s</string>
@@ -115,6 +117,7 @@
     <string name="error_outside_hours">Godzina poza grafikiem pracy specjalisty</string>
     <string name="error_past_time">Nie można zapisać wizyty w przeszłości</string>
     <string name="error_invalid_transition">Ta zmiana statusu jest niedozwolona</string>
+    <string name="error_no_show_too_early">Nieobecność można oznaczyć dopiero po rozpoczęciu wizyty</string>
     <string name="error_not_reschedulable">Nie można przenieść zakończonej lub odwołanej wizyty</string>
     <string name="error_not_found">Nie znaleziono wizyty, klienta lub specjalisty</string>
     <string name="error_validation">Nieprawidłowe dane formularza</string>

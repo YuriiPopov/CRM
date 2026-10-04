@@ -68,6 +68,8 @@ data class ClientDto(
     val name: String,
     val phone: String,
     val email: String? = null,
+    val noShowCount: Int = 0,
+    val unreliable: Boolean = false,
 )
 
 @Serializable

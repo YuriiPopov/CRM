@@ -17,8 +17,10 @@ data class AuthenticatedUserDto(
     val masterId: String?,
 )
 
+// NO_SHOW («Nieobecna», item74) ставит только администратор; мастер видит его только для чтения.
+// Значения должны совпадать с backend enum: неизвестный статус ломает разбор всего списка записей.
 enum class BookingStatus {
-    CREATED, CONFIRMED, COMPLETED, CANCELLED
+    CREATED, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW
 }
 
 // Поля 1-в-1 с backend/prisma/schema.prisma model Booking — сервер отдаёт запись без вложенных

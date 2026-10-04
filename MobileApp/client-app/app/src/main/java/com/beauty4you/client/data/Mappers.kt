@@ -30,6 +30,7 @@ fun BookingDto.toDomain() = Booking(
         "CONFIRMED" -> BookingStatus.CONFIRMED
         "COMPLETED" -> BookingStatus.DONE
         "CANCELLED" -> BookingStatus.CANCELLED
+        "NO_SHOW" -> BookingStatus.NO_SHOW
         else -> BookingStatus.PENDING // CREATED
     },
 )

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ClientDetailPage } from './ClientDetailPage'
 import { useAuth } from '../auth/useAuth'
-import { eraseClientData, exportClientData, updateClient } from '../api/clients'
+import { eraseClientData, exportClientData, getClient, updateClient } from '../api/clients'
 import { listStaff } from '../api/staff'
 import type { AuthenticatedUser } from '../types/auth'
 import type { ClientExport } from '../types/clientExport'
@@ -12,6 +12,7 @@ import type { Master } from '../types/staff'
 vi.mock('../auth/useAuth', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/clients', () => ({
   exportClientData: vi.fn(),
+  getClient: vi.fn(),
   eraseClientData: vi.fn(),
   updateClient: vi.fn(),
 }))
@@ -19,6 +20,7 @@ vi.mock('../api/staff', () => ({ listStaff: vi.fn() }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedExportClientData = vi.mocked(exportClientData)
+const mockedGetClient = vi.mocked(getClient)
 const mockedEraseClientData = vi.mocked(eraseClientData)
 const mockedUpdateClient = vi.mocked(updateClient)
 const mockedListStaff = vi.mocked(listStaff)
@@ -105,8 +107,33 @@ function renderPage() {
 }
 
 describe('ClientDetailPage', () => {
+  beforeEach(() => {
+    mockedGetClient.mockResolvedValue({ ...makeExport().client, noShowCount: 0, unreliable: false })
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  // item74 — метка приходит из GET /clients/:id (в GDPR-выгрузке её нет)
+  it.each([
+    [2, false],
+    [3, true],
+  ])('shows the 🚩 badge on the card for %i no-shows: %s', async (noShowCount, unreliable) => {
+    mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+    mockedExportClientData.mockResolvedValue(makeExport())
+    mockedListStaff.mockResolvedValue([master])
+    mockedGetClient.mockResolvedValue({ ...makeExport().client, noShowCount, unreliable })
+
+    renderPage()
+
+    const heading = await screen.findByRole('heading', { level: 1, name: /anna kowalska/i })
+    if (unreliable) {
+      expect(heading).toHaveTextContent('🚩 Ненадёжный')
+    } else {
+      expect(heading).not.toHaveTextContent('🚩')
+    }
+    expect(mockedGetClient).toHaveBeenCalledWith('client-1')
   })
 
   it('loads the client card and their visit history (ADMIN sees full payment detail)', async () => {

@@ -1,7 +1,7 @@
 import type { Booking, BookingStatus } from '../../types/booking'
 import { toDateOnly } from '../calendar/dateUtils'
 
-const ALL_STATUSES: BookingStatus[] = ['CREATED', 'CONFIRMED', 'COMPLETED', 'CANCELLED']
+const ALL_STATUSES: BookingStatus[] = ['CREATED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']
 
 export function countByStatus(bookings: Booking[]): Record<BookingStatus, number> {
   const counts = Object.fromEntries(ALL_STATUSES.map((status) => [status, 0])) as Record<
@@ -20,7 +20,7 @@ function addDaysToDateOnly(dateOnly: string, days: number): string {
 }
 
 // "Ближайшие" записи для виджета дашборда: сегодня/завтра, ещё не начавшиеся и не в терминальном
-// статусе — CANCELLED/COMPLETED больше не требуют внимания и не показываются как "предстоящие".
+// статусе — CANCELLED/COMPLETED/NO_SHOW больше не требуют внимания и не показываются как "предстоящие".
 export function upcomingBookings(bookings: Booking[], nowIso: string, limit = 5): Booking[] {
   const today = toDateOnly(nowIso)
   const tomorrow = addDaysToDateOnly(today, 1)
@@ -31,7 +31,7 @@ export function upcomingBookings(bookings: Booking[], nowIso: string, limit = 5)
       const date = toDateOnly(booking.startTime)
       return date === today || date === tomorrow
     })
-    .filter((booking) => booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED')
+    .filter((booking) => booking.status === 'CREATED' || booking.status === 'CONFIRMED')
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
     .slice(0, limit)
 }

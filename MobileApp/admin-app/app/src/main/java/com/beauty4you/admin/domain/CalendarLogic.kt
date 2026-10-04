@@ -27,12 +27,14 @@ object CalendarLogic {
             .sortedBy { it.start }
             .toList()
 
-    // Timeline: отменённые записи освобождают время и только загромождали бы сетку (как и
-    // таймлайн дашборда веб-CRM), поэтому скрыты — кроме случая, когда их явно запросили
-    // фильтром «Status: Odwołana».
+    // Timeline: отменённые и неявки (NO_SHOW, item74) освобождают время и только загромождали бы
+    // сетку (как и таймлайн дашборда веб-CRM), поэтому скрыты — кроме случая, когда их явно
+    // запросили фильтром «Status: Odwołana» / «Status: Nieobecna».
+    private val SLOT_FREEING_STATUSES = setOf(BookingStatus.CANCELLED, BookingStatus.NO_SHOW)
+
     fun timelineBookings(bookings: List<Booking>, filter: CalendarFilter, date: LocalDate): List<Booking> =
         filterBookings(bookings, filter, date).filter {
-            filter.status == BookingStatus.CANCELLED || it.status != BookingStatus.CANCELLED
+            filter.status == it.status || it.status !in SLOT_FREEING_STATUSES
         }
 
     // Группы вида Specjalista в порядке списка мастеров; мастера без записей не показываются.

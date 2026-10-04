@@ -4,6 +4,7 @@ import {
   BOOKING_BUFFER_MINUTES,
   findOverlappingBlock,
   findOverlappingBooking,
+  NON_BLOCKING_BOOKING_STATUSES,
 } from './booking-overlap.util';
 
 describe('addMinutes', () => {
@@ -13,6 +14,21 @@ describe('addMinutes', () => {
     expect(addMinutes(base, 10).toISOString()).toBe('2026-01-10T10:10:00.000Z');
     expect(addMinutes(base, -10).toISOString()).toBe(
       '2026-01-10T09:50:00.000Z',
+    );
+  });
+});
+
+describe('NON_BLOCKING_BOOKING_STATUSES', () => {
+  it('lets cancelled and no-show bookings free the slot, but not active or completed ones (item74)', () => {
+    expect(NON_BLOCKING_BOOKING_STATUSES).toEqual(
+      expect.arrayContaining([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+    );
+    expect(NON_BLOCKING_BOOKING_STATUSES).not.toContain(BookingStatus.CREATED);
+    expect(NON_BLOCKING_BOOKING_STATUSES).not.toContain(
+      BookingStatus.CONFIRMED,
+    );
+    expect(NON_BLOCKING_BOOKING_STATUSES).not.toContain(
+      BookingStatus.COMPLETED,
     );
   });
 });
@@ -32,7 +48,9 @@ describe('findOverlappingBooking', () => {
     expect(findFirst).toHaveBeenCalledWith({
       where: {
         masterId: 'master-1',
-        status: { notIn: [BookingStatus.CANCELLED] },
+        status: {
+          notIn: [BookingStatus.CANCELLED, BookingStatus.NO_SHOW],
+        },
         startTime: { lt: endTime },
         endTime: { gt: startTime },
       },
@@ -57,7 +75,9 @@ describe('findOverlappingBooking', () => {
     expect(findFirst).toHaveBeenCalledWith({
       where: {
         masterId: 'master-1',
-        status: { notIn: [BookingStatus.CANCELLED] },
+        status: {
+          notIn: [BookingStatus.CANCELLED, BookingStatus.NO_SHOW],
+        },
         startTime: { lt: new Date('2026-01-10T11:10:00.000Z') },
         endTime: { gt: new Date('2026-01-10T09:50:00.000Z') },
       },

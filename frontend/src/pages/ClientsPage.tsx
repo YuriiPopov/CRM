@@ -4,6 +4,7 @@ import { listClients } from '../api/clients'
 import { getApiErrorMessage } from '../api/errors'
 import { filterClients } from './clients/filterClients'
 import { CreateClientModal } from './clients/CreateClientModal'
+import { UnreliableBadge } from './clients/UnreliableBadge'
 import type { Client } from '../types/client'
 
 export function ClientsPage() {
@@ -70,6 +71,7 @@ export function ClientsPage() {
               <Link to={`/clients/${client.id}`} className="client-list-item">
                 <strong>{client.name}</strong>
                 <span>{client.phone}</span>
+                <UnreliableBadge client={client} />
               </Link>
             </li>
           ))}

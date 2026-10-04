@@ -412,7 +412,7 @@ describe('BookingsService', () => {
       expect(prisma.booking.findFirst).toHaveBeenLastCalledWith({
         where: {
           masterId: 'master-rec-1',
-          status: { notIn: [BookingStatus.CANCELLED] },
+          status: { notIn: [BookingStatus.CANCELLED, BookingStatus.NO_SHOW] },
           startTime: { lt: new Date('2026-01-10T12:55:00.000Z') },
           endTime: { gt: new Date('2026-01-10T11:50:00.000Z') },
           id: { not: 'booking-1' },
@@ -674,6 +674,106 @@ describe('BookingsService', () => {
         ),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.booking.update).not.toHaveBeenCalled();
+    });
+
+    describe('NO_SHOW (item74)', () => {
+      const pastStart = new Date(Date.now() - 60 * 60_000);
+      const futureStart = new Date(Date.now() + 60 * 60_000);
+
+      it('allows ADMIN to mark a confirmed booking whose start time has passed', async () => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status: BookingStatus.CONFIRMED,
+          startTime: pastStart,
+        });
+        prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+
+        await service.updateStatus(
+          'booking-1',
+          { status: BookingStatus.NO_SHOW },
+          admin,
+        );
+
+        expect(prisma.booking.update).toHaveBeenCalledWith({
+          where: { id: 'booking-1' },
+          data: { status: BookingStatus.NO_SHOW },
+        });
+        expect(notifications.notifyBookingCancelled).not.toHaveBeenCalled();
+      });
+
+      it('rejects MASTER with 403 even for their own past confirmed booking', async () => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status: BookingStatus.CONFIRMED,
+          startTime: pastStart,
+        });
+
+        await expect(
+          service.updateStatus(
+            'booking-1',
+            { status: BookingStatus.NO_SHOW },
+            master,
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(prisma.booking.update).not.toHaveBeenCalled();
+      });
+
+      it('rejects with 400 when the booking has not started yet', async () => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status: BookingStatus.CONFIRMED,
+          startTime: futureStart,
+        });
+
+        await expect(
+          service.updateStatus(
+            'booking-1',
+            { status: BookingStatus.NO_SHOW },
+            admin,
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(prisma.booking.update).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        BookingStatus.CREATED,
+        BookingStatus.COMPLETED,
+        BookingStatus.CANCELLED,
+        BookingStatus.NO_SHOW,
+      ])('rejects marking a %s booking as no-show', async (status) => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status,
+          startTime: pastStart,
+        });
+
+        await expect(
+          service.updateStatus(
+            'booking-1',
+            { status: BookingStatus.NO_SHOW },
+            admin,
+          ),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(prisma.booking.update).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        BookingStatus.CREATED,
+        BookingStatus.CONFIRMED,
+        BookingStatus.COMPLETED,
+        BookingStatus.CANCELLED,
+      ])('rejects transitioning out of NO_SHOW to %s', async (status) => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status: BookingStatus.NO_SHOW,
+          startTime: pastStart,
+        });
+
+        await expect(
+          service.updateStatus('booking-1', { status }, admin),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(prisma.booking.update).not.toHaveBeenCalled();
+      });
     });
 
     it('rejects transitioning out of a terminal cancelled state', async () => {

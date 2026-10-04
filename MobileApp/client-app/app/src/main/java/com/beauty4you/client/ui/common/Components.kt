@@ -59,6 +59,7 @@ import com.beauty4you.client.ui.theme.StatusCancelled
 import com.beauty4you.client.ui.theme.StatusColors
 import com.beauty4you.client.ui.theme.StatusConfirmed
 import com.beauty4you.client.ui.theme.StatusDone
+import com.beauty4you.client.ui.theme.StatusNoShow
 import com.beauty4you.client.ui.theme.StatusPending
 import com.beauty4you.client.ui.theme.TileShape
 import java.time.LocalDate
@@ -281,6 +282,7 @@ fun statusColors(status: BookingStatus): StatusColors = when (status) {
     BookingStatus.PENDING -> StatusPending
     BookingStatus.DONE -> StatusDone
     BookingStatus.CANCELLED -> StatusCancelled
+    BookingStatus.NO_SHOW -> StatusNoShow
 }
 
 @Composable
@@ -290,6 +292,7 @@ fun statusLabel(status: BookingStatus): String = stringResource(
         BookingStatus.PENDING -> R.string.status_pending
         BookingStatus.DONE -> R.string.status_done
         BookingStatus.CANCELLED -> R.string.status_cancelled
+        BookingStatus.NO_SHOW -> R.string.status_no_show
     },
 )
 

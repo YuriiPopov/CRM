@@ -34,6 +34,7 @@ class MappersTest {
         assertEquals(BookingStatus.CONFIRMED, booking("CONFIRMED").status)
         assertEquals(BookingStatus.DONE, booking("COMPLETED").status)
         assertEquals(BookingStatus.CANCELLED, booking("CANCELLED").status)
+        assertEquals(BookingStatus.NO_SHOW, booking("NO_SHOW").status)
     }
 
     @Test
@@ -42,6 +43,7 @@ class MappersTest {
         assertTrue(booking("CREATED").isUpcoming(now))
         assertTrue(booking("CONFIRMED").isUpcoming(now))
         assertFalse(booking("CANCELLED").isUpcoming(now))
+        assertFalse(booking("NO_SHOW").isUpcoming(now))
         assertFalse(booking("CONFIRMED").isUpcoming(now.plusHours(2))) // уже началась
     }
 

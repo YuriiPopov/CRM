@@ -35,7 +35,10 @@ object DashboardLogic {
         weekStart: LocalDate,
         maxPerDay: Int = MAX_MARKERS_PER_DAY,
     ): List<DayMarkers> {
-        val active = bookings.filter { it.status != BookingStatus.CANCELLED }.groupBy { it.date }
+        // Неявка (NO_SHOW, item74), как и отмена, не занимает время мастера
+        val active = bookings
+            .filter { it.status != BookingStatus.CANCELLED && it.status != BookingStatus.NO_SHOW }
+            .groupBy { it.date }
         return CalendarLogic.weekDates(weekStart).map { date ->
             val masterIds = active[date].orEmpty().sortedBy { it.start }.map { it.masterId }
             DayMarkers(

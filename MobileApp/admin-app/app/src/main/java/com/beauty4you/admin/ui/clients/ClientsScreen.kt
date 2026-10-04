@@ -54,6 +54,7 @@ import com.beauty4you.admin.ui.common.InitialsAvatar
 import com.beauty4you.admin.ui.common.RefreshOnResume
 import com.beauty4you.admin.ui.common.ScreenHeader
 import com.beauty4you.admin.ui.common.SkeletonList
+import com.beauty4you.admin.ui.common.UnreliableBadge
 import com.beauty4you.admin.ui.common.appContainer
 import com.beauty4you.admin.ui.theme.B4UType
 import com.beauty4you.admin.ui.theme.Border
@@ -141,6 +142,7 @@ private fun ClientRow(client: Client, visits: Int, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(client.name, style = B4UType.ItemTitle, color = InkStrong, maxLines = 1)
                 Text(ClientLogic.formatPhone(client.phone), style = B4UType.CaptionSmall, color = Muted, modifier = Modifier.padding(top = 1.dp))
+                UnreliableBadge(client, Modifier.padding(top = 4.dp))
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(visits.toString(), style = B4UType.BodyStrong.copy(fontSize = 12.sp), color = Ink)

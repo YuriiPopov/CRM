@@ -175,6 +175,15 @@ class FakePrismaService {
     },
   };
 
+  // Блокировок и графиков в этом наборе нет — проверки доступности мастера ничего не находят
+  masterBlock = {
+    findFirst: (): Promise<null> => Promise.resolve(null),
+  };
+
+  masterSchedule = {
+    findFirst: (): Promise<null> => Promise.resolve(null),
+  };
+
   notification = {
     create: ({
       data,
@@ -964,6 +973,114 @@ describe('Bookings (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({ status: BookingStatus.COMPLETED })
         .expect(409);
+    });
+
+    // item74 — неявка: только ADMIN, только из CONFIRMED и только после начала визита
+    describe('NO_SHOW', () => {
+      const pastStart = new Date(Date.now() - 2 * 60 * 60_000);
+      const futureStart = new Date(Date.now() + 24 * 60 * 60_000);
+
+      function seedConfirmed(id: string, startTime: Date) {
+        prisma.seedBooking({
+          id,
+          salonId: 'salon-1',
+          clientId: CLIENT_A_ID,
+          masterId: MASTER_1_ID,
+          serviceId: SERVICE_A_ID,
+          startTime,
+          endTime: new Date(startTime.getTime() + 60 * 60_000),
+          status: BookingStatus.CONFIRMED,
+          source: BookingSource.ADMIN,
+          createdAt: new Date(),
+          rescheduledAt: null,
+          originalStartTime: null,
+          originalEndTime: null,
+        });
+      }
+
+      it('lets ADMIN mark a past confirmed booking, after which the slot can be booked again', async () => {
+        seedConfirmed('past-confirmed', pastStart);
+        const token = await loginAs('admin@b4u.local', adminPassword);
+
+        const marked = await request(app.getHttpServer())
+          .patch('/bookings/past-confirmed/status')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ status: BookingStatus.NO_SHOW })
+          .expect(200);
+        expect(marked.body).toMatchObject({ status: BookingStatus.NO_SHOW });
+
+        await request(app.getHttpServer())
+          .post('/bookings')
+          .set('Authorization', `Bearer ${token}`)
+          .send({
+            clientId: CLIENT_A_ID,
+            masterId: MASTER_1_ID,
+            serviceId: SERVICE_A_ID,
+            startTime: pastStart.toISOString(),
+          })
+          .expect(201);
+      });
+
+      it('still blocks the slot while the booking is only CONFIRMED', async () => {
+        seedConfirmed('past-confirmed', pastStart);
+        const token = await loginAs('admin@b4u.local', adminPassword);
+
+        await request(app.getHttpServer())
+          .post('/bookings')
+          .set('Authorization', `Bearer ${token}`)
+          .send({
+            clientId: CLIENT_A_ID,
+            masterId: MASTER_1_ID,
+            serviceId: SERVICE_A_ID,
+            startTime: pastStart.toISOString(),
+          })
+          .expect(409);
+      });
+
+      it('returns 403 for MASTER, even on their own booking', async () => {
+        seedConfirmed('past-confirmed', pastStart);
+        const token = await loginAs('master1@b4u.local', master1Password);
+
+        await request(app.getHttpServer())
+          .patch('/bookings/past-confirmed/status')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ status: BookingStatus.NO_SHOW })
+          .expect(403);
+      });
+
+      it('returns 400 for a booking that has not started yet', async () => {
+        seedConfirmed('future-confirmed', futureStart);
+        const token = await loginAs('admin@b4u.local', adminPassword);
+
+        await request(app.getHttpServer())
+          .patch('/bookings/future-confirmed/status')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ status: BookingStatus.NO_SHOW })
+          .expect(400);
+      });
+
+      it('returns 409 from CREATED and allows no transitions out of NO_SHOW', async () => {
+        const token = await loginAs('admin@b4u.local', adminPassword);
+
+        // booking-1 — CREATED, в прошлом
+        await request(app.getHttpServer())
+          .patch('/bookings/booking-1/status')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ status: BookingStatus.NO_SHOW })
+          .expect(409);
+
+        seedConfirmed('past-confirmed', pastStart);
+        await request(app.getHttpServer())
+          .patch('/bookings/past-confirmed/status')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ status: BookingStatus.NO_SHOW })
+          .expect(200);
+        await request(app.getHttpServer())
+          .patch('/bookings/past-confirmed/status')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ status: BookingStatus.COMPLETED })
+          .expect(409);
+      });
     });
   });
 });

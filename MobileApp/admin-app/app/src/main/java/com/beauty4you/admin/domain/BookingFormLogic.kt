@@ -12,6 +12,7 @@ enum class BookingError {
     OUTSIDE_HOURS, // вне рабочих часов по графику
     PAST_TIME,
     INVALID_TRANSITION,
+    NO_SHOW_TOO_EARLY, // «Nieobecna» до начала визита (item74)
     NOT_RESCHEDULABLE,
     NOT_FOUND,
     VALIDATION,
@@ -118,6 +119,7 @@ object BookingFormLogic {
             "outside the master's working hours" in msg -> BookingError.OUTSIDE_HOURS
             "in the past" in msg -> BookingError.PAST_TIME
             "cannot transition" in msg -> BookingError.INVALID_TRANSITION
+            "no-show before its start time" in msg -> BookingError.NO_SHOW_TOO_EARLY
             "cannot reschedule" in msg -> BookingError.NOT_RESCHEDULABLE
             httpCode == 404 -> BookingError.NOT_FOUND
             httpCode == 400 -> BookingError.VALIDATION

@@ -61,6 +61,7 @@ import com.beauty4you.admin.domain.ClientLogic
 import com.beauty4you.admin.domain.PolishDates
 import com.beauty4you.admin.ui.common.ColorDot
 import com.beauty4you.admin.ui.common.InitialsAvatar
+import com.beauty4you.admin.ui.common.UnreliableBadge
 import com.beauty4you.admin.ui.common.appContainer
 import com.beauty4you.admin.ui.common.colors
 import com.beauty4you.admin.ui.common.labelRes
@@ -158,6 +159,9 @@ fun BookingFormSheet(request: FormRequest, onDismiss: () -> Unit) {
                 enabled = isNew,
                 onClick = { showClientPicker = true },
             )
+            state.clientId?.let { catalog.clientsById[it] }?.let { client ->
+                UnreliableBadge(client, Modifier.padding(top = 6.dp))
+            }
 
             FieldLabel(R.string.form_master)
             DropdownField(
@@ -514,6 +518,7 @@ private fun ClientPickerDialog(
                             Column(Modifier.padding(start = 10.dp)) {
                                 Text(client.name, style = B4UType.ItemTitle, color = InkStrong)
                                 Text(ClientLogic.formatPhone(client.phone), style = B4UType.CaptionSmall, color = Muted)
+                                UnreliableBadge(client, Modifier.padding(top = 3.dp))
                             }
                         }
                         HorizontalDivider(color = Border)

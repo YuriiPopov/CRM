@@ -20,6 +20,10 @@
   --status-cancelled: #dc2626;
   --status-cancelled-bg: rgba(220, 38, 38, 0.1);
   --status-cancelled-border: rgba(220, 38, 38, 0.35);
+  /* «Не пришёл» (NO_SHOW, item74) — цвета из дизайна admin-app («Nieobecna») */
+  --status-no-show: #9b3a3a;
+  --status-no-show-bg: #f6dada;
+  --status-no-show-border: rgba(155, 58, 58, 0.4);
 
   /* Блокировка времени мастера на таймлайне Дашборда (Backlog п.11) — нейтральный серый,
      сознательно вне палитры мастеров (masterColor.ts) и вне статусных цветов выше, чтобы
@@ -70,6 +74,9 @@
     --status-cancelled: #f87171;
     --status-cancelled-bg: rgba(248, 113, 113, 0.15);
     --status-cancelled-border: rgba(248, 113, 113, 0.45);
+    --status-no-show: #e8a3a3;
+    --status-no-show-bg: rgba(155, 58, 58, 0.3);
+    --status-no-show-border: rgba(232, 163, 163, 0.45);
 
     --unavailable-stripe: rgba(156, 163, 175, 0.35);
     --unavailable-bg: rgba(156, 163, 175, 0.14);

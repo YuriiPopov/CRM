@@ -45,8 +45,11 @@ data class Catalog(
     fun mastersFor(serviceId: String): List<Master> = masters.filter { serviceId in it.serviceIds }
 }
 
-/** Статусы backend: CREATED → PENDING ("Oczekująca", ждёт подтверждения салоном), COMPLETED → DONE. */
-enum class BookingStatus { CONFIRMED, PENDING, DONE, CANCELLED }
+/**
+ * Статусы backend: CREATED → PENDING ("Oczekująca", ждёт подтверждения салоном), COMPLETED → DONE,
+ * NO_SHOW → NO_SHOW ("Nieobecność", item74; метку клиента «Niewiarygodny» клиенту не показываем).
+ */
+enum class BookingStatus { CONFIRMED, PENDING, DONE, CANCELLED, NO_SHOW }
 
 data class Booking(
     val id: String,

@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { eraseClientData, exportClientData } from '../api/clients'
+import { eraseClientData, exportClientData, getClient } from '../api/clients'
 import { listStaff } from '../api/staff'
 import { getApiErrorMessage } from '../api/errors'
 import { formatTimeRange, toDateOnly } from './calendar/dateUtils'
 import { getStatusBadgeClass, STATUS_LABELS } from './calendar/statusTransitions'
+import { UnreliableBadge } from './clients/UnreliableBadge'
 import { EditClientModal } from './clients/EditClientModal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { BookingSourceBadge } from '../components/BookingSourceBadge'
 import { downloadJson } from '../utils/downloadJson'
 import { isFullPayment } from '../types/payment'
+import type { Client } from '../types/client'
 import type { ClientExport } from '../types/clientExport'
 import type { Master } from '../types/staff'
 
@@ -21,6 +23,8 @@ export function ClientDetailPage() {
   const isAdmin = user?.role === 'ADMIN'
 
   const [data, setData] = useState<ClientExport | null>(null)
+  // Метка «ненадёжный» (item74) хранится отдельно от data: data целиком уходит в «Скачать JSON»
+  const [reliability, setReliability] = useState<Pick<Client, 'noShowCount' | 'unreliable'>>({})
   const [masters, setMasters] = useState<Master[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -32,7 +36,10 @@ export function ClientDetailPage() {
 
   const load = useCallback(() => {
     if (!id) return Promise.resolve()
-    return exportClientData(id).then(setData)
+    return Promise.all([
+      exportClientData(id).then(setData),
+      getClient(id).then(({ noShowCount, unreliable }) => setReliability({ noShowCount, unreliable })),
+    ])
   }, [id])
 
   useEffect(() => {
@@ -105,7 +112,9 @@ export function ClientDetailPage() {
         <Link to="/clients">← К списку клиентов</Link>
       </p>
 
-      <h1>{client.name}</h1>
+      <h1>
+        {client.name} <UnreliableBadge client={reliability} />
+      </h1>
 
       {actionError && <p role="alert">{actionError}</p>}
 

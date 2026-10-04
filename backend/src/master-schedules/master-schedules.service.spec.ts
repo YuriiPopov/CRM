@@ -231,7 +231,7 @@ describe('MasterSchedulesService', () => {
         where: {
           salonId: 'salon-1',
           masterId: 'master-1',
-          status: { notIn: [BookingStatus.CANCELLED] },
+          status: { notIn: [BookingStatus.CANCELLED, BookingStatus.NO_SHOW] },
           OR: [
             {
               startTime: {

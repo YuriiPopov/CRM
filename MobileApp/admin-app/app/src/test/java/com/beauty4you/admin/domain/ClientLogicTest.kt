@@ -85,7 +85,9 @@ class ClientLogicTest {
             booking("2", at(10), clientId = "c1", status = COMPLETED),
             booking("3", at(11), clientId = "c1", status = CANCELLED),
             booking("4", at(12), clientId = "c2", status = CONFIRMED),
+            booking("5", at(13), clientId = "c1", status = BookingStatus.NO_SHOW),
         )
+        // Неявка (item74) не считается визитом
         assertEquals(mapOf("c1" to 2), ClientLogic.completedVisitsByClient(bookings))
     }
 

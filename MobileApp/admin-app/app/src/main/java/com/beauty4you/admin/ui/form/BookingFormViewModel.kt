@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 // Что открыть: существующую запись (original) или новую на дату / для клиента
@@ -76,7 +77,8 @@ data class BookingFormState(
     val serviceOptions: List<Service>
         get() = BookingFormLogic.servicesForMaster(catalog?.services.orEmpty(), catalog?.masters.orEmpty(), masterId)
 
-    val statusOptions: List<BookingStatus> get() = BookingStatusRules.formStatusOptions(original?.status)
+    val statusOptions: List<BookingStatus>
+        get() = BookingStatusRules.formStatusOptions(original, LocalDateTime.now())
 
     val timeOptions: List<LocalTime>
         get() {

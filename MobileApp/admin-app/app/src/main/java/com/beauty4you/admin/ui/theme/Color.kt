@@ -33,6 +33,7 @@ val StatusPending = StatusColors(Color(0xFFB8791F), Color(0xFFFBF0DE))
 val StatusConfirmed = StatusColors(Color(0xFF3F9C5C), Color(0xFFEAF4EC))
 val StatusDone = StatusColors(Color(0xFF8B8B8B), Color(0xFFF1F0EF))
 val StatusCancelled = StatusColors(Color(0xFFC24B4B), Color(0xFFFBEAEA))
+val StatusNoShow = StatusColors(Color(0xFF9B3A3A), Color(0xFFF6DADA))
 
 fun masterColor(masterId: String): Color = Color(MasterColors.argb(masterId))
 

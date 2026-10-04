@@ -91,6 +91,12 @@ describe('filterActiveTimelineBookings', () => {
     const active = makeBooking({ id: 'b-active', status: 'CREATED' })
     expect(filterActiveTimelineBookings([cancelled, active]).map((b) => b.id)).toEqual(['b-active'])
   })
+
+  it('excludes NO_SHOW bookings — a no-show frees the slot (item74)', () => {
+    const noShow = makeBooking({ id: 'b-no-show', status: 'NO_SHOW' })
+    const active = makeBooking({ id: 'b-active', status: 'CONFIRMED' })
+    expect(filterActiveTimelineBookings([noShow, active]).map((b) => b.id)).toEqual(['b-active'])
+  })
 })
 
 describe('layoutBookingsOnTimeline', () => {

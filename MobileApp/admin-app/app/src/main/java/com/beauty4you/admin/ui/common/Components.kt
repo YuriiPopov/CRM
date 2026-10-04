@@ -36,6 +36,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.beauty4you.admin.domain.Client
+import com.beauty4you.admin.ui.theme.StatusNoShow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -118,6 +120,20 @@ fun StatusPill(status: BookingStatus, modifier: Modifier = Modifier) {
             .padding(horizontal = 9.dp, vertical = 3.dp),
     ) {
         Text(text = stringResource(status.labelRes()), style = B4UType.Pill, color = colors.fg, maxLines = 1)
+    }
+}
+
+// Метка «🚩 Niewiarygodny» (item74) — флаг считает бэкенд (3+ неявок); для надёжного клиента ничего
+@Composable
+fun UnreliableBadge(client: Client, modifier: Modifier = Modifier) {
+    if (!client.unreliable) return
+    Box(
+        modifier = modifier
+            .clip(PillShape)
+            .background(StatusNoShow.bg)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    ) {
+        Text(text = stringResource(R.string.client_unreliable), style = B4UType.Pill, color = StatusNoShow.fg, maxLines = 1)
     }
 }
 

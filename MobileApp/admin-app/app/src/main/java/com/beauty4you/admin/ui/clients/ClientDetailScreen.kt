@@ -39,6 +39,7 @@ import com.beauty4you.admin.ui.common.InitialsAvatar
 import com.beauty4you.admin.ui.common.RefreshOnResume
 import com.beauty4you.admin.ui.common.ScreenHeader
 import com.beauty4you.admin.ui.common.SkeletonList
+import com.beauty4you.admin.ui.common.UnreliableBadge
 import com.beauty4you.admin.ui.common.appContainer
 import com.beauty4you.admin.ui.theme.B4UType
 import com.beauty4you.admin.ui.theme.Ink
@@ -78,6 +79,7 @@ fun ClientDetailScreen(clientId: String, onBack: () -> Unit, onOpenBooking: (Boo
                         InitialsAvatar(client.id, client.name, size = 56.dp)
                         Column(Modifier.weight(1f).padding(start = 14.dp)) {
                             Text(client.name, style = B4UType.Title, color = InkStrong)
+                            UnreliableBadge(client, Modifier.padding(top = 4.dp))
                             // Тап по телефону — звонок (ACTION_DIAL, без разрешения CALL_PHONE)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,

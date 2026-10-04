@@ -6,6 +6,7 @@ import { todayDateOnly } from '../calendar/dateUtils'
 
 // "Активные" в терминах таймлайна дашборда — CANCELLED осознанно исключены: отменённые записи
 // не требуют внимания сегодня и только загромождали бы компактный виджет (см. backlog п.3).
+// NO_SHOW (item74) — так же: неявка не занимает слот мастера.
 export const ACTIVE_TIMELINE_STATUSES: BookingStatus[] = ['CREATED', 'CONFIRMED', 'COMPLETED']
 
 export function filterActiveTimelineBookings(bookings: Booking[]): Booking[] {

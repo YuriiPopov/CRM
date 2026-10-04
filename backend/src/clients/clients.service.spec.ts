@@ -4,10 +4,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, Role } from '@prisma/client';
+import { BookingStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
-import { ClientsService } from './clients.service';
+import {
+  ClientsService,
+  UNRELIABLE_NO_SHOW_THRESHOLD,
+} from './clients.service';
 
 describe('ClientsService', () => {
   let service: ClientsService;
@@ -93,6 +96,12 @@ describe('ClientsService', () => {
     });
   });
 
+  const noShowCountInclude = {
+    _count: {
+      select: { bookings: { where: { status: BookingStatus.NO_SHOW } } },
+    },
+  };
+
   describe('findAll', () => {
     it('scopes ADMIN to the whole salon', async () => {
       prisma.client.findMany.mockResolvedValue([]);
@@ -102,6 +111,7 @@ describe('ClientsService', () => {
       expect(prisma.client.findMany).toHaveBeenCalledWith({
         where: { salonId: 'salon-1' },
         orderBy: { createdAt: 'desc' },
+        include: noShowCountInclude,
       });
     });
 
@@ -113,6 +123,7 @@ describe('ClientsService', () => {
       expect(prisma.client.findMany).toHaveBeenCalledWith({
         where: { salonId: 'salon-1' },
         orderBy: { createdAt: 'desc' },
+        include: noShowCountInclude,
       });
     });
 
@@ -124,16 +135,53 @@ describe('ClientsService', () => {
       expect(prisma.client.findMany).toHaveBeenCalledWith({
         where: { id: '__none__' },
         orderBy: { createdAt: 'desc' },
+        include: noShowCountInclude,
       });
     });
   });
 
-  describe('findOne', () => {
-    it('returns the client when it is in scope', async () => {
-      const client = { id: 'client-1', salonId: 'salon-1' };
-      prisma.client.findFirst.mockResolvedValue(client);
+  describe('noShowCount / unreliable (item74)', () => {
+    it.each([
+      [0, false],
+      [2, false],
+      [UNRELIABLE_NO_SHOW_THRESHOLD, true],
+      [5, true],
+    ])(
+      'maps %i no-shows to unreliable=%s in the client list',
+      async (count, unreliable) => {
+        prisma.client.findMany.mockResolvedValue([
+          { id: 'client-1', name: 'Anna', _count: { bookings: count } },
+        ]);
 
-      await expect(service.findOne('client-1', admin)).resolves.toBe(client);
+        await expect(service.findAll(admin)).resolves.toEqual([
+          { id: 'client-1', name: 'Anna', noShowCount: count, unreliable },
+        ]);
+      },
+    );
+
+    it('uses a threshold of 3 no-shows', () => {
+      expect(UNRELIABLE_NO_SHOW_THRESHOLD).toBe(3);
+    });
+  });
+
+  describe('findOne', () => {
+    it('returns the client with its no-show count when it is in scope', async () => {
+      prisma.client.findFirst.mockResolvedValue({
+        id: 'client-1',
+        salonId: 'salon-1',
+        _count: { bookings: 1 },
+      });
+
+      await expect(service.findOne('client-1', admin)).resolves.toEqual({
+        id: 'client-1',
+        salonId: 'salon-1',
+        noShowCount: 1,
+        unreliable: false,
+      });
+      expect(prisma.client.findFirst).toHaveBeenCalledWith({
+        where: { id: 'client-1', salonId: 'salon-1' },
+        include: noShowCountInclude,
+      });
     });
 
     it('throws NotFoundException when the client is out of scope', async () => {

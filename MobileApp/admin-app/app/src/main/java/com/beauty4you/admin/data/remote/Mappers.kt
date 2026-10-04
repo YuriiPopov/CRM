@@ -22,7 +22,7 @@ import java.time.ZoneOffset
 // на +1/+2 ч относительно веб-CRM.
 fun parseSalonTime(iso: String): LocalDateTime = LocalDateTime.ofInstant(Instant.parse(iso), ZoneOffset.UTC)
 
-// Статус, которого нет в этой версии приложения (например будущий NO_SHOW из этапа 2), даёт
+// Статус, которого нет в этой версии приложения (например добавленный бэкендом позже), даёт
 // null — такая запись не показывается, а не отображается под чужим статусом.
 fun BookingDto.toDomain(): Booking? {
     val status = BookingStatus.entries.find { it.name == status } ?: return null
@@ -57,7 +57,14 @@ fun ServiceDto.toDomain() = Service(
 
 fun CategoryDto.toDomain() = Category(id = id, name = name)
 
-fun ClientDto.toDomain() = Client(id = id, name = name, phone = phone, email = email)
+fun ClientDto.toDomain() = Client(
+    id = id,
+    name = name,
+    phone = phone,
+    email = email,
+    noShowCount = noShowCount,
+    unreliable = unreliable,
+)
 
 fun MasterBlockDto.toDomain() = MasterBlock(
     id = id,

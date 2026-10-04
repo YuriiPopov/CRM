@@ -22,7 +22,7 @@ function makeBooking(overrides: Partial<Booking>): Booking {
 
 describe('countByStatus', () => {
   it('returns zero counts for an empty list', () => {
-    expect(countByStatus([])).toEqual({ CREATED: 0, CONFIRMED: 0, COMPLETED: 0, CANCELLED: 0 })
+    expect(countByStatus([])).toEqual({ CREATED: 0, CONFIRMED: 0, COMPLETED: 0, CANCELLED: 0, NO_SHOW: 0 })
   })
 
   it('tallies each booking under its status', () => {
@@ -32,7 +32,7 @@ describe('countByStatus', () => {
       makeBooking({ id: 'b3', status: 'CONFIRMED' }),
       makeBooking({ id: 'b4', status: 'CANCELLED' }),
     ]
-    expect(countByStatus(bookings)).toEqual({ CREATED: 2, CONFIRMED: 1, COMPLETED: 0, CANCELLED: 1 })
+    expect(countByStatus(bookings)).toEqual({ CREATED: 2, CONFIRMED: 1, COMPLETED: 0, CANCELLED: 1, NO_SHOW: 0 })
   })
 })
 
@@ -49,10 +49,11 @@ describe('upcomingBookings', () => {
     expect(upcomingBookings(bookings, now)).toEqual([])
   })
 
-  it('excludes cancelled and completed bookings', () => {
+  it('excludes cancelled, completed and no-show bookings', () => {
     const bookings = [
       makeBooking({ id: 'cancelled', startTime: '2026-03-10T14:00:00.000Z', status: 'CANCELLED' }),
       makeBooking({ id: 'completed', startTime: '2026-03-10T15:00:00.000Z', status: 'COMPLETED' }),
+      makeBooking({ id: 'no-show', startTime: '2026-03-10T16:00:00.000Z', status: 'NO_SHOW' }),
     ]
     expect(upcomingBookings(bookings, now)).toEqual([])
   })

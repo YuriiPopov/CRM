@@ -29,9 +29,14 @@ import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 
 const ALLOWED_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   [BookingStatus.CREATED]: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED],
-  [BookingStatus.CONFIRMED]: [BookingStatus.COMPLETED, BookingStatus.CANCELLED],
+  [BookingStatus.CONFIRMED]: [
+    BookingStatus.COMPLETED,
+    BookingStatus.CANCELLED,
+    BookingStatus.NO_SHOW,
+  ],
   [BookingStatus.COMPLETED]: [],
   [BookingStatus.CANCELLED]: [],
+  [BookingStatus.NO_SHOW]: [],
 };
 
 export interface CreateClientBookingParams {
@@ -145,7 +150,8 @@ export class BookingsService {
 
     if (
       booking.status === BookingStatus.CANCELLED ||
-      booking.status === BookingStatus.COMPLETED
+      booking.status === BookingStatus.COMPLETED ||
+      booking.status === BookingStatus.NO_SHOW
     ) {
       throw new ConflictException(
         `Cannot reschedule a booking with status ${booking.status}`,
@@ -208,7 +214,8 @@ export class BookingsService {
       throw new NotFoundException('Booking not found');
     }
 
-    // MASTER "отмечает выполнение/отмену" своих записей — подтверждение (CONFIRMED) остаётся за ADMIN
+    // MASTER "отмечает выполнение/отмену" своих записей — подтверждение (CONFIRMED) и неявка
+    // (NO_SHOW, item74) остаются за ADMIN
     if (
       user.role === Role.MASTER &&
       dto.status !== BookingStatus.COMPLETED &&
@@ -223,6 +230,16 @@ export class BookingsService {
     if (!allowedNext.includes(dto.status)) {
       throw new ConflictException(
         `Cannot transition booking from ${booking.status} to ${dto.status}`,
+      );
+    }
+
+    // Неявку можно зафиксировать только после того, как время визита наступило (item74)
+    if (
+      dto.status === BookingStatus.NO_SHOW &&
+      booking.startTime.getTime() > Date.now()
+    ) {
+      throw new BadRequestException(
+        'Cannot mark a booking as no-show before its start time',
       );
     }
 

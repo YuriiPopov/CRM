@@ -50,7 +50,7 @@ export function BookingListItem({
   onCreatePayment,
   busy,
 }: BookingListItemProps) {
-  const statusActions = getAvailableStatusActions(booking.status, role)
+  const statusActions = getAvailableStatusActions(booking.status, role, booking.startTime)
   const showReschedule = canReschedule(booking.status, role)
   const isOwnBooking = role === 'MASTER' && booking.masterId === currentMasterId
   const originalTimeLabel = formatOriginalTime(booking.originalStartTime, booking.originalEndTime)

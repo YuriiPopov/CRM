@@ -11,7 +11,7 @@ import java.time.LocalTime
 // веб-CRM и master-app): ISO-строки бэкенда разбираются в LocalDateTime БЕЗ перевода в
 // часовой пояс устройства, см. data/remote/Mappers.kt.
 
-enum class BookingStatus { CREATED, CONFIRMED, COMPLETED, CANCELLED }
+enum class BookingStatus { CREATED, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW }
 
 enum class BookingSource { ADMIN, ONLINE }
 
@@ -53,6 +53,10 @@ data class Client(
     val name: String,
     val phone: String,
     val email: String? = null,
+    // Считаются на бэкенде (GET /clients, GET /clients/:id; item74): unreliable = noShowCount >= 3.
+    // Ответ POST /clients их не содержит — новый клиент без метки.
+    val noShowCount: Int = 0,
+    val unreliable: Boolean = false,
 )
 
 // Блокировка времени мастера (MasterBlock) — может быть многодневной (отпуск)

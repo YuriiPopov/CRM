@@ -54,6 +54,15 @@ class DashboardLogicTest {
     }
 
     @Test
+    fun `no-show does not occupy a week marker (item74)`() {
+        val bookings = listOf(
+            booking("ok", at(9, date = weekStart), masterId = "m1"),
+            booking("no-show", at(11, date = weekStart), masterId = "m2", status = BookingStatus.NO_SHOW),
+        )
+        assertEquals(listOf("m1"), DashboardLogic.weekMarkers(bookings, weekStart)[0].masterIds)
+    }
+
+    @Test
     fun `week markers are capped with an overflow count`() {
         val bookings = (0 until 8).map { booking("b$it", at(9 + it, date = weekStart)) }
         val day = DashboardLogic.weekMarkers(bookings, weekStart, maxPerDay = 5)[0]

@@ -72,24 +72,28 @@ class FakePrismaService {
     },
     findMany: ({
       where,
+      include,
     }: {
       where: Prisma.ClientWhereInput;
+      include?: Prisma.ClientInclude;
     }): Promise<Client[]> => {
       return Promise.resolve(
-        [...this.clientsById.values()].filter((client) =>
-          this.matches(client, where),
-        ),
+        [...this.clientsById.values()]
+          .filter((client) => this.matches(client, where))
+          .map((client) => this.withCount(client, include)),
       );
     },
     findFirst: ({
       where,
+      include,
     }: {
       where: Prisma.ClientWhereInput;
+      include?: Prisma.ClientInclude;
     }): Promise<Client | null> => {
       const found = [...this.clientsById.values()].find((client) =>
         this.matches(client, where),
       );
-      return Promise.resolve(found ?? null);
+      return Promise.resolve(found ? this.withCount(found, include) : null);
     },
     update: ({
       where,
@@ -209,6 +213,23 @@ class FakePrismaService {
 
   seedService(service: Service) {
     this.servicesById.set(service.id, service);
+  }
+
+  // Поддерживает только тот _count, который запрашивает ClientsService: число записей клиента
+  // с заданным статусом (noShowCount, item74).
+  private withCount(
+    client: Client,
+    include?: Prisma.ClientInclude,
+  ): Client & { _count?: { bookings: number } } {
+    if (!include?._count) return client;
+    const countSelect = include._count as {
+      select: { bookings: { where: { status: BookingStatus } } };
+    };
+    const status = countSelect.select.bookings.where.status;
+    const bookings = [...this.bookingsById.values()].filter(
+      (b) => b.clientId === client.id && b.status === status,
+    ).length;
+    return { ...client, _count: { bookings } };
   }
 
   seedBooking(booking: Booking) {
@@ -487,6 +508,75 @@ describe('Clients (e2e)', () => {
       const body = response.body as Client[];
       const ids = body.map((c) => c.id).sort();
       expect(ids).toEqual(['client-a', 'client-b', 'client-c']);
+    });
+  });
+
+  // item74 — неявки считаются на backend; после 3-й клиент помечается unreliable
+  describe('noShowCount / unreliable', () => {
+    function seedNoShows(clientId: string, count: number) {
+      for (let i = 0; i < count; i++) {
+        prisma.seedBooking({
+          id: `no-show-${clientId}-${i}`,
+          salonId: 'salon-1',
+          clientId,
+          masterId: 'master-rec-1',
+          serviceId: 'service-a',
+          startTime: new Date(`2026-02-0${i + 1}T10:00:00.000Z`),
+          endTime: new Date(`2026-02-0${i + 1}T11:00:00.000Z`),
+          status: BookingStatus.NO_SHOW,
+          source: BookingSource.ADMIN,
+          createdAt: new Date(),
+          rescheduledAt: null,
+          originalStartTime: null,
+          originalEndTime: null,
+        });
+      }
+    }
+
+    it('flags a client with 3 no-shows but not one with 2, in the list and the card', async () => {
+      seedNoShows('client-b', 2);
+      seedNoShows('client-c', 3);
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      const list = await request(app.getHttpServer())
+        .get('/clients')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const byId = new Map(
+        (
+          list.body as {
+            id: string;
+            noShowCount: number;
+            unreliable: boolean;
+          }[]
+        ).map((c) => [c.id, c]),
+      );
+      // client-a has a COMPLETED booking only — not counted as a no-show
+      expect(byId.get('client-a')).toMatchObject({
+        noShowCount: 0,
+        unreliable: false,
+      });
+      expect(byId.get('client-b')).toMatchObject({
+        noShowCount: 2,
+        unreliable: false,
+      });
+      expect(byId.get('client-c')).toMatchObject({
+        noShowCount: 3,
+        unreliable: true,
+      });
+      expect(byId.get('client-c')).not.toHaveProperty('_count');
+
+      const card = await request(app.getHttpServer())
+        .get('/clients/client-c')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(card.body).toMatchObject({
+        id: 'client-c',
+        noShowCount: 3,
+        unreliable: true,
+      });
     });
   });
 

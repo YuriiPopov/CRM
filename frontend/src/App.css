@@ -242,6 +242,28 @@
   text-decoration: line-through;
 }
 
+.status-badge-no-show {
+  background: var(--status-no-show-bg);
+  border-color: var(--status-no-show-border);
+  color: var(--status-no-show);
+}
+
+/* Метка «ненадёжный клиент» (item74, 3+ неявок) — в списке, карточке и форме записи */
+.unreliable-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--status-no-show-border);
+  border-radius: 999px;
+  background: var(--status-no-show-bg);
+  color: var(--status-no-show);
+  font-size: 0.85em;
+  font-weight: 500;
+  white-space: nowrap;
+  /* В форме записи — дочерний элемент flex-колонки: не растягиваемся на всю ширину */
+  align-self: flex-start;
+  width: fit-content;
+}
+
 .booking-item-paid-badge {
   margin-left: 6px;
   padding: 2px 8px;

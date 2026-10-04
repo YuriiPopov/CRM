@@ -12,18 +12,20 @@ import com.beauty4you.admin.ui.theme.StatusCancelled
 import com.beauty4you.admin.ui.theme.StatusColors
 import com.beauty4you.admin.ui.theme.StatusConfirmed
 import com.beauty4you.admin.ui.theme.StatusDone
+import com.beauty4you.admin.ui.theme.StatusNoShow
 import com.beauty4you.admin.ui.theme.StatusPending
 
 @Composable
 fun appContainer(): AppContainer = (LocalContext.current.applicationContext as B4UAdminApp).container
 
-// Статусы и цвета — по таблице ТЗ item73 (дизайн -> backend). «Nieobecna» — этап 2.
+// Статусы и цвета — по таблице ТЗ item73 (дизайн -> backend); «Nieobecna» — item74.
 @StringRes
 fun BookingStatus.labelRes(): Int = when (this) {
     BookingStatus.CREATED -> R.string.status_created
     BookingStatus.CONFIRMED -> R.string.status_confirmed
     BookingStatus.COMPLETED -> R.string.status_completed
     BookingStatus.CANCELLED -> R.string.status_cancelled
+    BookingStatus.NO_SHOW -> R.string.status_no_show
 }
 
 fun BookingStatus.colors(): StatusColors = when (this) {
@@ -31,6 +33,7 @@ fun BookingStatus.colors(): StatusColors = when (this) {
     BookingStatus.CONFIRMED -> StatusConfirmed
     BookingStatus.COMPLETED -> StatusDone
     BookingStatus.CANCELLED -> StatusCancelled
+    BookingStatus.NO_SHOW -> StatusNoShow
 }
 
 @StringRes
@@ -41,6 +44,7 @@ fun BookingError.messageRes(): Int = when (this) {
     BookingError.OUTSIDE_HOURS -> R.string.error_outside_hours
     BookingError.PAST_TIME -> R.string.error_past_time
     BookingError.INVALID_TRANSITION -> R.string.error_invalid_transition
+    BookingError.NO_SHOW_TOO_EARLY -> R.string.error_no_show_too_early
     BookingError.NOT_RESCHEDULABLE -> R.string.error_not_reschedulable
     BookingError.NOT_FOUND -> R.string.error_not_found
     BookingError.VALIDATION -> R.string.error_validation

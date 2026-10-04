@@ -4,12 +4,38 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { BookingStatus, Client, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { toPaymentView } from '../payments/payment-view.util';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+
+// Клиент с этим числом неявок и более помечается «Niewiarygodny» (item74)
+export const UNRELIABLE_NO_SHOW_THRESHOLD = 3;
+
+// Число неявок считается в том же запросе, что и сам клиент (фильтрованный _count по связи)
+const NO_SHOW_COUNT_INCLUDE = {
+  _count: {
+    select: { bookings: { where: { status: BookingStatus.NO_SHOW } } },
+  },
+} satisfies Prisma.ClientInclude;
+
+type ClientWithNoShowCount = Client & { _count: { bookings: number } };
+
+export type ClientView = Client & { noShowCount: number; unreliable: boolean };
+
+export function toClientView({
+  _count,
+  ...client
+}: ClientWithNoShowCount): ClientView {
+  const noShowCount = _count.bookings;
+  return {
+    ...client,
+    noShowCount,
+    unreliable: noShowCount >= UNRELIABLE_NO_SHOW_THRESHOLD,
+  };
+}
 
 @Injectable()
 export class ClientsService {
@@ -35,23 +61,27 @@ export class ClientsService {
     });
   }
 
-  findAll(user: AuthenticatedUser) {
-    return this.prisma.client.findMany({
+  async findAll(user: AuthenticatedUser): Promise<ClientView[]> {
+    const clients = await this.prisma.client.findMany({
       where: this.scopeWhere(user),
       orderBy: { createdAt: 'desc' },
+      include: NO_SHOW_COUNT_INCLUDE,
     });
+
+    return clients.map(toClientView);
   }
 
-  async findOne(id: string, user: AuthenticatedUser) {
+  async findOne(id: string, user: AuthenticatedUser): Promise<ClientView> {
     const client = await this.prisma.client.findFirst({
       where: { id, ...this.scopeWhere(user) },
+      include: NO_SHOW_COUNT_INCLUDE,
     });
 
     if (!client) {
       throw new NotFoundException('Client not found');
     }
 
-    return client;
+    return toClientView(client);
   }
 
   async update(id: string, dto: UpdateClientDto, salonId: string) {
