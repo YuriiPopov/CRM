@@ -302,9 +302,14 @@ describe('BookingsService', () => {
   });
 
   describe('countPendingOnline', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
     it('counts future ONLINE bookings in CREATED status of the given salon in the database', async () => {
       prisma.booking.count.mockResolvedValue(3);
-      const before = Date.now();
+      // 08:30 в Варшаве летом (UTC+2)
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-15T06:30:00.000Z'));
 
       const result = await service.countPendingOnline('salon-1');
 
@@ -325,8 +330,9 @@ describe('BookingsService', () => {
         source: BookingSource.ONLINE,
         status: BookingStatus.CREATED,
       });
-      expect(where.startTime.gte.getTime()).toBeGreaterThanOrEqual(before);
-      expect(where.startTime.gte.getTime()).toBeLessThanOrEqual(Date.now());
+      // Сравнение с «сейчас» по времени салона, а не с настоящим UTC (item77): записи на
+      // 07:00–08:29 того же дня уже начались и в счётчик не попадают
+      expect(where.startTime.gte).toEqual(new Date('2026-07-15T08:30:00.000Z'));
     });
   });
 
@@ -678,7 +684,9 @@ describe('BookingsService', () => {
 
     describe('NO_SHOW (item74)', () => {
       const pastStart = new Date(Date.now() - 60 * 60_000);
-      const futureStart = new Date(Date.now() + 60 * 60_000);
+      // Сутки вперёд, а не час: время записей — время салона (UTC+1/+2), и «через час по UTC»
+      // для салона может уже наступить (item77)
+      const futureStart = new Date(Date.now() + 24 * 60 * 60_000);
 
       it('allows ADMIN to mark a confirmed booking whose start time has passed', async () => {
         prisma.booking.findFirst.mockResolvedValue({
@@ -1137,6 +1145,141 @@ describe('BookingsService', () => {
         service.cancelForClient('booking-1', 'client-1'),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.booking.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // item77: время записей хранится как время салона с меткой UTC (09:00 в Варшаве = 09:00Z),
+  // поэтому «сейчас» во всех проверках — salonNow(), а не настоящий UTC. Часы подменяются на
+  // летнее время (UTC+2), где старая логика ошибалась на 2 часа.
+  describe('salon time zone (item77)', () => {
+    const salonAt = (hhmm: string) => new Date(`2026-07-15T${hhmm}:00.000Z`);
+    // Настоящий UTC, при котором в Варшаве (летом, UTC+2) показывает hhmm
+    const setWarsawClock = (hhmm: string) => {
+      const [h, m] = hhmm.split(':').map(Number);
+      jest
+        .useFakeTimers()
+        .setSystemTime(new Date(Date.UTC(2026, 6, 15, h - 2, m)));
+    };
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    describe('NO_SHOW for a 09:00 booking', () => {
+      beforeEach(() => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status: BookingStatus.CONFIRMED,
+          startTime: salonAt('09:00'),
+        });
+        prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+      });
+
+      it('is rejected at 08:59 salon time', async () => {
+        setWarsawClock('08:59');
+        await expect(
+          service.updateStatus(
+            'booking-1',
+            { status: BookingStatus.NO_SHOW },
+            admin,
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(prisma.booking.update).not.toHaveBeenCalled();
+      });
+
+      it('is allowed at 09:00 salon time (07:00 real UTC)', async () => {
+        setWarsawClock('09:00');
+        await service.updateStatus(
+          'booking-1',
+          { status: BookingStatus.NO_SHOW },
+          admin,
+        );
+        expect(prisma.booking.update).toHaveBeenCalledWith({
+          where: { id: 'booking-1' },
+          data: { status: BookingStatus.NO_SHOW },
+        });
+      });
+
+      it('is allowed at 09:00 salon time in winter (08:00 real UTC)', async () => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status: BookingStatus.CONFIRMED,
+          startTime: new Date('2026-01-15T09:00:00.000Z'),
+        });
+        jest
+          .useFakeTimers()
+          .setSystemTime(new Date('2026-01-15T08:00:00.000Z'));
+        await service.updateStatus(
+          'booking-1',
+          { status: BookingStatus.NO_SHOW },
+          admin,
+        );
+        expect(prisma.booking.update).toHaveBeenCalled();
+      });
+    });
+
+    describe('createForClient', () => {
+      beforeEach(() => {
+        prisma.master.findFirst.mockResolvedValue({ id: 'master-rec-1' });
+        prisma.service.findFirst.mockResolvedValue({
+          id: 'service-1',
+          durationMin: 60,
+        });
+        prisma.masterService.findUnique.mockResolvedValue({
+          masterId: 'master-rec-1',
+          serviceId: 'service-1',
+        });
+        prisma.booking.findFirst.mockResolvedValue(null);
+        prisma.booking.create.mockResolvedValue({ id: 'booking-1' });
+        setWarsawClock('08:30');
+      });
+
+      const params = (hhmm: string) => ({
+        salonId: 'salon-1',
+        clientId: 'client-1',
+        masterId: 'master-rec-1',
+        serviceId: 'service-1',
+        startTime: salonAt(hhmm).toISOString(),
+      });
+
+      it('rejects 07:30 today at 08:30 salon time (still "future" in real UTC)', async () => {
+        await expect(
+          service.createForClient(params('07:30')),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(prisma.booking.create).not.toHaveBeenCalled();
+      });
+
+      it('accepts 09:00 today at 08:30 salon time', async () => {
+        await service.createForClient(params('09:00'));
+        expect(prisma.booking.create).toHaveBeenCalled();
+      });
+    });
+
+    describe('cancelForClient', () => {
+      it('rejects cancelling a 09:00 booking at 09:30 salon time (07:30 real UTC)', async () => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status: BookingStatus.CONFIRMED,
+          startTime: salonAt('09:00'),
+        });
+        setWarsawClock('09:30');
+        await expect(
+          service.cancelForClient('booking-1', 'client-1'),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(prisma.booking.update).not.toHaveBeenCalled();
+      });
+
+      it('allows cancelling a 09:00 booking at 08:30 salon time', async () => {
+        prisma.booking.findFirst.mockResolvedValue({
+          id: 'booking-1',
+          status: BookingStatus.CONFIRMED,
+          startTime: salonAt('09:00'),
+        });
+        prisma.booking.update.mockResolvedValue({ id: 'booking-1' });
+        setWarsawClock('08:30');
+        await service.cancelForClient('booking-1', 'client-1');
+        expect(prisma.booking.update).toHaveBeenCalled();
+      });
     });
   });
 });

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { BookingStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { salonNow } from '../common/time/salon-time';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreateMasterDto } from './dto/create-master.dto';
 import { UpdateMasterDto } from './dto/update-master.dto';
@@ -233,7 +234,7 @@ export class StaffService {
     const upcomingBooking = await this.prisma.booking.findFirst({
       where: {
         masterId,
-        startTime: { gte: new Date() },
+        startTime: { gte: salonNow() },
         status: { in: [BookingStatus.CREATED, BookingStatus.CONFIRMED] },
       },
     });

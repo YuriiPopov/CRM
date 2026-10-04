@@ -351,6 +351,31 @@ describe('StaffService', () => {
       expect(prisma.master.update).not.toHaveBeenCalled();
     });
 
+    it('looks for upcoming bookings from the current salon time, not real UTC (item77)', async () => {
+      // 08:30 по Варшаве летом — запись на 07:30 того же дня уже прошла и не мешает деактивации
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-15T06:30:00.000Z'));
+      try {
+        prisma.master.findFirst.mockResolvedValue({
+          id: 'master-1',
+          salonId: 'salon-1',
+        });
+        prisma.booking.findFirst.mockResolvedValue({ id: 'booking-1' });
+
+        await expect(
+          service.update('master-1', { isActive: false }, 'salon-1'),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(prisma.booking.findFirst).toHaveBeenCalledWith({
+          where: {
+            masterId: 'master-1',
+            startTime: { gte: new Date('2026-07-15T08:30:00.000Z') },
+            status: { in: ['CREATED', 'CONFIRMED'] },
+          },
+        });
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('allows deactivation when the master has no upcoming CREATED/CONFIRMED bookings', async () => {
       prisma.master.findFirst.mockResolvedValue({
         id: 'master-1',

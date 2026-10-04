@@ -29,6 +29,7 @@ services:
       # проверяет подстановки во всём файле, и падал бы даже `docker compose up -d postgres`.
       JWT_SECRET: ${JWT_SECRET:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      SALON_TIMEZONE: ${SALON_TIMEZONE:-Europe/Warsaw}
     volumes:
       - b4u-logs:/var/log/b4u-crm
     networks:

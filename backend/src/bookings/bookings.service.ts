@@ -14,6 +14,7 @@ import {
   Role,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { salonNow } from '../common/time/salon-time';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import {
@@ -126,7 +127,7 @@ export class BookingsService {
         salonId,
         source: BookingSource.ONLINE,
         status: BookingStatus.CREATED,
-        startTime: { gte: new Date() },
+        startTime: { gte: salonNow() },
       },
     });
     return { count };
@@ -236,7 +237,7 @@ export class BookingsService {
     // Неявку можно зафиксировать только после того, как время визита наступило (item74)
     if (
       dto.status === BookingStatus.NO_SHOW &&
-      booking.startTime.getTime() > Date.now()
+      booking.startTime.getTime() > salonNow().getTime()
     ) {
       throw new BadRequestException(
         'Cannot mark a booking as no-show before its start time',
@@ -282,7 +283,7 @@ export class BookingsService {
     }
 
     const startTime = new Date(params.startTime);
-    if (startTime.getTime() < Date.now()) {
+    if (startTime.getTime() < salonNow().getTime()) {
       throw new BadRequestException('Cannot book a time in the past');
     }
     const endTime = addMinutes(startTime, service.durationMin);
@@ -330,7 +331,7 @@ export class BookingsService {
       );
     }
 
-    if (booking.startTime.getTime() < Date.now()) {
+    if (booking.startTime.getTime() < salonNow().getTime()) {
       throw new ConflictException('Cannot cancel a booking that has started');
     }
 

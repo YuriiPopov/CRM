@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { BookingSource, Client, Master, Service } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { salonNow } from '../common/time/salon-time';
 import {
   addMinutes,
   BOOKING_BUFFER_MINUTES,
@@ -115,7 +116,7 @@ export class PublicBookingService {
       },
       select: { startTime: true, endTime: true },
     });
-    const now = new Date();
+    const now = salonNow();
     const slots: AvailableSlot[] = [];
 
     for (
@@ -170,7 +171,7 @@ export class PublicBookingService {
     );
 
     const startTime = new Date(dto.startTime);
-    if (startTime.getTime() < Date.now()) {
+    if (startTime.getTime() < salonNow().getTime()) {
       throw new BadRequestException('Cannot book a time in the past');
     }
     const endTime = addMinutes(startTime, service.durationMin);

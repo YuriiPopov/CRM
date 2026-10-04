@@ -61,6 +61,23 @@ $ npm run test:cov
 
 `app.enableCors()` в `main.ts` разрешает запросы с `FRONTEND_URL` (по умолчанию `http://localhost:5173`, если переменная не задана) и передачу credentials. При деплое фронтенда на другой origin — задать `FRONTEND_URL` в окружении backend.
 
+## Время салона (SALON_TIMEZONE)
+
+**Соглашение хранения.** Время визитов хранится как *настенное время салона с меткой UTC*: визит в 10:00 по Варшаве лежит в БД как `10:00Z`, независимо от летнего/зимнего времени. Так хранятся `Booking.startTime`/`endTime` (и `originalStartTime`/`originalEndTime`), `MasterBlock.startTime`/`endTime`, часы графика `MasterSchedule.startTime`/`endTime` (`"HH:mm"`), а также слоты в `/public/booking/slots` и `/client/slots` (часы работы `09:00–19:00` — тоже время салона). Фронтенд и приложения показывают это время «как есть», без пересчёта поясов.
+
+**«Сейчас» для сравнения с ними** — только `salonNow()` из `src/common/time/salon-time.ts`: текущее время в поясе `SALON_TIMEZONE`, выраженное в той же конвенции (Date с меткой UTC). Переход на летнее/зимнее время считает `Intl` (база IANA), а не код. `Date.now()`/`new Date()` с временем записей не сравнивать — в Польше это сдвиг на 1–2 часа (item77). Через `salonNow()` работают:
+
+- `BookingsService.countPendingOnline` — счётчик онлайн-записей на дашборде (`GET /bookings/pending-online/count`);
+- `BookingsService.updateStatus` — неявку (`NO_SHOW`) можно отметить с момента начала визита;
+- `BookingsService.createForClient` / `PublicBookingService.createBooking` — запись на прошедшее время отклоняется (400);
+- `BookingsService.cancelForClient` — клиент не может отменить уже начавшуюся запись (409);
+- `PublicBookingService.getAvailableSlots` (`/public/booking/slots`, `/client/slots`) — на сегодня не отдаются прошедшие слоты;
+- `StaffService` — деактивация мастера проверяет только будущие записи.
+
+**Служебные метки — настоящий UTC.** `consentGivenAt`, `consentWithdrawnAt`, `paidAt`, `rescheduledAt`, `sentAt`, `createdAt`/`updatedAt`, срок и `consumedAt` OTP, `exportedAt` и т.п. — моменты времени, а не время салона; для них по-прежнему `new Date()`.
+
+**Настройка.** `SALON_TIMEZONE` — IANA-пояс (по умолчанию `Europe/Warsaw`). Проверяется при старте (`assertSalonTimezone` в `main.ts`): неизвестное значение — backend не запускается. В тестах часы подменяются через `jest.useFakeTimers().setSystemTime(...)` — `salonNow()` читает `Date.now()`.
+
 ## Auth
 
 JWT-аутентификация по email+паролю (bcrypt), роли `ADMIN`/`MASTER` (см. `Role` в `prisma/schema.prisma`).
@@ -139,7 +156,7 @@ CRUD справочника услуг, скоуплен по `salonId`; в от
 
 Минимальная публичная онлайн-запись — единственные анонимные маршруты в API (см. ТЗ, раздел 8 "MVP и roadmap"). Отдают/принимают только то, что нужно самому клиенту: никогда не возвращают чужие записи, список клиентов или расписание мастера целиком — только доступные слоты и подтверждение собственной записи.
 
-- `GET /public/booking/slots?masterId&serviceId&date=YYYY-MM-DD` — свободные слоты мастера под конкретную услугу на дату. Длительность слота — из `Service.durationMin`; занятость считается той же overlap-логикой, что и в Bookings (общая утилита `booking-overlap.util.ts`). Часы работы захардкожены как MVP-упрощение (`09:00–20:00 UTC`, шаг 15 мин) — в схеме пока нет модели расписания; ничего не блокирует добавить её позже. 404, если мастер неактивен/не найден, услуга не из его салона или мастер её не оказывает (через `MasterService`).
+- `GET /public/booking/slots?masterId&serviceId&date=YYYY-MM-DD` — свободные слоты мастера под конкретную услугу на дату. Длительность слота — из `Service.durationMin`; занятость считается той же overlap-логикой, что и в Bookings (общая утилита `booking-overlap.util.ts`). Часы работы захардкожены как MVP-упрощение (`09:00–19:00` по времени салона, шаг 15 мин) и сужаются графиком мастера (`MasterSchedule`), если он задан на эту дату. На сегодня слоты раньше `salonNow()` не отдаются (см. «Время салона»). 404, если мастер неактивен/не найден, услуга не из его салона или мастер её не оказывает (через `MasterService`).
 - `POST /public/booking` — создаёт запись с `source: ONLINE`. Требует `consentGiven: true` (GDPR, как и в закрытом Clients-модуле). Клиент ищется по `(salonId, phone)` — при совпадении переиспользуется существующая карточка вместо дубликата. Повторно проверяет отсутствие пересечения (защита от гонки между чтением слотов и созданием записи) — 409, если слот уже заняли. В ответе — только что созданная запись (`id`, `startTime`, `endTime`, `status`), без `salonId`/`clientId`.
 - Rate-limit — только на этих двух маршрутах (`@nestjs/throttler`, in-memory, без Redis): 30 запросов/мин на чтение слотов, 5 запросов/мин на создание записи; при превышении — 429.
 

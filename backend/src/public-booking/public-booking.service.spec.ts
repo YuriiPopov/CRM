@@ -480,4 +480,62 @@ describe('PublicBookingService', () => {
       expect(result).not.toHaveProperty('clientId');
     });
   });
+
+  // item77: время слотов и записей — время салона с меткой UTC (09:00 в Варшаве = 09:00Z),
+  // «сейчас» — salonNow(). Часы подменяются на 08:30 по Варшаве летом (06:30 настоящего UTC),
+  // где старая логика считала 07:00–08:15 ещё будущими.
+  describe('salon time zone (item77)', () => {
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-07-15T06:30:00.000Z'));
+      prisma.master.findFirst.mockResolvedValue(master);
+      prisma.service.findFirst.mockResolvedValue(service_);
+      prisma.masterService.findUnique.mockResolvedValue({});
+      prisma.booking.findMany.mockResolvedValue([]);
+      prisma.booking.findFirst.mockResolvedValue(null);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('offers no slot before the current salon time today', async () => {
+      // 10:20 по Варшаве (08:20 настоящего UTC): старая логика предлагала бы 09:00–10:15
+      jest.setSystemTime(new Date('2026-07-15T08:20:00.000Z'));
+
+      const result = await service.getAvailableSlots({
+        masterId: 'master-1',
+        serviceId: 'service-1',
+        date: '2026-07-15',
+      });
+
+      expect(result.slots[0].startTime).toBe('2026-07-15T10:30:00.000Z');
+      expect(
+        result.slots.some((slot) => slot.startTime < '2026-07-15T10:20'),
+      ).toBe(false);
+    });
+
+    it('still offers the whole day tomorrow', async () => {
+      const result = await service.getAvailableSlots({
+        masterId: 'master-1',
+        serviceId: 'service-1',
+        date: '2026-07-16',
+      });
+
+      expect(result.slots[0].startTime).toBe('2026-07-16T09:00:00.000Z');
+    });
+
+    it('rejects booking 07:30 today at 08:30 salon time', async () => {
+      await expect(
+        service.createBooking({
+          masterId: 'master-1',
+          serviceId: 'service-1',
+          startTime: '2026-07-15T07:30:00.000Z',
+          clientName: 'Anna',
+          clientPhone: '+48123123123',
+          consentGiven: true,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.booking.create).not.toHaveBeenCalled();
+    });
+  });
 });

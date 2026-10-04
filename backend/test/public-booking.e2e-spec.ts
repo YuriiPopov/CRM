@@ -159,6 +159,17 @@ class FakePrismaService {
     },
   };
 
+  // Блокировки мастера (Backlog п.9) и график (item51) здесь не проверяются — их нет вовсе,
+  // поэтому слоты и создание записи ведут себя как «график не настроен, блокировок нет».
+  masterBlock = {
+    findMany: (): Promise<[]> => Promise.resolve([]),
+    findFirst: (): Promise<null> => Promise.resolve(null),
+  };
+
+  masterSchedule = {
+    findFirst: (): Promise<null> => Promise.resolve(null),
+  };
+
   seedMaster(master: Master) {
     this.mastersById.set(master.id, master);
   }
@@ -272,8 +283,10 @@ describe('Public booking (e2e)', () => {
       expect(
         body.slots.some((s) => s.startTime === '2099-06-15T10:00:00.000Z'),
       ).toBe(false);
+      // 09:00–10:00 упирается в 10-минутный буфер записи (Backlog п.10), поэтому свободный
+      // слот проверяем после неё: 11:00 + буфер 10 мин → ближайший шаг 11:15
       expect(
-        body.slots.some((s) => s.startTime === '2099-06-15T09:00:00.000Z'),
+        body.slots.some((s) => s.startTime === '2099-06-15T11:15:00.000Z'),
       ).toBe(true);
 
       const raw = JSON.stringify(response.body);
@@ -428,7 +441,8 @@ describe('Public booking (e2e)', () => {
 
       const results: Awaited<ReturnType<typeof send>>[] = [];
       for (let i = 0; i < 6; i += 1) {
-        results.push(await send(9 + i));
+        // Через 2 часа: часовые записи подряд конфликтовали бы по буферу (Backlog п.10) → 409
+        results.push(await send(9 + 2 * i));
       }
 
       const statuses = results.map((r) => r.status);
