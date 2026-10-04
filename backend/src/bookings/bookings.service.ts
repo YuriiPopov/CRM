@@ -95,15 +95,19 @@ export class BookingsService {
   }
 
   findAll(user: AuthenticatedUser, query: ListBookingsQueryDto = {}) {
-    // Фильтры только сужают скоуп роли — ключи не пересекаются с scopeWhere (salonId/masterId/id)
+    // Фильтры только сужают скоуп роли. masterId пересекается с ключом scopeWhere у MASTER,
+    // поэтому скоуп разворачивается последним и всегда побеждает: мастер не может запросить
+    // чужие записи, подставив masterId другого мастера.
     const filters: Prisma.BookingWhereInput = {
       ...(query.source ? { source: query.source } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.from ? { startTime: { gte: new Date(query.from) } } : {}),
+      ...(query.clientId ? { clientId: query.clientId } : {}),
+      ...(query.masterId ? { masterId: query.masterId } : {}),
     };
 
     return this.prisma.booking.findMany({
-      where: { ...this.scopeWhere(user), ...filters },
+      where: { ...filters, ...this.scopeWhere(user) },
       orderBy: { startTime: 'asc' },
     });
   }

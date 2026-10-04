@@ -256,6 +256,35 @@ describe('BookingsService', () => {
       });
     });
 
+    it('narrows the ADMIN scope by clientId and masterId', async () => {
+      prisma.booking.findMany.mockResolvedValue([]);
+
+      await service.findAll(admin, {
+        clientId: 'client-1',
+        masterId: 'master-rec-2',
+      });
+
+      expect(prisma.booking.findMany).toHaveBeenCalledWith({
+        where: {
+          salonId: 'salon-1',
+          clientId: 'client-1',
+          masterId: 'master-rec-2',
+        },
+        orderBy: { startTime: 'asc' },
+      });
+    });
+
+    it('does not let a MASTER widen the scope with another masterId', async () => {
+      prisma.booking.findMany.mockResolvedValue([]);
+
+      await service.findAll(master, { masterId: 'someone-else' });
+
+      expect(prisma.booking.findMany).toHaveBeenCalledWith({
+        where: { salonId: 'salon-1', masterId: 'master-rec-1' },
+        orderBy: { startTime: 'asc' },
+      });
+    });
+
     it('keeps the MASTER scope when filters are applied', async () => {
       prisma.booking.findMany.mockResolvedValue([]);
 

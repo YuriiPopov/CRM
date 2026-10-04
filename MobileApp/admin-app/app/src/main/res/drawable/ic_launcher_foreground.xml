@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Плейсхолдер: буква "A" (Administrator), заменить на финальную иконку приложения -->
+    <path
+        android:fillColor="#FAF3EE"
+        android:pathData="M50,36 L58,36 L72,72 L64,72 L60.9,64 L47.1,64 L44,72 L36,72 Z M49.6,57 L58.4,57 L54,45 Z" />
+</vector>

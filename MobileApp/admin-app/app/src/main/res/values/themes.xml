@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Базовая тема окна до отрисовки Compose-контента (см. ui/theme/Theme.kt) -->
+    <style name="Theme.B4UAdmin" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/app_background</item>
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
+</resources>

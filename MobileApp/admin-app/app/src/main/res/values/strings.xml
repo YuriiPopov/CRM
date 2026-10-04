@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">B4U Admin</string>
+
+    <!-- Logowanie -->
+    <string name="login_title">B4U — Panel administratora</string>
+    <string name="login_subtitle">Zaloguj się kontem administratora salonu</string>
+    <string name="login_email">Email</string>
+    <string name="login_password">Hasło</string>
+    <string name="login_button">Zaloguj się</string>
+    <string name="login_error_empty">Podaj email i hasło</string>
+    <string name="login_error_credentials">Nieprawidłowy email lub hasło</string>
+    <string name="login_error_not_admin">Brak dostępu — aplikacja tylko dla administratora</string>
+    <string name="login_error_http">Błąd serwera (%1$d)</string>
+
+    <!-- Nawigacja -->
+    <string name="nav_panel">Panel</string>
+    <string name="nav_calendar">Kalendarz</string>
+    <string name="nav_clients">Klienci</string>
+    <string name="nav_more">Więcej</string>
+    <string name="back">Wstecz</string>
+
+    <!-- Wspólne -->
+    <string name="error_load">Nie udało się załadować danych</string>
+    <string name="action_retry">Spróbuj ponownie</string>
+    <string name="unknown_name">—</string>
+
+    <!-- Statusy -->
+    <string name="status_created">Oczekująca</string>
+    <string name="status_confirmed">Potwierdzona</string>
+    <string name="status_completed">Zakończona</string>
+    <string name="status_cancelled">Odwołana</string>
+
+    <!-- Panel -->
+    <string name="dashboard_greeting">Cześć, %1$s</string>
+    <string name="dashboard_today">Dzisiaj</string>
+    <string name="dashboard_today_empty_title">Brak wizyt na dzisiaj</string>
+    <string name="dashboard_today_empty_text">Wolny dzień — można zaplanować nową wizytę</string>
+    <string name="dashboard_upcoming">Najbliższe wizyty</string>
+    <string name="dashboard_upcoming_empty">Brak zaplanowanych wizyt</string>
+    <string name="dashboard_week">Tydzień</string>
+    <string name="dashboard_pending">Czekają na potwierdzenie</string>
+    <string name="dashboard_pending_hint">Wizyty online z aplikacji klienta</string>
+    <string name="dashboard_more_markers">+%1$d</string>
+
+    <!-- Kalendarz -->
+    <string name="calendar_title">Kalendarz</string>
+    <string name="calendar_subtitle_list">Wszyscy specjaliści</string>
+    <string name="calendar_subtitle_masters">Grupowanie według specjalisty</string>
+    <string name="calendar_subtitle_timeline">Widok osi czasu</string>
+    <string name="calendar_view_list">Lista</string>
+    <string name="calendar_view_masters">Specjalista</string>
+    <string name="calendar_view_timeline">Timeline</string>
+    <string name="calendar_filter_master">Specjalista: %1$s</string>
+    <string name="calendar_filter_status">Status: %1$s</string>
+    <string name="filter_all_masters">Wszyscy</string>
+    <string name="filter_all_statuses">Wszystkie</string>
+    <string name="calendar_empty_title">Brak wizyt dla wybranych filtrów</string>
+    <string name="calendar_empty_text">Spróbuj zmienić specjalistę lub status</string>
+    <string name="calendar_timeline_empty">Brak wizyt w tym dniu</string>
+    <string name="calendar_refresh">Odśwież</string>
+    <string name="calendar_add">Nowa wizyta</string>
+    <string name="calendar_prev_week">Poprzedni tydzień</string>
+    <string name="calendar_next_week">Następny tydzień</string>
+    <string name="calendar_today">Dziś</string>
+    <string name="calendar_block">Blokada</string>
+    <plurals name="calendar_group_count">
+        <item quantity="one">· %d wizyta</item>
+        <item quantity="few">· %d wizyty</item>
+        <item quantity="many">· %d wizyt</item>
+        <item quantity="other">· %d wizyty</item>
+    </plurals>
+
+    <!-- Formularz wizyty -->
+    <string name="form_title_new">Nowa wizyta</string>
+    <string name="form_title_edit">Przenieś wizytę</string>
+    <string name="form_title_view">Wizyta</string>
+    <string name="form_client">KLIENT</string>
+    <string name="form_master">SPECJALISTA</string>
+    <string name="form_service">USŁUGA</string>
+    <string name="form_date">DATA</string>
+    <string name="form_time">GODZINA</string>
+    <string name="form_status">STATUS</string>
+    <string name="form_pick_client">Wybierz klienta</string>
+    <string name="form_pick_master">Wybierz specjalistę</string>
+    <string name="form_pick_service">Wybierz usługę</string>
+    <string name="form_search_client">Szukaj po imieniu lub telefonie</string>
+    <string name="form_no_clients_found">Nie znaleziono klientów</string>
+    <string name="form_no_options">Brak dostępnych pozycji</string>
+    <string name="form_time_pick_first">Wybierz specjalistę i usługę, aby zobaczyć wolne godziny</string>
+    <string name="form_time_loading">Ładowanie wolnych godzin…</string>
+    <string name="form_time_day_off">Specjalista nie pracuje w tym dniu</string>
+    <string name="form_time_none">Brak wolnych godzin w tym dniu</string>
+    <string name="form_time_error">Nie udało się pobrać wolnych godzin</string>
+    <string name="form_locked_hint">Przy przenoszeniu zmienia się specjalistę, datę i godzinę — klient i usługa pozostają bez zmian.</string>
+    <string name="form_readonly_hint">Wizyta jest zamknięta — nie można jej zmienić.</string>
+    <string name="form_online_badge">Online</string>
+    <string name="form_delete">Usuń</string>
+    <string name="form_save">Zapisz</string>
+    <string name="form_close">Zamknij</string>
+    <string name="form_cancel_confirm_title">Odwołać wizytę?</string>
+    <string name="form_cancel_confirm_text">Wizyta otrzyma status „Odwołana” i pozostanie w historii klienta.</string>
+    <string name="form_cancel_confirm_yes">Odwołaj wizytę</string>
+    <string name="form_cancel_confirm_no">Nie</string>
+    <string name="form_pick_date_ok">OK</string>
+    <string name="form_pick_date_cancel">Anuluj</string>
+    <string name="toast_booking_created">Wizyta zapisana</string>
+    <string name="toast_booking_updated">Wizyta zaktualizowana</string>
+    <string name="toast_booking_cancelled">Wizyta odwołana</string>
+
+    <!-- Błędy zapisu (backend) -->
+    <string name="error_overlap">Specjalista ma już wizytę w tym czasie (z zachowaniem 10 min przerwy między wizytami)</string>
+    <string name="error_master_blocked">Specjalista ma zablokowany ten czas</string>
+    <string name="error_day_off">Specjalista nie pracuje w tym dniu</string>
+    <string name="error_outside_hours">Godzina poza grafikiem pracy specjalisty</string>
+    <string name="error_past_time">Nie można zapisać wizyty w przeszłości</string>
+    <string name="error_invalid_transition">Ta zmiana statusu jest niedozwolona</string>
+    <string name="error_not_reschedulable">Nie można przenieść zakończonej lub odwołanej wizyty</string>
+    <string name="error_not_found">Nie znaleziono wizyty, klienta lub specjalisty</string>
+    <string name="error_validation">Nieprawidłowe dane formularza</string>
+    <string name="error_network">Brak połączenia z serwerem</string>
+    <string name="error_unknown">Coś poszło nie tak. Spróbuj ponownie</string>
+
+    <!-- Klienci -->
+    <string name="clients_title">Klienci</string>
+    <plurals name="clients_count">
+        <item quantity="one">%d klient</item>
+        <item quantity="few">%d klientów</item>
+        <item quantity="many">%d klientów</item>
+        <item quantity="other">%d klienta</item>
+    </plurals>
+    <string name="clients_new">+ Nowy klient</string>
+    <string name="clients_search">Szukaj po imieniu lub telefonie</string>
+    <string name="clients_visits">wizyt</string>
+    <string name="clients_empty">Brak klientów</string>
+    <string name="clients_search_empty">Nie znaleziono klientów</string>
+    <string name="client_new_title">Nowy klient</string>
+    <string name="client_name">IMIĘ I NAZWISKO</string>
+    <string name="client_phone">TELEFON</string>
+    <string name="client_phone_hint">+48 601 234 567</string>
+    <string name="client_consent">Klient wyraził zgodę na przetwarzanie danych (RODO)</string>
+    <string name="client_error_name">Podaj imię i nazwisko</string>
+    <string name="client_error_phone">Nieprawidłowy numer telefonu (np. +48 601 234 567)</string>
+    <string name="toast_client_created">Klient dodany</string>
+    <string name="client_title">Klient</string>
+    <string name="client_visits_total">wizyt łącznie</string>
+    <string name="client_upcoming">zapisanych</string>
+    <string name="client_history">Historia wizyt</string>
+    <string name="client_history_empty">Brak zapisanych wizyt</string>
+
+    <!-- Więcej -->
+    <string name="more_title">Więcej</string>
+    <string name="more_masters">Mistrzowie</string>
+    <string name="more_masters_sub">Zespół i specjalizacje</string>
+    <string name="more_services">Usługi</string>
+    <string name="more_services_sub">Cennik i czas trwania</string>
+    <string name="more_news">Aktualności</string>
+    <string name="more_news_sub">Publikuj nowości dla klientów</string>
+    <string name="more_logout">Wyloguj się</string>
+    <string name="more_logged_as">Zalogowano jako %1$s</string>
+    <string name="masters_today">dziś</string>
+    <string name="masters_inactive">Nieaktywny</string>
+    <string name="masters_no_specialty">Brak specjalizacji</string>
+    <string name="services_duration">%1$d min</string>
+    <string name="services_other">Inne</string>
+    <string name="news_stub_title">Ta sekcja pojawi się później</string>
+    <string name="news_stub_text">Publikowanie aktualności dla klientów będzie dostępne w kolejnej wersji aplikacji.</string>
+</resources>
