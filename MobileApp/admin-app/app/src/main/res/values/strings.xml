@@ -92,7 +92,7 @@
     <string name="form_time_day_off">Specjalista nie pracuje w tym dniu</string>
     <string name="form_time_none">Brak wolnych godzin w tym dniu</string>
     <string name="form_time_error">Nie udało się pobrać wolnych godzin</string>
-    <string name="form_locked_hint">Przy przenoszeniu zmienia się specjalistę, datę i godzinę — klient i usługa pozostają bez zmian.</string>
+    <string name="form_locked_hint">Można zmienić specjalistę, datę i godzinę — klient i usługa pozostają bez zmian.</string>
     <string name="form_readonly_hint">Wizyta jest zamknięta — nie można jej zmienić.</string>
     <string name="form_online_badge">Online</string>
     <string name="form_delete">Usuń</string>

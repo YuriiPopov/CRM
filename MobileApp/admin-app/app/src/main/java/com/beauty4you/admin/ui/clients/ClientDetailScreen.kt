@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.beauty4you.admin.R
+import com.beauty4you.admin.domain.ClientLogic
 import com.beauty4you.admin.domain.Booking
 import com.beauty4you.admin.domain.PolishDates
 import com.beauty4you.admin.ui.common.B4UCard
@@ -85,7 +86,7 @@ fun ClientDetailScreen(clientId: String, onBack: () -> Unit, onOpenBooking: (Boo
                                 },
                             ) {
                                 Icon(Icons.Filled.Call, contentDescription = null, tint = Rose, modifier = Modifier.size(14.dp))
-                                Text(client.phone, style = B4UType.Caption.copy(fontSize = 12.5.sp), color = Rose, modifier = Modifier.padding(start = 4.dp))
+                                Text(ClientLogic.formatPhone(client.phone), style = B4UType.Caption.copy(fontSize = 12.5.sp), color = Rose, modifier = Modifier.padding(start = 4.dp))
                             }
                         }
                     }

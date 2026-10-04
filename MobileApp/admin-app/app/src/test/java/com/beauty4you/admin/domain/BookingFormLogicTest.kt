@@ -105,4 +105,28 @@ class BookingFormLogicTest {
         assertEquals(BookingError.NETWORK, BookingFormLogic.mapError(null, "timeout"))
         assertEquals(BookingError.UNKNOWN, BookingFormLogic.mapError(500, "Internal server error"))
     }
+
+    @Test
+    fun `new booking defaults to CONFIRMED and is saved with a status change`() {
+        assertEquals(CONFIRMED, BookingFormLogic.initialStatus(null))
+        assertEquals(
+            SavePlan(create = true, reschedule = false, statusChange = CONFIRMED),
+            BookingFormLogic.planSave(null, "m1", DAY, LocalTime.of(10, 0), BookingFormLogic.initialStatus(null)),
+        )
+    }
+
+    @Test
+    fun `editing keeps the booking's current status`() {
+        assertEquals(CREATED, BookingFormLogic.initialStatus(booking("b", at(10), status = CREATED)))
+        assertEquals(BookingStatus.COMPLETED, BookingFormLogic.initialStatus(booking("b", at(10), status = BookingStatus.COMPLETED)))
+    }
+
+    @Test
+    fun `slot conflicts make the free slots stale, other errors do not`() {
+        assertTrue(BookingFormLogic.staleSlots(BookingError.OVERLAP))
+        assertTrue(BookingFormLogic.staleSlots(BookingError.MASTER_BLOCKED))
+        assertTrue(BookingFormLogic.staleSlots(BookingError.OUTSIDE_HOURS))
+        assertFalse(BookingFormLogic.staleSlots(BookingError.NETWORK))
+        assertFalse(BookingFormLogic.staleSlots(BookingError.INVALID_TRANSITION))
+    }
 }

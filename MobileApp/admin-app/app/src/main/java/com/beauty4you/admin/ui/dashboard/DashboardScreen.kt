@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -261,10 +260,12 @@ private fun WeekStrip(week: List<DayMarkers>, today: LocalDate) {
             ) {
                 Text(PolishDates.weekdayShort(day.date), style = B4UType.Pill, color = Muted)
                 Text(day.date.dayOfMonth.toString(), style = B4UType.BodyStrong, color = Ink, modifier = Modifier.padding(top = 6.dp))
+                // Фиксированная высота и метки от верхнего края: первая метка у всех дней на одной линии,
+                // а ячейки не «прыгают» по высоте (до 5 меток + «+N», см. DashboardLogic.weekMarkers)
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.Bottom),
+                    verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.Top),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(top = 6.dp).heightIn(min = 30.dp),
+                    modifier = Modifier.padding(top = 6.dp).height(46.dp),
                 ) {
                     day.masterIds.forEach { masterId ->
                         Box(

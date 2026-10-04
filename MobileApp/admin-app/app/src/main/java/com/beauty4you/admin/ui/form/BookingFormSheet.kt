@@ -513,7 +513,7 @@ private fun ClientPickerDialog(
                             InitialsAvatar(client.id, client.name, size = 32.dp)
                             Column(Modifier.padding(start = 10.dp)) {
                                 Text(client.name, style = B4UType.ItemTitle, color = InkStrong)
-                                Text(client.phone, style = B4UType.CaptionSmall, color = Muted)
+                                Text(ClientLogic.formatPhone(client.phone), style = B4UType.CaptionSmall, color = Muted)
                             }
                         }
                         HorizontalDivider(color = Border)

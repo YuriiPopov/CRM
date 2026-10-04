@@ -47,19 +47,30 @@ object ClientLogic {
         if (trimmed.drop(1).contains('+')) return null
         val digits = trimmed.filter { it.isDigit() }
 
-        val polishNational = when {
-            !hasPlus && digits.length == 9 -> digits
-            hasPlus && digits.length == 11 && digits.startsWith("48") -> digits.substring(2)
-            !hasPlus && digits.length == 13 && digits.startsWith("0048") -> digits.substring(4)
-            else -> null
-        }
-        if (polishNational != null) {
-            return "+48 ${polishNational.substring(0, 3)} ${polishNational.substring(3, 6)} ${polishNational.substring(6)}"
-        }
+        val polishNational = polishNational(digits, hasPlus)
+        if (polishNational != null) return groupPolish(polishNational)
         // "+48" с неверным числом цифр — опечатка в польском номере, а не иностранный номер
         if (hasPlus && digits.startsWith("48")) return null
         return if (hasPlus && digits.length in 8..15) "+$digits" else null
     }
+
+    // Показ телефона в списке и карточке: польский номер (9 цифр, с +48/0048 или без) — группами
+    // "+48 601 234 567"; всё остальное (иностранные, ошибочные из старых данных) — как есть
+    fun formatPhone(phone: String): String {
+        val trimmed = phone.trim()
+        val national = polishNational(trimmed.filter { it.isDigit() }, trimmed.startsWith("+")) ?: return phone
+        return groupPolish(national)
+    }
+
+    private fun polishNational(digits: String, hasPlus: Boolean): String? = when {
+        !hasPlus && digits.length == 9 -> digits
+        hasPlus && digits.length == 11 && digits.startsWith("48") -> digits.substring(2)
+        !hasPlus && digits.length == 13 && digits.startsWith("0048") -> digits.substring(4)
+        else -> null
+    }
+
+    private fun groupPolish(national: String): String =
+        "+48 ${national.substring(0, 3)} ${national.substring(3, 6)} ${national.substring(6)}"
 
     fun validateNewClient(name: String, phone: String): NewClientValidation {
         val trimmedName = name.trim()

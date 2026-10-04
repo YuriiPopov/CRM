@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.beauty4you.admin.R
+import com.beauty4you.admin.domain.ClientLogic
 import com.beauty4you.admin.domain.Client
 import com.beauty4you.admin.ui.common.B4UCard
 import com.beauty4you.admin.ui.common.DashedEmptyState
@@ -139,7 +140,7 @@ private fun ClientRow(client: Client, visits: Int, onClick: () -> Unit) {
             InitialsAvatar(client.id, client.name, size = 38.dp)
             Column(Modifier.weight(1f)) {
                 Text(client.name, style = B4UType.ItemTitle, color = InkStrong, maxLines = 1)
-                Text(client.phone, style = B4UType.CaptionSmall, color = Muted, modifier = Modifier.padding(top = 1.dp))
+                Text(ClientLogic.formatPhone(client.phone), style = B4UType.CaptionSmall, color = Muted, modifier = Modifier.padding(top = 1.dp))
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(visits.toString(), style = B4UType.BodyStrong.copy(fontSize = 12.sp), color = Ink)

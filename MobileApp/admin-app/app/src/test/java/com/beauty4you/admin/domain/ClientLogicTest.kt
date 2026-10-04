@@ -104,4 +104,22 @@ class ClientLogicTest {
             ClientLogic.history(bookings).map { it.id },
         )
     }
+
+    @Test
+    fun `formatPhone groups 9-digit Polish numbers`() {
+        assertEquals("+48 601 234 567", ClientLogic.formatPhone("601234567"))
+        assertEquals("+48 601 234 567", ClientLogic.formatPhone("+48601234567"))
+        assertEquals("+48 601 234 567", ClientLogic.formatPhone("+48 601-234-567"))
+        assertEquals("+48 601 234 567", ClientLogic.formatPhone("0048601234567"))
+        assertEquals("+48 601 234 567", ClientLogic.formatPhone("+48 601 234 567"))
+    }
+
+    @Test
+    fun `formatPhone keeps other numbers as is`() {
+        assertEquals("+380501234567", ClientLogic.formatPhone("+380501234567"))
+        assertEquals("60123456", ClientLogic.formatPhone("60123456"))
+        assertEquals("+48 60123456", ClientLogic.formatPhone("+48 60123456"))
+        assertEquals("6012345678", ClientLogic.formatPhone("6012345678"))
+        assertEquals("", ClientLogic.formatPhone(""))
+    }
 }

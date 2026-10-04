@@ -49,7 +49,7 @@ data class BookingFormState(
     val serviceId: String? = null,
     val date: LocalDate = LocalDate.now(),
     val time: LocalTime? = null,
-    val status: BookingStatus = BookingStatus.CREATED,
+    val status: BookingStatus = BookingStatus.CONFIRMED,
     val slots: SlotsState = SlotsState.NeedSelection,
     val saving: Boolean = false,
     val error: BookingError? = null,
@@ -107,7 +107,7 @@ class BookingFormViewModel(private val container: AppContainer) : ViewModel() {
             serviceId = original?.serviceId,
             date = original?.date ?: request.date ?: LocalDate.now(),
             time = original?.start?.toLocalTime(),
-            status = original?.status ?: BookingStatus.CREATED,
+            status = BookingFormLogic.initialStatus(original),
         )
         viewModelScope.launch {
             try {
@@ -207,9 +207,10 @@ class BookingFormViewModel(private val container: AppContainer) : ViewModel() {
                 finish(if (plan.create) R.string.toast_booking_created else R.string.toast_booking_updated)
             } catch (e: Exception) {
                 val failure = e.toApiFailure()
-                _state.update {
-                    it.copy(saving = false, error = BookingFormLogic.mapError(failure.httpCode, failure.message))
-                }
+                val error = BookingFormLogic.mapError(failure.httpCode, failure.message)
+                _state.update { it.copy(saving = false, error = error) }
+                // Время заняли/заблокировали, пока форма была открыта — список свободных слотов устарел
+                if (BookingFormLogic.staleSlots(error)) refreshSlots()
                 container.events.notifyDataChanged()
             }
         }

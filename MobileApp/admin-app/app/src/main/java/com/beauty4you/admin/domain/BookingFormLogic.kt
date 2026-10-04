@@ -31,6 +31,19 @@ data class SavePlan(
 
 object BookingFormLogic {
 
+    // Новая запись от админа по умолчанию сразу «Potwierdzona» (админ сам договорился с клиентом);
+    // при редактировании — текущий статус записи
+    // Ошибки сохранения, после которых показанные свободные слоты больше не соответствуют бэкенду
+    fun staleSlots(error: BookingError): Boolean = error in setOf(
+        BookingError.OVERLAP,
+        BookingError.MASTER_BLOCKED,
+        BookingError.DAY_OFF,
+        BookingError.OUTSIDE_HOURS,
+        BookingError.PAST_TIME,
+    )
+
+    fun initialStatus(original: Booking?): BookingStatus = original?.status ?: BookingStatus.CONFIRMED
+
     // Взаимная фильтрация «мастер ↔ услуга» — как masterServiceFilter.ts в веб-CRM.
     // Не выбран мастер — все услуги; выбран — только закреплённые за ним.
     fun servicesForMaster(services: List<Service>, masters: List<Master>, masterId: String?): List<Service> {

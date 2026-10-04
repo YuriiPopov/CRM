@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,6 +46,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -80,6 +82,10 @@ import com.beauty4you.admin.ui.theme.Tint
 import com.beauty4you.admin.ui.theme.masterColor
 import java.time.LocalDate
 
+private val FAB_SIZE = 52.dp
+private val FAB_BOTTOM_MARGIN = 20.dp
+private val FILTER_CHIP_HEIGHT = 34.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
@@ -104,7 +110,8 @@ fun CalendarScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().statusBarsPadding(),
-                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 96.dp),
+                // Снизу — место под FAB «+» (кнопка + её отступ + зазор), чтобы он не перекрывал последнюю карточку
+                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = FAB_SIZE + FAB_BOTTOM_MARGIN + 24.dp),
             ) {
                 item {
                     ScreenHeader(
@@ -179,8 +186,8 @@ fun CalendarScreen(
             shape = CircleShape,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 22.dp, bottom = 20.dp)
-                .size(52.dp),
+                .padding(end = 22.dp, bottom = FAB_BOTTOM_MARGIN)
+                .size(FAB_SIZE),
         ) {
             Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.calendar_add))
         }
@@ -288,6 +295,7 @@ private fun Filters(state: CalendarUiState, viewModel: CalendarViewModel) {
             options = listOf<Pair<String?, String>>(null to stringResource(R.string.filter_all_masters)) +
                 masters.filter { it.isActive || it.id == state.filter.masterId }.map { it.id to it.name },
             onSelect = viewModel::setMasterFilter,
+            modifier = Modifier.weight(1f, fill = false),
         )
         val statusLabel = state.filter.status?.let { stringResource(it.labelRes()) } ?: stringResource(R.string.filter_all_statuses)
         FilterChipDropdown(
@@ -295,25 +303,42 @@ private fun Filters(state: CalendarUiState, viewModel: CalendarViewModel) {
             options = listOf<Pair<BookingStatus?, String>>(null to stringResource(R.string.filter_all_statuses)) +
                 BookingStatus.entries.map { it to stringResource(it.labelRes()) },
             onSelect = viewModel::setStatusFilter,
+            modifier = Modifier.weight(1f, fill = false),
         )
     }
 }
 
 @Composable
-private fun <T> FilterChipDropdown(label: String, options: List<Pair<T, String>>, onSelect: (T) -> Unit) {
+private fun <T> FilterChipDropdown(
+    label: String,
+    options: List<Pair<T, String>>,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier = modifier) {
+        // Фиксированная высота и однострочный текст: оба чипа всегда одного размера, «▾» не уезжает
+        // на новую строку, а длинное имя мастера обрезается многоточием
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
+                .height(FILTER_CHIP_HEIGHT)
                 .clip(PillShape)
                 .background(CardBg)
                 .border(BorderStroke(1.dp, Border), PillShape)
                 .clickable { expanded = true }
-                .padding(horizontal = 12.dp, vertical = 7.dp),
+                .padding(horizontal = 12.dp),
         ) {
-            Text(label, style = B4UType.Caption.copy(fontSize = 12.5.sp), color = Ink, maxLines = 1)
-            Text(" ▾", style = B4UType.Caption, color = MutedLight)
+            Text(
+                label,
+                style = B4UType.Caption.copy(fontSize = 12.5.sp),
+                color = Ink,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Text("▾", style = B4UType.Caption, color = MutedLight, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = CardBg) {
             options.forEach { (value, text) ->
