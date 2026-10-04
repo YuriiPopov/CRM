@@ -53,7 +53,6 @@ import com.beauty4you.client.ui.theme.Accent
 import com.beauty4you.client.ui.theme.B4UType
 import com.beauty4you.client.ui.theme.Border
 import com.beauty4you.client.ui.theme.CardBg
-import com.beauty4you.client.ui.theme.CardShape
 import com.beauty4you.client.ui.theme.Ink
 import com.beauty4you.client.ui.theme.InkStrong
 import com.beauty4you.client.ui.theme.LargeShape
@@ -99,19 +98,31 @@ fun HomeScreen(vm: ClientViewModel, catalog: Catalog, client: Client) {
         }
 
         VSpace(16.dp)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(CardShape)
-                .background(CardBg)
-                .border(1.dp, Border, CardShape)
-                .clickable { vm.startBooking() }
-                .padding(horizontal = 14.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionHeader(stringResource(R.string.home_masters), Modifier.weight(1f))
+            Text(
+                stringResource(R.string.home_masters_all),
+                style = B4UType.Caption.copy(fontWeight = FontWeight.Medium),
+                color = MutedLight,
+                modifier = Modifier.clickable { vm.selectTab(Tab.SERVICES) },
+            )
+        }
+        VSpace(10.dp)
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = PagePadding),
+            modifier = Modifier.bleed(PagePadding),
         ) {
-            Text("🔍", fontSize = 15.sp, color = MutedLight)
-            Text(stringResource(R.string.home_search), style = B4UType.Body, color = Muted)
+            items(catalog.masters, key = { it.id }) { m ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { vm.openMaster(m.id) },
+                ) {
+                    MasterAvatar(m, 56.dp)
+                    VSpace(6.dp)
+                    Text(m.name, style = B4UType.SmallLabel, color = InkStrong)
+                }
+            }
         }
 
         VSpace(16.dp)
@@ -146,34 +157,6 @@ fun HomeScreen(vm: ClientViewModel, catalog: Catalog, client: Client) {
                         style = B4UType.Button,
                         color = Accent,
                     )
-                }
-            }
-        }
-
-        VSpace(26.dp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionHeader(stringResource(R.string.home_masters), Modifier.weight(1f))
-            Text(
-                stringResource(R.string.home_masters_all),
-                style = B4UType.Caption.copy(fontWeight = FontWeight.Medium),
-                color = MutedLight,
-                modifier = Modifier.clickable { vm.selectTab(Tab.SERVICES) },
-            )
-        }
-        VSpace(10.dp)
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(horizontal = PagePadding),
-            modifier = Modifier.bleed(PagePadding),
-        ) {
-            items(catalog.masters, key = { it.id }) { m ->
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { vm.openMaster(m.id) },
-                ) {
-                    MasterAvatar(m, 56.dp)
-                    VSpace(6.dp)
-                    Text(m.name, style = B4UType.SmallLabel, color = InkStrong)
                 }
             }
         }

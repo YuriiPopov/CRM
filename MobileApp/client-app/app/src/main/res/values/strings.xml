@@ -24,10 +24,9 @@
 
     <!-- Home -->
     <string name="home_greeting">Dzień dobry</string>
-    <string name="home_search">Znajdź usługę lub mistrza</string>
     <string name="home_my_bookings">Moje wizyty</string>
     <string name="home_popular">Popularne usługi</string>
-    <string name="home_masters">Twoi mistrzowie</string>
+    <string name="home_masters">Nasze usługi i mistrzowie</string>
     <string name="home_masters_all">Wszyscy</string>
     <string name="home_next_visit">Najbliższa wizyta</string>
     <string name="home_next_visit_line">%1$s — %2$s, %3$s</string>
