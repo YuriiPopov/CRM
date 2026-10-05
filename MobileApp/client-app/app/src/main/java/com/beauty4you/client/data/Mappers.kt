@@ -77,20 +77,21 @@ private val NEWS_TAGS = mapOf(
 
 /**
  * Лента Aktualności: новые сверху. Новость с категорией, неизвестной этой версии приложения,
- * пропускается. [decodePhoto] — параметром, как и у каталога (BitmapFactory нет в unit-тестах).
+ * пропускается. [decodeImage] получает id новости и её data URL — так репозиторий кэширует
+ * декодированные картинки по id (BitmapFactory к тому же нет в unit-тестах).
  */
-fun List<NewsDto>.toNewsFeed(decodePhoto: (String) -> ImageBitmap?, zone: ZoneId): List<NewsItem> =
-    mapNotNull { dto -> NEWS_TAGS[dto.category]?.let { tag -> Instant.parse(dto.publishedAt) to dto.toNewsItem(tag, decodePhoto, zone) } }
+fun List<NewsDto>.toNewsFeed(decodeImage: (id: String, dataUrl: String) -> ImageBitmap?, zone: ZoneId): List<NewsItem> =
+    mapNotNull { dto -> NEWS_TAGS[dto.category]?.let { tag -> Instant.parse(dto.publishedAt) to dto.toNewsItem(tag, decodeImage, zone) } }
         .sortedByDescending { it.first }
         .map { it.second }
 
-private fun NewsDto.toNewsItem(tag: NewsTag, decodePhoto: (String) -> ImageBitmap?, zone: ZoneId) = NewsItem(
+private fun NewsDto.toNewsItem(tag: NewsTag, decodeImage: (String, String) -> ImageBitmap?, zone: ZoneId) = NewsItem(
     id = id,
     tag = tag,
     title = title,
     text = body,
     date = Instant.parse(publishedAt).atZone(zone).toLocalDate(),
-    image = imageUrl?.let(decodePhoto),
+    image = imageUrl?.let { decodeImage(id, it) },
 )
 
 private val EMOJI_BY_KEYWORD = listOf(

@@ -46,16 +46,18 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.beauty4you.admin.R
+import com.beauty4you.admin.data.DecodedImages
 import com.beauty4you.admin.domain.BookingStatus
 import com.beauty4you.admin.domain.ClientLogic
 import com.beauty4you.admin.ui.theme.B4UType
@@ -73,8 +75,6 @@ import com.beauty4you.admin.ui.theme.Rose
 import com.beauty4you.admin.ui.theme.SoftBackground
 import com.beauty4you.admin.ui.theme.Tint
 import com.beauty4you.admin.ui.theme.avatarColor
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 // Заголовок экрана: Playfair 24 + подзаголовок, опционально «←» и действие справа
 @Composable
@@ -260,9 +260,10 @@ fun InitialsAvatar(clientId: String, name: String, size: Dp, modifier: Modifier 
 // Фото мастера: Master.photo — base64 data URL (не HTTP-URL), декодируем сами (как в master-app)
 @Composable
 fun MasterPhoto(photo: String?, size: Dp, modifier: Modifier = Modifier) {
+    val maxSidePx = with(LocalDensity.current) { size.roundToPx() }
     var bitmap by remember(photo) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(photo) {
-        bitmap = photo?.let { decodePhoto(it) }
+    LaunchedEffect(photo, maxSidePx) {
+        bitmap = photo?.let { DecodedImages.decode(it, maxSidePx) }
     }
     Box(modifier = modifier.size(size).clip(CircleShape).background(Tint)) {
         bitmap?.let {
@@ -271,16 +272,18 @@ fun MasterPhoto(photo: String?, size: Dp, modifier: Modifier = Modifier) {
     }
 }
 
-// Картинка новости (item75) — тоже base64 data URL; пока декодируется или если её нет — placeholder
+// Картинка новости (item75) — тоже base64 data URL; пока декодируется или если её нет — placeholder.
+// Декодируется с уменьшением до ширины экрана: карточка и форма шире не бывают (item75-fix).
 @Composable
 fun DataUrlImage(
     dataUrl: String?,
     modifier: Modifier = Modifier,
     placeholder: @Composable () -> Unit = {},
 ) {
+    val maxSidePx = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.roundToPx() }
     var bitmap by remember(dataUrl) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(dataUrl) {
-        bitmap = dataUrl?.let { decodePhoto(it) }
+    LaunchedEffect(dataUrl, maxSidePx) {
+        bitmap = dataUrl?.let { DecodedImages.decode(it, maxSidePx) }
     }
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val image = bitmap
@@ -290,25 +293,6 @@ fun DataUrlImage(
             placeholder()
         }
     }
-}
-
-private val photoCache = HashMap<Int, ImageBitmap>()
-
-// Картинки новостей до 1600 px — для экрана телефона хватает половины, в память кладём уменьшенную
-private const val DECODE_MAX_SIDE = 1200
-
-private suspend fun decodePhoto(dataUrl: String): ImageBitmap? = withContext(Dispatchers.Default) {
-    val key = dataUrl.hashCode()
-    synchronized(photoCache) { photoCache[key] }?.let { return@withContext it }
-    runCatching {
-        val bytes = android.util.Base64.decode(dataUrl.substringAfter(",", dataUrl), android.util.Base64.DEFAULT)
-        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= DECODE_MAX_SIDE) sample *= 2
-        val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
-        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
-    }.getOrNull()?.also { synchronized(photoCache) { photoCache[key] = it } }
 }
 
 // Строка «Название · подзаголовок» для карточек

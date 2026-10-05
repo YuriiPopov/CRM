@@ -73,6 +73,7 @@
     <string name="news_subtitle">Nowości, digest tygodnia i inspiracje od naszego salonu.</string>
     <string name="news_empty_title">Brak aktualności</string>
     <string name="news_empty_text">Wróć tu wkrótce po nowości</string>
+    <string name="news_error_title">Nie udało się załadować aktualności</string>
 
     <!-- Profile -->
     <string name="profile_news_sub">Nowości i digest od salonu</string>

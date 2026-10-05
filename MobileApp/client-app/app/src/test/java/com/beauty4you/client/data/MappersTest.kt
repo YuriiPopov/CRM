@@ -104,7 +104,7 @@ class MappersTest {
 
     @Test
     fun `news feed maps title, text, category tag and publication date`() {
-        val item = listOf(news("n1", "2026-10-03T08:15:00.000Z", category = "INSPIRACJA")).toNewsFeed({ null }, warsaw).single()
+        val item = listOf(news("n1", "2026-10-03T08:15:00.000Z", category = "INSPIRACJA")).toNewsFeed({ _, _ -> null }, warsaw).single()
 
         assertEquals("n1", item.id)
         assertEquals("Tytuł n1", item.title)
@@ -118,7 +118,7 @@ class MappersTest {
     fun `every backend category has its own tag`() {
         val labels = listOf("NOWOSC", "DIGEST", "INSPIRACJA")
             .mapIndexed { i, c -> news("n$i", "2026-10-0${i + 1}T08:00:00.000Z", category = c) }
-            .toNewsFeed({ null }, warsaw)
+            .toNewsFeed({ _, _ -> null }, warsaw)
             .map { it.tag.label }
             .sorted()
         assertEquals(listOf("Digest", "Inspiracja", "Nowość"), labels)
@@ -130,14 +130,14 @@ class MappersTest {
             news("old", "2026-10-01T08:00:00.000Z"),
             news("new", "2026-10-03T08:00:00.000Z"),
             news("mid", "2026-10-02T08:00:00.000Z"),
-        ).toNewsFeed({ null }, warsaw)
+        ).toNewsFeed({ _, _ -> null }, warsaw)
         assertEquals(listOf("new", "mid", "old"), feed.map { it.id })
     }
 
     @Test
     fun `publication date is taken in the device time zone`() {
         // 23:30 UTC 4 октября — в Варшаве уже 5 октября
-        val item = listOf(news("n1", "2026-10-04T23:30:00.000Z")).toNewsFeed({ null }, warsaw).single()
+        val item = listOf(news("n1", "2026-10-04T23:30:00.000Z")).toNewsFeed({ _, _ -> null }, warsaw).single()
         assertEquals(LocalDate.of(2026, 10, 5), item.date)
     }
 
@@ -147,7 +147,7 @@ class MappersTest {
         listOf(
             news("with", "2026-10-02T08:00:00.000Z", imageUrl = "data:image/jpeg;base64,AAAA"),
             news("without", "2026-10-01T08:00:00.000Z"),
-        ).toNewsFeed({ decoded += it; null }, warsaw)
+        ).toNewsFeed({ _, dataUrl -> decoded += dataUrl; null }, warsaw)
         assertEquals(listOf("data:image/jpeg;base64,AAAA"), decoded)
     }
 
@@ -156,12 +156,12 @@ class MappersTest {
         val feed = listOf(
             news("known", "2026-10-01T08:00:00.000Z"),
             news("unknown", "2026-10-02T08:00:00.000Z", category = "PROMOCJA"),
-        ).toNewsFeed({ null }, warsaw)
+        ).toNewsFeed({ _, _ -> null }, warsaw)
         assertEquals(listOf("known"), feed.map { it.id })
     }
 
     @Test
     fun `empty feed stays empty`() {
-        assertTrue(emptyList<NewsDto>().toNewsFeed({ null }, warsaw).isEmpty())
+        assertTrue(emptyList<NewsDto>().toNewsFeed({ _, _ -> null }, warsaw).isEmpty())
     }
 }

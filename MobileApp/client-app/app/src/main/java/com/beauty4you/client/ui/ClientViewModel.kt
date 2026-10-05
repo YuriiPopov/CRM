@@ -10,6 +10,7 @@ import com.beauty4you.client.R
 import com.beauty4you.client.data.AuthRepository
 import com.beauty4you.client.data.LoyaltyStore
 import com.beauty4you.client.data.MockData
+import com.beauty4you.client.data.NewsState
 import com.beauty4you.client.data.DaySlots
 import com.beauty4you.client.data.SalonRepository
 import com.beauty4you.client.data.Slot
@@ -135,6 +136,8 @@ class ClientViewModel(
             } catch (e: ApiException) {
                 LoadState.Failed(errorMessage(e))
             }
+            // Новости — отдельно и после основных данных: их ошибка показывается только во вкладке
+            if (_load.value == LoadState.Ready) refreshNews()
         }
     }
 
@@ -157,7 +160,8 @@ class ClientViewModel(
             try {
                 repo.refreshNews()
             } catch (e: ApiException) {
-                showToast(errorMessage(e))
+                // Без ленты ошибка уже на экране (NewsState.Failed); тост — только если лента осталась старой
+                if (repo.news.value is NewsState.Ready) showToast(errorMessage(e))
             } finally {
                 _newsRefreshing.value = false
             }

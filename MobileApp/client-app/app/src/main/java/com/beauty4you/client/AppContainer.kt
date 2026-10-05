@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.beauty4you.client.data.AuthRepository
 import com.beauty4you.client.data.LoyaltyStore
 import com.beauty4you.client.data.SalonRepository
+import com.beauty4you.client.data.inSampleSize
 import com.beauty4you.client.data.local.SessionStore
 import com.beauty4you.client.data.remote.NetworkModule
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +23,8 @@ class AppContainer(app: Application) {
     private val api = NetworkModule.createClientApi(session)
 
     val authRepository = AuthRepository(api, session)
-    val salonRepository = SalonRepository(api, ::decodeDataUrl)
+    // Картинки ленты показываются во всю ширину экрана — больше пикселей в память не грузим
+    val salonRepository = SalonRepository(api, ::decodeDataUrl, imageMaxSide = app.resources.displayMetrics.widthPixels)
     val loyaltyStore = LoyaltyStore()
 
     init {
@@ -36,20 +38,16 @@ class AppContainer(app: Application) {
 
 /**
  * "data:image/webp;base64,...." → ImageBitmap (фото мастера и картинка новости хранятся в БД как
- * data URL, item41/item75). Картинки новостей до 1600 px — для карточки во всю ширину экрана
- * хватает вдвое меньшей, поэтому большие декодируются с уменьшением.
+ * data URL, item41/item75), с уменьшением до [maxSide] по длинной стороне — см. [inSampleSize].
+ * Вызывается из SalonRepository на Dispatchers.Default, не в главном потоке.
  */
-private fun decodeDataUrl(dataUrl: String): ImageBitmap? = runCatching {
+private fun decodeDataUrl(dataUrl: String, maxSide: Int): ImageBitmap? = runCatching {
     val bytes = Base64.decode(dataUrl.substringAfter("base64,"), Base64.DEFAULT)
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-    var sample = 1
-    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= DECODE_MAX_SIDE) sample *= 2
-    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    val options = BitmapFactory.Options().apply { inSampleSize = inSampleSize(bounds.outWidth, bounds.outHeight, maxSide) }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
 }.getOrNull()
-
-private const val DECODE_MAX_SIDE = 1200
 
 class B4UClientApp : Application() {
     lateinit var container: AppContainer

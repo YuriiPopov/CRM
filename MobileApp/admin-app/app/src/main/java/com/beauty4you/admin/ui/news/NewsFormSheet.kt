@@ -1,7 +1,10 @@
 package com.beauty4you.admin.ui.news
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,6 +42,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,6 +96,7 @@ fun NewsFormSheet(editor: NewsEditorState, viewModel: NewsViewModel) {
         val uri = cameraUri
         if (saved && uri != null) viewModel.onImagePicked(uri)
     }
+    val hasCamera = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY) }
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) viewModel.onImagePicked(uri)
     }
@@ -142,10 +147,20 @@ fun NewsFormSheet(editor: NewsEditorState, viewModel: NewsViewModel) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
-                PhotoAction(Icons.Filled.PhotoCamera, R.string.news_form_camera, enabled = !editor.busy) {
-                    val uri = newCameraUri(context)
-                    cameraUri = uri
-                    takePicture.launch(uri)
+                // Без камеры кнопку не показываем; если камера есть, но запуск всё же не удался
+                // (нет приложения камеры, запрет политикой устройства) — тост вместо падения (item75-fix)
+                if (hasCamera) {
+                    PhotoAction(Icons.Filled.PhotoCamera, R.string.news_form_camera, enabled = !editor.busy) {
+                        try {
+                            val uri = newCameraUri(context)
+                            cameraUri = uri
+                            takePicture.launch(uri)
+                        } catch (e: ActivityNotFoundException) {
+                            showCameraUnavailable(context)
+                        } catch (e: SecurityException) {
+                            showCameraUnavailable(context)
+                        }
+                    }
                 }
                 PhotoAction(Icons.Filled.PhotoLibrary, R.string.news_form_gallery, enabled = !editor.busy) {
                     pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -259,6 +274,11 @@ fun NewsFormSheet(editor: NewsEditorState, viewModel: NewsViewModel) {
             containerColor = SheetBackground,
         )
     }
+}
+
+// Обычный Android-тост: тосты приложения рисуются в MainScaffold под открытым bottom sheet и не видны
+private fun showCameraUnavailable(context: Context) {
+    Toast.makeText(context, R.string.news_camera_unavailable, Toast.LENGTH_SHORT).show()
 }
 
 // Файл для снимка камеры — в кэше приложения, отдаётся камере через FileProvider

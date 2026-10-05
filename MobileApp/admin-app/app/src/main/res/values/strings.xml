@@ -189,6 +189,7 @@
     <string name="news_form_camera">Aparat</string>
     <string name="news_form_gallery">Galeria</string>
     <string name="news_form_remove_photo">Usuń zdjęcie</string>
+    <string name="news_camera_unavailable">Aparat niedostępny</string>
     <string name="news_form_counter">%1$d/%2$d</string>
     <string name="news_error_title_empty">Podaj tytuł</string>
     <string name="news_error_title_long">Tytuł może mieć maksymalnie 120 znaków</string>

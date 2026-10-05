@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.beauty4you.admin.AppContainer
 import com.beauty4you.admin.R
+import com.beauty4you.admin.data.DecodedImages
 import com.beauty4you.admin.data.remote.toApiFailure
 import com.beauty4you.admin.domain.NewsError
 import com.beauty4you.admin.domain.NewsFieldError
@@ -71,7 +72,11 @@ class NewsViewModel(private val container: AppContainer) : ViewModel() {
     fun openEdit(post: NewsPost) =
         _state.update { it.copy(editor = NewsEditorState(original = post, form = NewsFormLogic.fromPost(post))) }
 
-    fun close() = _state.update { it.copy(editor = null) }
+    fun close() {
+        // Выбранная, но не сохранённая картинка больше нигде не покажется
+        (editor()?.form?.image as? NewsImage.Picked)?.let { DecodedImages.evict(it.dataUrl) }
+        _state.update { it.copy(editor = null) }
+    }
 
     fun cycleCategory() = updateForm { it.copy(category = NewsFormLogic.nextCategory(it.category)) }
 
@@ -82,6 +87,7 @@ class NewsViewModel(private val container: AppContainer) : ViewModel() {
     fun toggleStatus() = updateForm { it.copy(status = NewsFormLogic.toggleStatus(it.status)) }
 
     fun removeImage() = updateForm {
+        (it.image as? NewsImage.Picked)?.let { picked -> DecodedImages.evict(picked.dataUrl) }
         // Только что выбранную, но не сохранённую картинку просто отбрасываем
         val savedImage = (it.image as? NewsImage.Saved)?.dataUrl ?: editor()?.original?.imageUrl
         it.copy(image = if (savedImage != null) NewsImage.Removed else NewsImage.Saved(null))
@@ -95,6 +101,8 @@ class NewsViewModel(private val container: AppContainer) : ViewModel() {
                 if (dataUrl == null || NewsFormLogic.imageTooLarge(dataUrl)) {
                     it.copy(encodingImage = false, error = NewsError.IMAGE_INVALID)
                 } else {
+                    // Замена ещё не сохранённой картинки — прежнюю из кэша убираем
+                    (it.form.image as? NewsImage.Picked)?.let { old -> DecodedImages.evict(old.dataUrl) }
                     it.copy(encodingImage = false, form = it.form.copy(image = NewsImage.Picked(dataUrl)))
                 }
             }
@@ -123,10 +131,13 @@ class NewsViewModel(private val container: AppContainer) : ViewModel() {
                     rememberSaved(post!!)
                 }
                 plan.uploadImage?.let { dataUrl ->
+                    val replaced = post!!.imageUrl
                     post = repository.uploadImage(post!!.id, dataUrl)
+                    if (replaced != dataUrl) DecodedImages.evict(replaced)
                     rememberSaved(post!!)
                 }
                 if (plan.removeImage) {
+                    DecodedImages.evict(post!!.imageUrl)
                     repository.removeImage(post!!.id)
                     post = post!!.copy(imageUrl = null)
                     rememberSaved(post!!)
@@ -157,6 +168,7 @@ class NewsViewModel(private val container: AppContainer) : ViewModel() {
             }
             // Уже удалена (например, во второй вкладке) — результат тот же
             if (error == null || error == NewsError.NOT_FOUND) {
+                DecodedImages.evict(post.imageUrl)
                 _state.update { s -> s.copy(posts = s.posts.filterNot { it.id == post.id }, editor = null) }
                 container.events.toast(R.string.toast_news_deleted)
             } else {
