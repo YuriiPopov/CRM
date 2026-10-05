@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AvailableSlotsQueryDto } from '../public-booking/dto/available-slots-query.dto';
+import { NewsService } from '../news/news.service';
 import { ClientAuthService } from './auth/client-auth.service';
 import type { AuthenticatedClient } from './auth/client-jwt';
 import { ClientJwtAuthGuard } from './auth/client-jwt.strategy';
@@ -46,7 +47,10 @@ export class ClientAuthController {
 @Controller('client')
 @UseGuards(ClientJwtAuthGuard)
 export class ClientPortalController {
-  constructor(private readonly clientPortalService: ClientPortalService) {}
+  constructor(
+    private readonly clientPortalService: ClientPortalService,
+    private readonly newsService: NewsService,
+  ) {}
 
   @Get('me')
   me(@CurrentClient() client: AuthenticatedClient) {
@@ -56,6 +60,12 @@ export class ClientPortalController {
   @Get('catalog')
   catalog(@CurrentClient() client: AuthenticatedClient) {
     return this.clientPortalService.catalog(client);
+  }
+
+  // Только опубликованные новости салона клиента, новые сверху (item75)
+  @Get('news')
+  news(@CurrentClient() client: AuthenticatedClient) {
+    return this.newsService.findPublished(client.salonId);
   }
 
   @Get('slots')

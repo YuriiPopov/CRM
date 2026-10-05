@@ -7,6 +7,10 @@ import com.beauty4you.admin.domain.Category
 import com.beauty4you.admin.domain.Client
 import com.beauty4you.admin.domain.Master
 import com.beauty4you.admin.domain.MasterBlock
+import com.beauty4you.admin.domain.NewsCategory
+import com.beauty4you.admin.domain.NewsFields
+import com.beauty4you.admin.domain.NewsPost
+import com.beauty4you.admin.domain.NewsStatus
 import com.beauty4you.admin.domain.ScheduleDay
 import com.beauty4you.admin.domain.Service
 import kotlinx.serialization.json.JsonPrimitive
@@ -81,4 +85,28 @@ fun ScheduleDayDto.toDomain() = ScheduleDay(
     isWorking = isWorking,
     startTime = startTime?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
     endTime = endTime?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
+)
+
+// Категория или статус, неизвестные этой версии приложения, дают null — такая новость не
+// показывается (как и запись с неизвестным статусом)
+fun NewsPostDto.toDomain(): NewsPost? {
+    val category = NewsCategory.entries.find { it.name == category } ?: return null
+    val status = NewsStatus.entries.find { it.name == status } ?: return null
+    return NewsPost(
+        id = id,
+        category = category,
+        title = title,
+        body = body,
+        imageUrl = imageUrl,
+        status = status,
+        publishedAt = publishedAt?.let(Instant::parse),
+        createdAt = Instant.parse(createdAt),
+    )
+}
+
+fun NewsFields.toBody() = NewsBody(
+    category = category?.name,
+    title = title,
+    body = body,
+    status = status?.name,
 )

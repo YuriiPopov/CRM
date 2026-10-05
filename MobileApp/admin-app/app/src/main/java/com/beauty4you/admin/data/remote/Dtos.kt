@@ -119,3 +119,28 @@ data class SlotsResponse(val isWorkingDay: Boolean = true, val slots: List<SlotD
 
 @Serializable
 data class CountDto(val count: Int)
+
+// Новости салона (item75): category NOWOSC|DIGEST|INSPIRACJA, status DRAFT|PUBLISHED
+@Serializable
+data class NewsPostDto(
+    val id: String,
+    val category: String,
+    val title: String,
+    val body: String,
+    val imageUrl: String? = null,
+    val status: String,
+    val publishedAt: String? = null,
+    val createdAt: String,
+)
+
+// POST /news и PATCH /news/:id; в PATCH null-поля не отправляются (explicitNulls = false)
+@Serializable
+data class NewsBody(
+    val category: String? = null,
+    val title: String? = null,
+    val body: String? = null,
+    val status: String? = null,
+)
+
+@Serializable
+data class NewsImageBody(val image: String)

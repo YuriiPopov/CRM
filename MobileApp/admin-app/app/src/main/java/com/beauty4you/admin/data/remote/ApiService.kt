@@ -1,6 +1,7 @@
 package com.beauty4you.admin.data.remote
 
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -63,6 +64,24 @@ interface ApiService {
         @Query("from") from: String,
         @Query("to") to: String,
     ): List<MasterBlockDto>
+
+    @GET("news")
+    suspend fun listNews(): List<NewsPostDto>
+
+    @POST("news")
+    suspend fun createNews(@Body body: NewsBody): NewsPostDto
+
+    @PATCH("news/{id}")
+    suspend fun updateNews(@Path("id") id: String, @Body body: NewsBody): NewsPostDto
+
+    @DELETE("news/{id}")
+    suspend fun deleteNews(@Path("id") id: String)
+
+    @POST("news/{id}/image")
+    suspend fun uploadNewsImage(@Path("id") id: String, @Body body: NewsImageBody): NewsPostDto
+
+    @DELETE("news/{id}/image")
+    suspend fun deleteNewsImage(@Path("id") id: String)
 
     // Свободные слоты — тот же публичный расчёт, что использует форма записи веб-CRM (SlotPicker)
     @GET("public/booking/slots")

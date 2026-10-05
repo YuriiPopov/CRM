@@ -313,7 +313,7 @@ fun BookingFormSheet(request: FormRequest, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun FieldLabel(text: Int, top: Dp = 12.dp) {
+internal fun FieldLabel(text: Int, top: Dp = 12.dp) {
     Text(
         stringResource(text),
         style = B4UType.Label,

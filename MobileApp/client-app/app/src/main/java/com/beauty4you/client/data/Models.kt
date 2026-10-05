@@ -81,8 +81,17 @@ data class Reward(val id: String, val name: String, val cost: Int)
 
 data class EarnRule(val label: String, val points: Int)
 
+/** Категория новости: подпись, цвет и эмодзи-плейсхолдер (когда у новости нет картинки) — NEWS_TAGS дизайна. */
 data class NewsTag(val label: String, val color: Color, val emoji: String)
 
-data class NewsItem(val id: Long, val tag: NewsTag, val title: String, val text: String, val date: LocalDate)
+/** Опубликованная новость салона (GET /client/news, item75); [date] — день публикации в часовом поясе устройства. */
+data class NewsItem(
+    val id: String,
+    val tag: NewsTag,
+    val title: String,
+    val text: String,
+    val date: LocalDate,
+    val image: ImageBitmap?,
+)
 
 data class SalonContacts(val phone: String, val instagramUrl: String?, val facebookUrl: String?)

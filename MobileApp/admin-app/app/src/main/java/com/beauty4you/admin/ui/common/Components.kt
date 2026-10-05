@@ -271,14 +271,43 @@ fun MasterPhoto(photo: String?, size: Dp, modifier: Modifier = Modifier) {
     }
 }
 
+// Картинка новости (item75) — тоже base64 data URL; пока декодируется или если её нет — placeholder
+@Composable
+fun DataUrlImage(
+    dataUrl: String?,
+    modifier: Modifier = Modifier,
+    placeholder: @Composable () -> Unit = {},
+) {
+    var bitmap by remember(dataUrl) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(dataUrl) {
+        bitmap = dataUrl?.let { decodePhoto(it) }
+    }
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        val image = bitmap
+        if (image != null) {
+            Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else {
+            placeholder()
+        }
+    }
+}
+
 private val photoCache = HashMap<Int, ImageBitmap>()
+
+// Картинки новостей до 1600 px — для экрана телефона хватает половины, в память кладём уменьшенную
+private const val DECODE_MAX_SIDE = 1200
 
 private suspend fun decodePhoto(dataUrl: String): ImageBitmap? = withContext(Dispatchers.Default) {
     val key = dataUrl.hashCode()
     synchronized(photoCache) { photoCache[key] }?.let { return@withContext it }
     runCatching {
         val bytes = android.util.Base64.decode(dataUrl.substringAfter(",", dataUrl), android.util.Base64.DEFAULT)
-        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= DECODE_MAX_SIDE) sample *= 2
+        val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
     }.getOrNull()?.also { synchronized(photoCache) { photoCache[key] = it } }
 }
 

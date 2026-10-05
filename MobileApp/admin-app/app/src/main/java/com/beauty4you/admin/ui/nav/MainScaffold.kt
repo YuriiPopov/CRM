@@ -54,8 +54,8 @@ import com.beauty4you.admin.ui.form.BookingFormSheet
 import com.beauty4you.admin.ui.form.FormRequest
 import com.beauty4you.admin.ui.more.MastersScreen
 import com.beauty4you.admin.ui.more.MoreScreen
-import com.beauty4you.admin.ui.more.NewsStubScreen
 import com.beauty4you.admin.ui.more.ServicesScreen
+import com.beauty4you.admin.ui.news.NewsScreen
 import com.beauty4you.admin.ui.theme.AppBackground
 import com.beauty4you.admin.ui.theme.B4UType
 import com.beauty4you.admin.ui.theme.InkStrong
@@ -189,7 +189,7 @@ fun MainScaffold() {
                     }
                     composable(Routes.MASTERS) { MastersScreen(onBack = { navController.popBackStack() }) }
                     composable(Routes.SERVICES) { ServicesScreen(onBack = { navController.popBackStack() }) }
-                    composable(Routes.NEWS) { NewsStubScreen(onBack = { navController.popBackStack() }) }
+                    composable(Routes.NEWS) { NewsScreen(onBack = { navController.popBackStack() }) }
                 }
             }
 

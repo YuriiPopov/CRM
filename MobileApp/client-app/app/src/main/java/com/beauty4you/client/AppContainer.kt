@@ -34,11 +34,22 @@ class AppContainer(app: Application) {
     }
 }
 
-/** "data:image/webp;base64,...." → ImageBitmap (фото мастера хранится в БД как data URL, item41). */
+/**
+ * "data:image/webp;base64,...." → ImageBitmap (фото мастера и картинка новости хранятся в БД как
+ * data URL, item41/item75). Картинки новостей до 1600 px — для карточки во всю ширину экрана
+ * хватает вдвое меньшей, поэтому большие декодируются с уменьшением.
+ */
 private fun decodeDataUrl(dataUrl: String): ImageBitmap? = runCatching {
     val bytes = Base64.decode(dataUrl.substringAfter("base64,"), Base64.DEFAULT)
-    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= DECODE_MAX_SIDE) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
 }.getOrNull()
+
+private const val DECODE_MAX_SIDE = 1200
 
 class B4UClientApp : Application() {
     lateinit var container: AppContainer

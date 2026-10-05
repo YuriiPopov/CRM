@@ -102,11 +102,14 @@ class ClientViewModel(
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
 
+    private val _newsRefreshing = MutableStateFlow(false)
+    val newsRefreshing: StateFlow<Boolean> = _newsRefreshing.asStateFlow()
+
     val client = repo.client
     val catalog = repo.catalog
     val bookings = repo.bookings
     val points = loyalty.points
-    val news = MockData.news()
+    val news = repo.news
     val contacts = MockData.contacts
 
     private var slotsJob: Job? = null
@@ -148,6 +151,19 @@ class ClientViewModel(
         }
     }
 
+    fun refreshNews() {
+        viewModelScope.launch {
+            _newsRefreshing.value = true
+            try {
+                repo.refreshNews()
+            } catch (e: ApiException) {
+                showToast(errorMessage(e))
+            } finally {
+                _newsRefreshing.value = false
+            }
+        }
+    }
+
     fun logout() {
         viewModelScope.launch {
             auth.logout()
@@ -159,8 +175,10 @@ class ClientViewModel(
 
     fun selectTab(tab: Tab) {
         _nav.update { it.copy(tab = tab, pushed = null) }
-        // Записи могли измениться в салоне (подтверждение, отмена администратором)
+        // Записи могли измениться в салоне (подтверждение, отмена администратором),
+        // новости — опубликованы или удалены в admin-app
         if (tab == Tab.BOOKINGS) refreshBookings()
+        if (tab == Tab.NEWS) refreshNews()
     }
 
     fun openMaster(id: String) = _nav.update { it.copy(pushed = Pushed.MasterDetail(id)) }

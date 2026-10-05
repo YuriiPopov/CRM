@@ -66,6 +66,7 @@ model Salon {
   dashboardWidgetRoleDefaults  DashboardWidgetRoleDefault[]
   dashboardWidgetUserOverrides DashboardWidgetUserOverride[]
   clientOtps                   ClientOtp[]
+  newsPosts                    NewsPost[]
 
   @@map("salons")
 }
@@ -387,4 +388,36 @@ model DataDeletionRequest {
   processedAt DateTime?
 
   @@map("data_deletion_requests")
+}
+
+// Новости салона для клиентского приложения (item75): ведёт ADMIN в admin-app, клиент видит только
+// PUBLISHED своего салона. В веб-CRM раздела новостей нет.
+enum NewsCategory {
+  NOWOSC
+  DIGEST
+  INSPIRACJA
+}
+
+enum NewsStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model NewsPost {
+  id          String       @id @default(uuid())
+  salonId     String
+  salon       Salon        @relation(fields: [salonId], references: [id])
+  category    NewsCategory
+  title       String
+  body        String
+  // Картинка как base64 data URL — так же, как фото мастера (Master.photo, item41)
+  imageUrl    String?
+  status      NewsStatus   @default(DRAFT)
+  // Момент первой публикации; при возврате в черновик не сбрасывается (см. NewsService.update)
+  publishedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([salonId, status, publishedAt])
+  @@map("news_posts")
 }

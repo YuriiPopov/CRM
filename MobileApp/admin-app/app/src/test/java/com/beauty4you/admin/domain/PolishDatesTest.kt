@@ -45,4 +45,12 @@ class PolishDatesTest {
         assertEquals("28 września – 4 października 2026", PolishDates.weekRange(LocalDate.of(2026, 9, 28)))
         assertEquals("28 grudnia 2026 – 3 stycznia 2027", PolishDates.weekRange(LocalDate.of(2026, 12, 28)))
     }
+
+    // Дата на карточке новости (item75): "5 września", год — только если не текущий
+    @Test
+    fun `day and genitive month for news cards`() {
+        val today = LocalDate.of(2026, 10, 5)
+        assertEquals("5 września", PolishDates.dayMonth(LocalDate.of(2026, 9, 5), today))
+        assertEquals("31 grudnia 2025", PolishDates.dayMonth(LocalDate.of(2025, 12, 31), today))
+    }
 }

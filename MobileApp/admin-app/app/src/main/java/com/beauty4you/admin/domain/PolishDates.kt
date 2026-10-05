@@ -24,6 +24,12 @@ object PolishDates {
     fun longDate(date: LocalDate): String =
         "${WEEKDAYS[date.dayOfWeek.value - 1]}, ${date.dayOfMonth} ${MONTHS_GENITIVE[date.monthValue - 1]} ${date.year}"
 
+    // "5 września", с годом — только если он не текущий (дата новости, item75)
+    fun dayMonth(date: LocalDate, today: LocalDate): String {
+        val base = "${date.dayOfMonth} ${MONTHS_GENITIVE[date.monthValue - 1]}"
+        return if (date.year == today.year) base else "$base ${date.year}"
+    }
+
     fun weekdayShort(date: LocalDate): String = WEEKDAYS_SHORT[date.dayOfWeek.value - 1]
 
     // "9 wrz", с годом — только если он не текущий

@@ -13,6 +13,7 @@ import { DashboardSettingsModule } from './dashboard-settings/dashboard-settings
 import { InventoryModule } from './inventory/inventory.module';
 import { MasterBlocksModule } from './master-blocks/master-blocks.module';
 import { MasterSchedulesModule } from './master-schedules/master-schedules.module';
+import { NewsModule } from './news/news.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -43,6 +44,7 @@ import { UsersModule } from './users/users.module';
     DashboardSettingsModule,
     UsersModule,
     ClientPortalModule,
+    NewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

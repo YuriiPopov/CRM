@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { BookingsModule } from '../bookings/bookings.module';
+import { NewsModule } from '../news/news.module';
 import { PublicBookingModule } from '../public-booking/public-booking.module';
 import { ClientAuthService } from './auth/client-auth.service';
 import { ClientJwtStrategy } from './auth/client-jwt.strategy';
@@ -16,7 +17,7 @@ import { SMS_PROVIDER } from './sms/sms-provider.interface';
 import { DEFAULT_JWT_SECRET } from '../common/config/assert-production-config';
 
 // API клиентского мобильного приложения (/client/*): вход по телефону + SMS-коду, каталог
-// салона, свободные слоты и собственные записи клиента. Отдельно от /auth сотрудников — свой
+// салона, свободные слоты, собственные записи клиента и новости салона (item75). Отдельно от /auth сотрудников — свой
 // тип токена (см. client-jwt.ts) и своя стратегия passport.
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { DEFAULT_JWT_SECRET } from '../common/config/assert-production-config';
     }),
     BookingsModule,
     PublicBookingModule,
+    NewsModule,
   ],
   controllers: [ClientAuthController, ClientPortalController],
   providers: [

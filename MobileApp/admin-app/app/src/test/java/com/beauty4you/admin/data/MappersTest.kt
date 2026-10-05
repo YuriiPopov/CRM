@@ -2,6 +2,9 @@ package com.beauty4you.admin.data
 
 import com.beauty4you.admin.data.remote.BookingDto
 import com.beauty4you.admin.data.remote.ClientDto
+import com.beauty4you.admin.data.remote.NewsBody
+import com.beauty4you.admin.data.remote.NewsPostDto
+import com.beauty4you.admin.data.remote.toBody
 import com.beauty4you.admin.data.remote.ScheduleDayDto
 import com.beauty4you.admin.data.remote.ServiceDto
 import com.beauty4you.admin.data.remote.StaffDto
@@ -11,6 +14,9 @@ import com.beauty4you.admin.data.remote.parseSalonTime
 import com.beauty4you.admin.data.remote.toDomain
 import com.beauty4you.admin.domain.BookingSource
 import com.beauty4you.admin.domain.BookingStatus
+import com.beauty4you.admin.domain.NewsCategory
+import com.beauty4you.admin.domain.NewsFields
+import com.beauty4you.admin.domain.NewsStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -18,6 +24,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -107,5 +114,55 @@ class MappersTest {
         )
         assertNull(parseNestErrorMessage("<html>"))
         assertNull(parseNestErrorMessage(null))
+    }
+
+    // --- Новости (item75) ---
+
+    @Test
+    fun `news post is decoded from the GET news response`() {
+        val dto = json.decodeFromString<NewsPostDto>(
+            """{"id":"n1","salonId":"s1","category":"INSPIRACJA","title":"Trendy","body":"Treść",
+               "imageUrl":"data:image/jpeg;base64,AAAA","status":"PUBLISHED",
+               "publishedAt":"2026-10-03T08:15:00.000Z","createdAt":"2026-10-02T08:00:00.000Z","updatedAt":"2026-10-03T08:15:00.000Z"}""",
+        )
+        val post = dto.toDomain()!!
+        assertEquals(NewsCategory.INSPIRACJA, post.category)
+        assertEquals(NewsStatus.PUBLISHED, post.status)
+        assertEquals("data:image/jpeg;base64,AAAA", post.imageUrl)
+        assertEquals(Instant.parse("2026-10-03T08:15:00Z"), post.publishedAt)
+        assertEquals(Instant.parse("2026-10-02T08:00:00Z"), post.createdAt)
+    }
+
+    @Test
+    fun `draft without image and publication date is decoded`() {
+        val post = json.decodeFromString<NewsPostDto>(
+            """{"id":"n1","category":"NOWOSC","title":"T","body":"B","imageUrl":null,"status":"DRAFT","publishedAt":null,"createdAt":"2026-10-02T08:00:00.000Z"}""",
+        ).toDomain()!!
+        assertEquals(NewsStatus.DRAFT, post.status)
+        assertNull(post.imageUrl)
+        assertNull(post.publishedAt)
+    }
+
+    @Test
+    fun `news with a category or status unknown to this version is skipped`() {
+        val base = NewsPostDto("n1", "NOWOSC", "T", "B", null, "DRAFT", null, "2026-10-02T08:00:00.000Z")
+        assertNull(base.copy(category = "PROMOCJA").toDomain())
+        assertNull(base.copy(status = "ARCHIVED").toDomain())
+    }
+
+    @Test
+    fun `news fields map to the request body, unchanged fields stay null`() {
+        assertEquals(
+            NewsBody(category = "DIGEST", title = "T", body = "B", status = "PUBLISHED"),
+            NewsFields(NewsCategory.DIGEST, "T", "B", NewsStatus.PUBLISHED).toBody(),
+        )
+        assertEquals(NewsBody(status = "DRAFT"), NewsFields(status = NewsStatus.DRAFT).toBody())
+    }
+
+    // PATCH отправляет только изменённые поля: null-поля в JSON не попадают (explicitNulls = false, как в NetworkModule)
+    @Test
+    fun `patch body omits unchanged fields`() {
+        val network = Json { explicitNulls = false }
+        assertEquals("""{"title":"Nowy"}""", network.encodeToString(NewsBody.serializer(), NewsBody(title = "Nowy")))
     }
 }

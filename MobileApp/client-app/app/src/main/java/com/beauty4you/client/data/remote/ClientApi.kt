@@ -20,6 +20,9 @@ interface ClientApi {
     @GET("client/catalog")
     suspend fun catalog(): CatalogDto
 
+    @GET("client/news")
+    suspend fun news(): List<NewsDto>
+
     @GET("client/slots")
     suspend fun slots(
         @Query("masterId") masterId: String,

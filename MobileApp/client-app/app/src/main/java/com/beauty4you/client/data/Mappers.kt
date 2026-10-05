@@ -5,9 +5,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.beauty4you.client.data.remote.BookingDto
 import com.beauty4you.client.data.remote.CatalogDto
 import com.beauty4you.client.data.remote.ClientDto
+import com.beauty4you.client.data.remote.NewsDto
 import com.beauty4you.client.data.remote.SlotDto
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 // ВАЖНО: бэкенд хранит время записи как "время салона, записанное с меткой UTC" (MVP без
@@ -65,6 +67,31 @@ fun CatalogDto.toDomain(decodePhoto: (String) -> ImageBitmap?): Catalog {
         },
     )
 }
+
+// Категории новостей — подписи и цвета как в admin-app (NEWS_TAGS дизайна «B4U Admin App»)
+private val NEWS_TAGS = mapOf(
+    "NOWOSC" to NewsTag("Nowość", Color(0xFF4F8A82), "✨"),
+    "DIGEST" to NewsTag("Digest", Color(0xFF6E7FC9), "📰"),
+    "INSPIRACJA" to NewsTag("Inspiracja", Color(0xFFA85B93), "💡"),
+)
+
+/**
+ * Лента Aktualności: новые сверху. Новость с категорией, неизвестной этой версии приложения,
+ * пропускается. [decodePhoto] — параметром, как и у каталога (BitmapFactory нет в unit-тестах).
+ */
+fun List<NewsDto>.toNewsFeed(decodePhoto: (String) -> ImageBitmap?, zone: ZoneId): List<NewsItem> =
+    mapNotNull { dto -> NEWS_TAGS[dto.category]?.let { tag -> Instant.parse(dto.publishedAt) to dto.toNewsItem(tag, decodePhoto, zone) } }
+        .sortedByDescending { it.first }
+        .map { it.second }
+
+private fun NewsDto.toNewsItem(tag: NewsTag, decodePhoto: (String) -> ImageBitmap?, zone: ZoneId) = NewsItem(
+    id = id,
+    tag = tag,
+    title = title,
+    text = body,
+    date = Instant.parse(publishedAt).atZone(zone).toLocalDate(),
+    image = imageUrl?.let(decodePhoto),
+)
 
 private val EMOJI_BY_KEYWORD = listOf(
     listOf("маник", "педик", "ногт", "paznok", "manicure", "pedicure", "nail") to "💅",

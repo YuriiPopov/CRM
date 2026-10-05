@@ -102,3 +102,16 @@ data class BookingDto(
 /** Тело ошибки NestJS; `code` — только у собственных ошибок client-portal (PROFILE_REQUIRED). */
 @Serializable
 data class ErrorBody(val statusCode: Int? = null, val code: String? = null)
+
+// GET /client/news — только опубликованные новости салона, новые сверху (item75).
+// category: NOWOSC | DIGEST | INSPIRACJA; publishedAt — настоящий момент времени (не «время салона»).
+@Serializable
+data class NewsDto(
+    val id: String,
+    val category: String,
+    val title: String,
+    val body: String,
+    // base64 data URL, как фото мастера, или null
+    val imageUrl: String? = null,
+    val publishedAt: String,
+)

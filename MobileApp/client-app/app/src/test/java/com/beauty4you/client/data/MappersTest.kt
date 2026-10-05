@@ -4,6 +4,7 @@ import com.beauty4you.client.data.remote.BookingDto
 import com.beauty4you.client.data.remote.CatalogDto
 import com.beauty4you.client.data.remote.CategoryDto
 import com.beauty4you.client.data.remote.MasterDto
+import com.beauty4you.client.data.remote.NewsDto
 import com.beauty4you.client.data.remote.SalonDto
 import com.beauty4you.client.data.remote.ServiceDto
 import com.beauty4you.client.data.remote.SlotDto
@@ -12,8 +13,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 
 class MappersTest {
 
@@ -86,5 +89,79 @@ class MappersTest {
         assertEquals("Jerzy", client.firstName)
         assertEquals("JP", client.initials)
         assertEquals("A", Client("c2", "asia", "+48", null).initials)
+    }
+
+    // --- Aktualności (item75) ---
+
+    private val warsaw = ZoneId.of("Europe/Warsaw")
+
+    private fun news(
+        id: String,
+        publishedAt: String,
+        category: String = "NOWOSC",
+        imageUrl: String? = null,
+    ) = NewsDto(id = id, category = category, title = "Tytuł $id", body = "Treść $id", imageUrl = imageUrl, publishedAt = publishedAt)
+
+    @Test
+    fun `news feed maps title, text, category tag and publication date`() {
+        val item = listOf(news("n1", "2026-10-03T08:15:00.000Z", category = "INSPIRACJA")).toNewsFeed({ null }, warsaw).single()
+
+        assertEquals("n1", item.id)
+        assertEquals("Tytuł n1", item.title)
+        assertEquals("Treść n1", item.text)
+        assertEquals("Inspiracja", item.tag.label)
+        assertEquals(LocalDate.of(2026, 10, 3), item.date)
+        assertNull(item.image)
+    }
+
+    @Test
+    fun `every backend category has its own tag`() {
+        val labels = listOf("NOWOSC", "DIGEST", "INSPIRACJA")
+            .mapIndexed { i, c -> news("n$i", "2026-10-0${i + 1}T08:00:00.000Z", category = c) }
+            .toNewsFeed({ null }, warsaw)
+            .map { it.tag.label }
+            .sorted()
+        assertEquals(listOf("Digest", "Inspiracja", "Nowość"), labels)
+    }
+
+    @Test
+    fun `news feed is newest first`() {
+        val feed = listOf(
+            news("old", "2026-10-01T08:00:00.000Z"),
+            news("new", "2026-10-03T08:00:00.000Z"),
+            news("mid", "2026-10-02T08:00:00.000Z"),
+        ).toNewsFeed({ null }, warsaw)
+        assertEquals(listOf("new", "mid", "old"), feed.map { it.id })
+    }
+
+    @Test
+    fun `publication date is taken in the device time zone`() {
+        // 23:30 UTC 4 октября — в Варшаве уже 5 октября
+        val item = listOf(news("n1", "2026-10-04T23:30:00.000Z")).toNewsFeed({ null }, warsaw).single()
+        assertEquals(LocalDate.of(2026, 10, 5), item.date)
+    }
+
+    @Test
+    fun `image is decoded only when the news has one`() {
+        val decoded = mutableListOf<String>()
+        listOf(
+            news("with", "2026-10-02T08:00:00.000Z", imageUrl = "data:image/jpeg;base64,AAAA"),
+            news("without", "2026-10-01T08:00:00.000Z"),
+        ).toNewsFeed({ decoded += it; null }, warsaw)
+        assertEquals(listOf("data:image/jpeg;base64,AAAA"), decoded)
+    }
+
+    @Test
+    fun `news with a category unknown to this version is skipped`() {
+        val feed = listOf(
+            news("known", "2026-10-01T08:00:00.000Z"),
+            news("unknown", "2026-10-02T08:00:00.000Z", category = "PROMOCJA"),
+        ).toNewsFeed({ null }, warsaw)
+        assertEquals(listOf("known"), feed.map { it.id })
+    }
+
+    @Test
+    fun `empty feed stays empty`() {
+        assertTrue(emptyList<NewsDto>().toNewsFeed({ null }, warsaw).isEmpty())
     }
 }

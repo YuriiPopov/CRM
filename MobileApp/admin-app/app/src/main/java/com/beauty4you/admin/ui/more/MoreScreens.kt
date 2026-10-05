@@ -38,7 +38,6 @@ import com.beauty4you.admin.R
 import com.beauty4you.admin.domain.Formatters
 import com.beauty4you.admin.ui.common.B4UCard
 import com.beauty4you.admin.ui.common.ColorDot
-import com.beauty4you.admin.ui.common.DashedEmptyState
 import com.beauty4you.admin.ui.common.ErrorState
 import com.beauty4you.admin.ui.common.MasterPhoto
 import com.beauty4you.admin.ui.common.RefreshOnResume
@@ -198,18 +197,5 @@ fun ServicesScreen(onBack: () -> Unit) {
                 }
             }
         }
-    }
-}
-
-// Aktualności: backend новостей нет — этап 2 (см. ТЗ item73)
-@Composable
-fun NewsStubScreen(onBack: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().statusBarsPadding().padding(start = 18.dp, end = 18.dp, top = 12.dp)) {
-        ScreenHeader(title = stringResource(R.string.more_news), onBack = onBack)
-        DashedEmptyState(
-            title = stringResource(R.string.news_stub_title),
-            text = stringResource(R.string.news_stub_text),
-            modifier = Modifier.padding(top = 16.dp),
-        )
     }
 }

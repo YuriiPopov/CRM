@@ -166,6 +166,44 @@
     <string name="masters_no_specialty">Brak specjalizacji</string>
     <string name="services_duration">%1$d min</string>
     <string name="services_other">Inne</string>
-    <string name="news_stub_title">Ta sekcja pojawi się później</string>
-    <string name="news_stub_text">Publikowanie aktualności dla klientów będzie dostępne w kolejnej wersji aplikacji.</string>
+
+    <!-- Aktualności (item75) -->
+    <string name="news_subtitle">Zarządzasz tu wpisami. Widoczne będą tylko dla klientów — i tylko te oznaczone jako „Opublikowany”.</string>
+    <string name="news_empty_title">Brak wpisów</string>
+    <string name="news_empty_text">Dotknij „+”, aby dodać pierwszy wpis</string>
+    <string name="news_add">Nowy wpis</string>
+    <string name="news_category_nowosc">Nowość</string>
+    <string name="news_category_digest">Digest</string>
+    <string name="news_category_inspiracja">Inspiracja</string>
+    <string name="news_status_draft">Szkic</string>
+    <string name="news_status_published">Opublikowany</string>
+    <string name="news_form_title_new">Nowy wpis</string>
+    <string name="news_form_title_edit">Edytuj wpis</string>
+    <string name="news_form_photo">ZDJĘCIE / RYSUNEK</string>
+    <string name="news_form_category">KATEGORIA</string>
+    <string name="news_form_title">TYTUŁ</string>
+    <string name="news_form_body">TREŚĆ</string>
+    <string name="news_form_status">STATUS</string>
+    <string name="news_form_status_hint">%1$s — dotknij, aby zmienić</string>
+    <string name="news_form_no_photo">Brak zdjęcia</string>
+    <string name="news_form_camera">Aparat</string>
+    <string name="news_form_gallery">Galeria</string>
+    <string name="news_form_remove_photo">Usuń zdjęcie</string>
+    <string name="news_form_counter">%1$d/%2$d</string>
+    <string name="news_error_title_empty">Podaj tytuł</string>
+    <string name="news_error_title_long">Tytuł może mieć maksymalnie 120 znaków</string>
+    <string name="news_error_body_empty">Podaj treść wpisu</string>
+    <string name="news_error_body_long">Treść może mieć maksymalnie 2000 znaków</string>
+    <string name="news_error_image">Nie udało się dodać zdjęcia — dozwolone JPG, PNG lub WebP do 5 MB</string>
+    <string name="news_error_validation">Sprawdź tytuł i treść wpisu</string>
+    <string name="news_error_not_found">Wpis nie istnieje — mógł zostać usunięty</string>
+    <string name="news_delete">Usuń</string>
+    <string name="news_save">Zapisz</string>
+    <string name="news_delete_confirm_title">Usunąć wpis?</string>
+    <string name="news_delete_confirm_text">Wpis zniknie z aplikacji klienta. Tej operacji nie można cofnąć.</string>
+    <string name="news_delete_confirm_yes">Usuń wpis</string>
+    <string name="news_delete_confirm_no">Anuluj</string>
+    <string name="toast_news_published">Opublikowano dla klientów</string>
+    <string name="toast_news_draft">Zapisano jako szkic</string>
+    <string name="toast_news_deleted">Wpis usunięty</string>
 </resources>
