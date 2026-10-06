@@ -69,6 +69,15 @@ object NewsFormLogic {
         image = NewsImage.Saved(post.imageUrl),
     )
 
+    // Есть несохранённые изменения (item76, «Odrzucić zmiany?»): форма отличается от исходной
+    // новости или от пустой. Пробелы по краям не считаются — бэкенд их всё равно обрежет.
+    fun isDirty(original: NewsPost?, form: NewsForm): Boolean {
+        val initial = original?.let(::fromPost) ?: NewsForm()
+        return form.normalized() != initial.normalized()
+    }
+
+    private fun NewsForm.normalized() = copy(title = title.trim(), body = body.trim())
+
     // Пробелы по краям бэкенд обрезает — проверяем так же, чтобы «   » не прошло как заголовок
     fun validate(form: NewsForm): Set<NewsFieldError> = buildSet {
         val title = form.title.trim()

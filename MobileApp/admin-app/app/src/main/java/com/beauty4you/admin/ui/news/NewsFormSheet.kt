@@ -14,31 +14,21 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -64,20 +53,19 @@ import com.beauty4you.admin.R
 import com.beauty4you.admin.domain.NewsError
 import com.beauty4you.admin.domain.NewsFieldError
 import com.beauty4you.admin.domain.NewsFormLogic
+import com.beauty4you.admin.ui.common.ConfirmDeleteDialog
+import com.beauty4you.admin.ui.common.DeleteSaveButtons
+import com.beauty4you.admin.ui.common.FormErrorBanner
+import com.beauty4you.admin.ui.common.FormSheet
+import com.beauty4you.admin.ui.common.PillAction
 import com.beauty4you.admin.ui.form.FieldLabel
 import com.beauty4you.admin.ui.theme.B4UType
 import com.beauty4you.admin.ui.theme.Border
 import com.beauty4you.admin.ui.theme.CardBg
-import com.beauty4you.admin.ui.theme.DangerBorder
-import com.beauty4you.admin.ui.theme.DashedBorder
 import com.beauty4you.admin.ui.theme.FieldShape
-import com.beauty4you.admin.ui.theme.Ink
 import com.beauty4you.admin.ui.theme.InkStrong
 import com.beauty4you.admin.ui.theme.Muted
-import com.beauty4you.admin.ui.theme.PillShape
 import com.beauty4you.admin.ui.theme.Rose
-import com.beauty4you.admin.ui.theme.SheetBackground
-import com.beauty4you.admin.ui.theme.SheetShape
 import com.beauty4you.admin.ui.theme.StatusCancelled
 import java.io.File
 
@@ -85,7 +73,6 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewsFormSheet(editor: NewsEditorState, viewModel: NewsViewModel) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val form = editor.form
     val errors = editor.visibleFieldErrors
@@ -101,177 +88,107 @@ fun NewsFormSheet(editor: NewsEditorState, viewModel: NewsViewModel) {
         if (uri != null) viewModel.onImagePicked(uri)
     }
 
-    ModalBottomSheet(
-        onDismissRequest = { if (!editor.saving) viewModel.close() },
-        sheetState = sheetState,
-        shape = SheetShape,
-        containerColor = SheetBackground,
-        dragHandle = {
-            Box(
-                Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(PillShape)
-                    .background(DashedBorder),
-            )
-        },
+    FormSheet(
+        title = stringResource(if (editor.isEdit) R.string.news_form_title_edit else R.string.news_form_title_new),
+        busy = editor.saving,
+        dirty = editor.isDirty,
+        onDismiss = viewModel::close,
     ) {
-        Column(
-            modifier = Modifier
+        FieldLabel(R.string.news_form_photo, top = 14.dp)
+        Box(
+            Modifier
                 .fillMaxWidth()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp)
-                .navigationBarsPadding(),
+                .height(130.dp)
+                .clip(FieldShape)
+                .border(BorderStroke(1.dp, Border), FieldShape),
         ) {
-            Text(
-                stringResource(if (editor.isEdit) R.string.news_form_title_edit else R.string.news_form_title_new),
-                style = B4UType.SheetTitle,
-                color = Ink,
-            )
-
-            FieldLabel(R.string.news_form_photo, top = 14.dp)
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-                    .clip(FieldShape)
-                    .border(BorderStroke(1.dp, Border), FieldShape),
-            ) {
-                NewsImageBox(form.image.preview, Modifier.fillMaxSize())
-                if (editor.encodingImage) {
-                    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Rose, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
-                // Без камеры кнопку не показываем; если камера есть, но запуск всё же не удался
-                // (нет приложения камеры, запрет политикой устройства) — тост вместо падения (item75-fix)
-                if (hasCamera) {
-                    PhotoAction(Icons.Filled.PhotoCamera, R.string.news_form_camera, enabled = !editor.busy) {
-                        try {
-                            val uri = newCameraUri(context)
-                            cameraUri = uri
-                            takePicture.launch(uri)
-                        } catch (e: ActivityNotFoundException) {
-                            showCameraUnavailable(context)
-                        } catch (e: SecurityException) {
-                            showCameraUnavailable(context)
-                        }
-                    }
-                }
-                PhotoAction(Icons.Filled.PhotoLibrary, R.string.news_form_gallery, enabled = !editor.busy) {
-                    pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }
-                if (form.image.preview != null) {
-                    PhotoAction(null, R.string.news_form_remove_photo, enabled = !editor.busy, color = StatusCancelled.fg, onClick = viewModel::removeImage)
-                }
-            }
-
-            FieldLabel(R.string.news_form_category)
-            FieldBox(onClick = viewModel::cycleCategory, enabled = !editor.saving) {
-                Text(stringResource(form.category.labelRes()), style = B4UType.ItemTitle, color = InkStrong)
-            }
-
-            FieldLabel(R.string.news_form_title)
-            NewsTextField(
-                value = form.title,
-                onValueChange = viewModel::setTitle,
-                max = NewsFormLogic.TITLE_MAX,
-                error = errors.firstTitleError(),
-                singleLine = true,
-                textStyle = B4UType.ItemTitle.copy(color = InkStrong),
-                enabled = !editor.saving,
-            )
-
-            FieldLabel(R.string.news_form_body)
-            NewsTextField(
-                value = form.body,
-                onValueChange = viewModel::setBody,
-                max = NewsFormLogic.BODY_MAX,
-                error = errors.firstBodyError(),
-                singleLine = false,
-                minHeight = 70.dp,
-                textStyle = B4UType.Body.copy(color = InkStrong, lineHeight = 18.sp),
-                enabled = !editor.saving,
-            )
-
-            FieldLabel(R.string.news_form_status)
-            val statusColors = form.status.colors()
-            FieldBox(onClick = viewModel::toggleStatus, enabled = !editor.saving, background = statusColors.bg) {
-                Text(
-                    stringResource(R.string.news_form_status_hint, stringResource(form.status.labelRes())),
-                    style = B4UType.ItemTitle,
-                    color = statusColors.fg,
-                )
-            }
-
-            editor.error?.let { error ->
-                Text(
-                    stringResource(error.messageRes()),
-                    style = B4UType.Caption.copy(fontSize = 12.5.sp),
-                    color = StatusCancelled.fg,
-                    modifier = Modifier
-                        .padding(top = 14.dp)
-                        .fillMaxWidth()
-                        .clip(FieldShape)
-                        .background(StatusCancelled.bg)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 20.dp).fillMaxWidth()) {
-                if (editor.isEdit) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(FieldShape)
-                            .background(CardBg)
-                            .border(BorderStroke(1.dp, DangerBorder), FieldShape)
-                            .clickable(enabled = !editor.busy, onClick = viewModel::askDelete)
-                            .padding(vertical = 13.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(stringResource(R.string.news_delete), style = B4UType.ItemTitle, color = StatusCancelled.fg)
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(2f)
-                        .clip(FieldShape)
-                        .background(if (editor.busy) Rose.copy(alpha = 0.45f) else Rose)
-                        .clickable(enabled = !editor.busy, onClick = viewModel::save)
-                        .padding(vertical = 13.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (editor.saving) {
-                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                    } else {
-                        Text(stringResource(R.string.news_save), style = B4UType.Button, color = Color.White)
-                    }
+            NewsImageBox(form.image.preview, Modifier.fillMaxSize())
+            if (editor.encodingImage) {
+                Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Rose, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                 }
             }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
+            // Без камеры кнопку не показываем; если камера есть, но запуск всё же не удался
+            // (нет приложения камеры, запрет политикой устройства) — тост вместо падения (item75-fix)
+            if (hasCamera) {
+                PillAction(Icons.Filled.PhotoCamera, stringResource(R.string.news_form_camera), enabled = !editor.busy) {
+                    try {
+                        val uri = newCameraUri(context)
+                        cameraUri = uri
+                        takePicture.launch(uri)
+                    } catch (e: ActivityNotFoundException) {
+                        showCameraUnavailable(context)
+                    } catch (e: SecurityException) {
+                        showCameraUnavailable(context)
+                    }
+                }
+            }
+            PillAction(Icons.Filled.PhotoLibrary, stringResource(R.string.news_form_gallery), enabled = !editor.busy) {
+                pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
+            if (form.image.preview != null) {
+                PillAction(null, stringResource(R.string.news_form_remove_photo), enabled = !editor.busy, color = StatusCancelled.fg, onClick = viewModel::removeImage)
+            }
+        }
+
+        FieldLabel(R.string.news_form_category)
+        FieldBox(onClick = viewModel::cycleCategory, enabled = !editor.saving) {
+            Text(stringResource(form.category.labelRes()), style = B4UType.ItemTitle, color = InkStrong)
+        }
+
+        FieldLabel(R.string.news_form_title)
+        NewsTextField(
+            value = form.title,
+            onValueChange = viewModel::setTitle,
+            max = NewsFormLogic.TITLE_MAX,
+            error = errors.firstTitleError(),
+            singleLine = true,
+            textStyle = B4UType.ItemTitle.copy(color = InkStrong),
+            enabled = !editor.saving,
+        )
+
+        FieldLabel(R.string.news_form_body)
+        NewsTextField(
+            value = form.body,
+            onValueChange = viewModel::setBody,
+            max = NewsFormLogic.BODY_MAX,
+            error = errors.firstBodyError(),
+            singleLine = false,
+            minHeight = 70.dp,
+            textStyle = B4UType.Body.copy(color = InkStrong, lineHeight = 18.sp),
+            enabled = !editor.saving,
+        )
+
+        FieldLabel(R.string.news_form_status)
+        val statusColors = form.status.colors()
+        FieldBox(onClick = viewModel::toggleStatus, enabled = !editor.saving, background = statusColors.bg) {
+            Text(
+                stringResource(R.string.news_form_status_hint, stringResource(form.status.labelRes())),
+                style = B4UType.ItemTitle,
+                color = statusColors.fg,
+            )
+        }
+
+        editor.error?.let { FormErrorBanner(stringResource(it.messageRes())) }
+
+        DeleteSaveButtons(
+            showDelete = editor.isEdit,
+            busy = editor.busy,
+            saving = editor.saving,
+            onDelete = viewModel::askDelete,
+            onSave = viewModel::save,
+        )
     }
 
     if (editor.confirmDelete) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissDelete,
-            title = { Text(stringResource(R.string.news_delete_confirm_title), style = B4UType.SheetTitle, color = Ink) },
-            text = { Text(stringResource(R.string.news_delete_confirm_text), style = B4UType.Body, color = Muted) },
-            confirmButton = {
-                TextButton(onClick = viewModel::confirmDelete) {
-                    Text(stringResource(R.string.news_delete_confirm_yes), color = StatusCancelled.fg, style = B4UType.Button)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissDelete) {
-                    Text(stringResource(R.string.news_delete_confirm_no), color = Muted)
-                }
-            },
-            containerColor = SheetBackground,
+        ConfirmDeleteDialog(
+            title = stringResource(R.string.news_delete_confirm_title),
+            text = stringResource(R.string.news_delete_confirm_text),
+            confirmLabel = stringResource(R.string.news_delete_confirm_yes),
+            onConfirm = viewModel::confirmDelete,
+            onDismiss = viewModel::dismissDelete,
         )
     }
 }
@@ -348,30 +265,6 @@ private fun NewsTextField(
             color = if (length > max) StatusCancelled.fg else Muted,
             textAlign = TextAlign.End,
         )
-    }
-}
-
-@Composable
-private fun PhotoAction(
-    icon: ImageVector?,
-    label: Int,
-    enabled: Boolean,
-    color: Color = Ink,
-    onClick: () -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(PillShape)
-            .background(CardBg)
-            .border(BorderStroke(1.dp, Border), PillShape)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = Rose, modifier = Modifier.size(16.dp).padding(end = 2.dp))
-        }
-        Text(stringResource(label), style = B4UType.BodyStrong, color = color, modifier = Modifier.padding(start = if (icon != null) 4.dp else 0.dp))
     }
 }
 

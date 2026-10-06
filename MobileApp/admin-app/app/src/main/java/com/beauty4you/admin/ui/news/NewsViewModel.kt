@@ -38,6 +38,9 @@ data class NewsEditorState(
     val fieldErrors: Set<NewsFieldError> get() = NewsFormLogic.validate(form)
     val visibleFieldErrors: Set<NewsFieldError> get() = if (showFieldErrors) fieldErrors else emptySet()
     val busy: Boolean get() = saving || encodingImage
+
+    // Несохранённые изменения — при закрытии шторки спросим «Odrzucić zmiany?»
+    val isDirty: Boolean get() = NewsFormLogic.isDirty(original, form)
 }
 
 data class NewsUiState(

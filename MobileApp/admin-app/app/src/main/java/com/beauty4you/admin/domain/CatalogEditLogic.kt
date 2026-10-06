@@ -83,7 +83,6 @@ enum class CategoryDeleteBlock { DEFAULT, HAS_SERVICES }
 
 // Ошибка сохранения/удаления — показывается в форме, форма остаётся открытой
 enum class CatalogError {
-    MASTER_IN_USE,
     MASTER_HAS_BOOKINGS,
     SERVICE_IN_USE,
     CATEGORY_DEFAULT,
@@ -117,6 +116,13 @@ object CatalogEditLogic {
         if (form.name.trim().isEmpty()) add(MasterFieldError.NAME_EMPTY)
         // Бэкенд требует хотя бы одну специализацию (ArrayMinSize(1))
         if (form.categoryIds.isEmpty()) add(MasterFieldError.NO_SPECIALIZATION)
+    }
+
+    // Есть несохранённые изменения (item76, «Odrzucić zmiany?»): форма отличается от исходного
+    // мастера или от пустой. Пробелы по краям имени не считаются — при сохранении их обрежем.
+    fun isDirty(original: Master?, form: MasterForm): Boolean {
+        val initial = original?.let(::fromMaster) ?: MasterForm()
+        return form.copy(name = form.name.trim()) != initial.copy(name = initial.name.trim())
     }
 
     fun toggle(set: Set<String>, id: String): Set<String> = if (id in set) set - id else set + id
@@ -170,6 +176,11 @@ object CatalogEditLogic {
         duration = service.durationMin.toString(),
         price = priceInput(service.price),
     )
+
+    // initial — форма в момент открытия (у новой услуги может быть предвыбрана категория)
+    fun isDirty(initial: ServiceForm, form: ServiceForm): Boolean = form.normalized() != initial.normalized()
+
+    private fun ServiceForm.normalized() = copy(name = name.trim(), duration = duration.trim(), price = price.trim())
 
     // "150.00" -> "150", "99.50" -> "99,50" — так, как цену удобно править с клавиатуры
     fun priceInput(raw: String): String {
@@ -235,6 +246,8 @@ object CatalogEditLogic {
         }
     }
 
+    fun isCategoryDirty(original: Category?, name: String): Boolean = name.trim() != original?.name.orEmpty().trim()
+
     fun categoryDeleteBlock(category: Category, services: List<Service>): CategoryDeleteBlock? = when {
         category.isDefault -> CategoryDeleteBlock.DEFAULT
         services.any { it.categoryId == category.id } -> CategoryDeleteBlock.HAS_SERVICES
@@ -249,7 +262,6 @@ object CatalogEditLogic {
         val text = message.orEmpty().lowercase()
         return when {
             httpCode == null -> CatalogError.NETWORK
-            httpCode == 409 && "linked user account" in text -> CatalogError.MASTER_IN_USE
             httpCode == 409 && "активными записями" in text -> CatalogError.MASTER_HAS_BOOKINGS
             httpCode == 409 && "referenced by" in text -> CatalogError.SERVICE_IN_USE
             httpCode == 409 && "default category" in text -> CatalogError.CATEGORY_DEFAULT

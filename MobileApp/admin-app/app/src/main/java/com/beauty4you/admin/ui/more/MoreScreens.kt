@@ -183,6 +183,8 @@ fun MastersScreen(onBack: () -> Unit) {
     if (editCatalog != null) {
         edit.master?.let { MasterFormSheet(it, editCatalog, editViewModel) }
     }
+    edit.scheduleMaster?.let { ScheduleSheet(it, onClose = editViewModel::closeSchedule) }
+    edit.blocksMaster?.let { BlocksSheet(it, onClose = editViewModel::closeBlocks) }
 }
 
 @Composable

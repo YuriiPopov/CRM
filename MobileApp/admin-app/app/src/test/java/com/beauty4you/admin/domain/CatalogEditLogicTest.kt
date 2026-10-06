@@ -234,10 +234,6 @@ class CatalogEditLogicTest {
     fun `backend errors map to form messages`() {
         assertEquals(CatalogError.NETWORK, CatalogEditLogic.mapError(null, "timeout"))
         assertEquals(
-            CatalogError.MASTER_IN_USE,
-            CatalogEditLogic.mapError(409, "Cannot delete a master with a linked user account, bookings, or assigned services"),
-        )
-        assertEquals(
             CatalogError.MASTER_HAS_BOOKINGS,
             CatalogEditLogic.mapError(409, "Нельзя деактивировать мастера с активными записями — сначала отмените или перенесите их"),
         )

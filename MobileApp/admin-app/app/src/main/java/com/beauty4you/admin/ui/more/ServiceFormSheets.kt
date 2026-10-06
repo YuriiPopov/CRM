@@ -41,6 +41,7 @@ fun ServiceFormSheet(editor: ServiceEditorState, catalog: Catalog, errors: Set<S
     FormSheet(
         title = stringResource(if (editor.isEdit) R.string.service_form_title_edit else R.string.service_form_title_new),
         busy = editor.saving,
+        dirty = editor.isDirty,
         onDismiss = viewModel::closeService,
     ) {
         FieldLabel(R.string.service_form_category, top = 14.dp)
@@ -120,6 +121,7 @@ fun CategoryFormSheet(editor: CategoryEditorState, errors: Set<CategoryFieldErro
     FormSheet(
         title = stringResource(if (editor.isEdit) R.string.category_form_title_edit else R.string.category_form_title_new),
         busy = editor.saving,
+        dirty = editor.isDirty,
         onDismiss = viewModel::closeCategory,
     ) {
         FieldLabel(R.string.category_form_name, top = 14.dp)
@@ -165,7 +167,6 @@ fun CategoryFormSheet(editor: CategoryEditorState, errors: Set<CategoryFieldErro
 
 @StringRes
 internal fun CatalogError.messageRes(): Int = when (this) {
-    CatalogError.MASTER_IN_USE -> R.string.catalog_error_master_in_use
     CatalogError.MASTER_HAS_BOOKINGS -> R.string.catalog_error_master_has_bookings
     CatalogError.SERVICE_IN_USE -> R.string.catalog_error_service_in_use
     CatalogError.CATEGORY_DEFAULT -> R.string.category_delete_blocked_default

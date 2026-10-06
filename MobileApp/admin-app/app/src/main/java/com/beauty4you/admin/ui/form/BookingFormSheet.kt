@@ -13,13 +13,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -29,13 +26,11 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -60,6 +55,7 @@ import com.beauty4you.admin.domain.Client
 import com.beauty4you.admin.domain.ClientLogic
 import com.beauty4you.admin.domain.PolishDates
 import com.beauty4you.admin.ui.common.ColorDot
+import com.beauty4you.admin.ui.common.FormSheet
 import com.beauty4you.admin.ui.common.InitialsAvatar
 import com.beauty4you.admin.ui.common.UnreliableBadge
 import com.beauty4you.admin.ui.common.appContainer
@@ -70,7 +66,6 @@ import com.beauty4you.admin.ui.theme.B4UType
 import com.beauty4you.admin.ui.theme.Border
 import com.beauty4you.admin.ui.theme.CardBg
 import com.beauty4you.admin.ui.theme.DangerBorder
-import com.beauty4you.admin.ui.theme.DashedBorder
 import com.beauty4you.admin.ui.theme.FieldShape
 import com.beauty4you.admin.ui.theme.Ink
 import com.beauty4you.admin.ui.theme.InkStrong
@@ -78,7 +73,6 @@ import com.beauty4you.admin.ui.theme.Muted
 import com.beauty4you.admin.ui.theme.PillShape
 import com.beauty4you.admin.ui.theme.Rose
 import com.beauty4you.admin.ui.theme.SheetBackground
-import com.beauty4you.admin.ui.theme.SheetShape
 import com.beauty4you.admin.ui.theme.SoftBackground
 import com.beauty4you.admin.ui.theme.StatusCancelled
 import com.beauty4you.admin.ui.theme.Tint
@@ -93,7 +87,6 @@ import java.time.ZoneOffset
 fun BookingFormSheet(request: FormRequest, onDismiss: () -> Unit) {
     val viewModel: BookingFormViewModel = viewModel(factory = BookingFormViewModel.factory(appContainer()))
     val state by viewModel.state.collectAsState()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(request) { viewModel.start(request) }
     LaunchedEffect(state.closed) { if (state.closed) onDismiss() }
@@ -101,153 +94,130 @@ fun BookingFormSheet(request: FormRequest, onDismiss: () -> Unit) {
     var showClientPicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = SheetShape,
-        containerColor = SheetBackground,
-        dragHandle = {
-            Box(
-                Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(PillShape)
-                    .background(DashedBorder),
-            )
-        },
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp)
-                .navigationBarsPadding(),
-        ) {
-            val title = when (state.mode) {
-                FormMode.NEW -> R.string.form_title_new
-                FormMode.EDIT -> R.string.form_title_edit
-                FormMode.READ_ONLY -> R.string.form_title_view
+    FormSheet(title = null, busy = state.saving, dirty = state.isDirty, onDismiss = onDismiss) {
+        val title = when (state.mode) {
+            FormMode.NEW -> R.string.form_title_new
+            FormMode.EDIT -> R.string.form_title_edit
+            FormMode.READ_ONLY -> R.string.form_title_view
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(title), style = B4UType.SheetTitle, color = Ink, modifier = Modifier.weight(1f))
+            if (state.original?.source == BookingSource.ONLINE) {
+                Text(
+                    stringResource(R.string.form_online_badge),
+                    style = B4UType.Pill,
+                    color = Rose,
+                    modifier = Modifier.clip(PillShape).background(Tint).padding(horizontal = 9.dp, vertical = 3.dp),
+                )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(title), style = B4UType.SheetTitle, color = Ink, modifier = Modifier.weight(1f))
-                if (state.original?.source == BookingSource.ONLINE) {
-                    Text(
-                        stringResource(R.string.form_online_badge),
-                        style = B4UType.Pill,
-                        color = Rose,
-                        modifier = Modifier.clip(PillShape).background(Tint).padding(horizontal = 9.dp, vertical = 3.dp),
-                    )
-                }
+        }
+
+        val catalog = state.catalog
+        if (state.loading || catalog == null) {
+            Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                if (state.loading) CircularProgressIndicator(color = Rose) else ErrorText(state)
             }
+            return@FormSheet
+        }
 
-            val catalog = state.catalog
-            if (state.loading || catalog == null) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-                    if (state.loading) CircularProgressIndicator(color = Rose) else ErrorText(state)
-                }
-                return@Column
+        val editable = state.mode != FormMode.READ_ONLY
+        val isNew = state.mode == FormMode.NEW
+
+        FieldLabel(R.string.form_client, top = 16.dp)
+        FieldButton(
+            text = state.clientId?.let { catalog.clientName(it) } ?: stringResource(R.string.form_pick_client),
+            placeholder = state.clientId == null,
+            enabled = isNew,
+            onClick = { showClientPicker = true },
+        )
+        state.clientId?.let { catalog.clientsById[it] }?.let { client ->
+            UnreliableBadge(client, Modifier.padding(top = 6.dp))
+        }
+
+        FieldLabel(R.string.form_master)
+        DropdownField(
+            text = state.masterId?.let { catalog.masterName(it) } ?: stringResource(R.string.form_pick_master),
+            placeholder = state.masterId == null,
+            enabled = editable,
+            leadingColor = state.masterId?.let { masterColor(it) },
+            options = state.masterOptions.map { it.id to it.name },
+            onSelect = viewModel::selectMaster,
+        )
+
+        FieldLabel(R.string.form_service)
+        DropdownField(
+            text = state.serviceId?.let { catalog.serviceName(it) } ?: stringResource(R.string.form_pick_service),
+            placeholder = state.serviceId == null,
+            enabled = isNew,
+            options = state.serviceOptions.map { it.id to "${it.name} · ${it.durationMin} min" },
+            onSelect = viewModel::selectService,
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                FieldLabel(R.string.form_date)
+                FieldButton(
+                    text = "${PolishDates.weekdayShort(state.date)}, ${PolishDates.shortDate(state.date, LocalDate.now())}",
+                    enabled = editable,
+                    onClick = { showDatePicker = true },
+                )
             }
-
-            val editable = state.mode != FormMode.READ_ONLY
-            val isNew = state.mode == FormMode.NEW
-
-            FieldLabel(R.string.form_client, top = 16.dp)
-            FieldButton(
-                text = state.clientId?.let { catalog.clientName(it) } ?: stringResource(R.string.form_pick_client),
-                placeholder = state.clientId == null,
-                enabled = isNew,
-                onClick = { showClientPicker = true },
-            )
-            state.clientId?.let { catalog.clientsById[it] }?.let { client ->
-                UnreliableBadge(client, Modifier.padding(top = 6.dp))
+            Column(Modifier.weight(1f)) {
+                FieldLabel(R.string.form_time)
+                FieldButton(
+                    text = state.time?.let { PolishDates.time(it) } ?: "—",
+                    placeholder = state.time == null,
+                    enabled = false,
+                    onClick = {},
+                )
             }
+        }
+        if (editable) TimeSlots(state, viewModel::selectTime)
 
-            FieldLabel(R.string.form_master)
-            DropdownField(
-                text = state.masterId?.let { catalog.masterName(it) } ?: stringResource(R.string.form_pick_master),
-                placeholder = state.masterId == null,
-                enabled = editable,
-                leadingColor = state.masterId?.let { masterColor(it) },
-                options = state.masterOptions.map { it.id to it.name },
-                onSelect = viewModel::selectMaster,
-            )
+        FieldLabel(R.string.form_status)
+        StatusField(state, viewModel::selectStatus)
 
-            FieldLabel(R.string.form_service)
-            DropdownField(
-                text = state.serviceId?.let { catalog.serviceName(it) } ?: stringResource(R.string.form_pick_service),
-                placeholder = state.serviceId == null,
-                enabled = isNew,
-                options = state.serviceOptions.map { it.id to "${it.name} · ${it.durationMin} min" },
-                onSelect = viewModel::selectService,
-            )
+        when (state.mode) {
+            FormMode.EDIT -> Hint(R.string.form_locked_hint)
+            FormMode.READ_ONLY -> Hint(R.string.form_readonly_hint)
+            FormMode.NEW -> Unit
+        }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    FieldLabel(R.string.form_date)
-                    FieldButton(
-                        text = "${PolishDates.weekdayShort(state.date)}, ${PolishDates.shortDate(state.date, LocalDate.now())}",
-                        enabled = editable,
-                        onClick = { showDatePicker = true },
-                    )
-                }
-                Column(Modifier.weight(1f)) {
-                    FieldLabel(R.string.form_time)
-                    FieldButton(
-                        text = state.time?.let { PolishDates.time(it) } ?: "—",
-                        placeholder = state.time == null,
-                        enabled = false,
-                        onClick = {},
-                    )
-                }
-            }
-            if (editable) TimeSlots(state, viewModel::selectTime)
+        ErrorText(state)
 
-            FieldLabel(R.string.form_status)
-            StatusField(state, viewModel::selectStatus)
-
-            when (state.mode) {
-                FormMode.EDIT -> Hint(R.string.form_locked_hint)
-                FormMode.READ_ONLY -> Hint(R.string.form_readonly_hint)
-                FormMode.NEW -> Unit
-            }
-
-            ErrorText(state)
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 20.dp).fillMaxWidth()) {
-                if (state.canCancel) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(FieldShape)
-                            .background(CardBg)
-                            .border(BorderStroke(1.dp, DangerBorder), FieldShape)
-                            .clickable(enabled = !state.saving) { viewModel.askCancel() }
-                            .padding(vertical = 13.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(stringResource(R.string.form_delete), style = B4UType.ItemTitle, color = StatusCancelled.fg)
-                    }
-                }
-                val primaryEnabled = if (editable) state.canSave else true
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 20.dp).fillMaxWidth()) {
+            if (state.canCancel) {
                 Box(
                     modifier = Modifier
-                        .weight(2f)
+                        .weight(1f)
                         .clip(FieldShape)
-                        .background(if (primaryEnabled) Rose else Rose.copy(alpha = 0.45f))
-                        .clickable(enabled = primaryEnabled) { if (editable) viewModel.save() else onDismiss() }
+                        .background(CardBg)
+                        .border(BorderStroke(1.dp, DangerBorder), FieldShape)
+                        .clickable(enabled = !state.saving) { viewModel.askCancel() }
                         .padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (state.saving) {
-                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                    } else {
-                        Text(
-                            stringResource(if (editable) R.string.form_save else R.string.form_close),
-                            style = B4UType.Button,
-                            color = Color.White,
-                        )
-                    }
+                    Text(stringResource(R.string.form_delete), style = B4UType.ItemTitle, color = StatusCancelled.fg)
+                }
+            }
+            val primaryEnabled = if (editable) state.canSave else true
+            Box(
+                modifier = Modifier
+                    .weight(2f)
+                    .clip(FieldShape)
+                    .background(if (primaryEnabled) Rose else Rose.copy(alpha = 0.45f))
+                    .clickable(enabled = primaryEnabled) { if (editable) viewModel.save() else onDismiss() }
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (state.saving) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                } else {
+                    Text(
+                        stringResource(if (editable) R.string.form_save else R.string.form_close),
+                        style = B4UType.Button,
+                        color = Color.White,
+                    )
                 }
             }
         }

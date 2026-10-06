@@ -13,6 +13,8 @@ import com.beauty4you.admin.domain.NewsFields
 import com.beauty4you.admin.domain.NewsPost
 import com.beauty4you.admin.domain.NewsStatus
 import com.beauty4you.admin.domain.ScheduleDay
+import com.beauty4you.admin.domain.ScheduleMonthPlan
+import com.beauty4you.admin.domain.PolishDates
 import com.beauty4you.admin.domain.Service
 import com.beauty4you.admin.domain.ServiceFields
 import kotlinx.serialization.json.JsonPrimitive
@@ -124,4 +126,18 @@ fun ServiceFields.toBody() = ServiceBody(
     categoryId = categoryId,
     durationMin = durationMin,
     price = price?.toDouble(),
+)
+
+fun ScheduleMonthPlan.toBody(masterId: String) = ScheduleUpsertBody(
+    masterId = masterId,
+    year = month.year,
+    month = month.monthValue,
+    days = days.map { day ->
+        ScheduleDayBody(
+            date = day.date.toString(),
+            isWorking = day.isWorking,
+            startTime = day.start?.let(PolishDates::time),
+            endTime = day.end?.let(PolishDates::time),
+        )
+    },
 )

@@ -167,3 +167,30 @@ data class ServiceBody(
 
 @Serializable
 data class CategoryBody(val name: String)
+
+// График и блокировки (item76, часть 2). Одно тело — и для PUT /master-schedules, и для
+// POST /master-schedules/conflicts; дни — только из одного year/month.
+@Serializable
+data class ScheduleUpsertBody(
+    val masterId: String,
+    val year: Int,
+    val month: Int,
+    val days: List<ScheduleDayBody>,
+)
+
+// Для выходного часы не отправляются (explicitNulls = false) — бэкенд их всё равно обнуляет
+@Serializable
+data class ScheduleDayBody(
+    val date: String,
+    val isWorking: Boolean,
+    val startTime: String? = null,
+    val endTime: String? = null,
+)
+
+@Serializable
+data class CreateBlockBody(
+    val masterId: String,
+    val startTime: String,
+    val endTime: String,
+    val reason: String? = null,
+)

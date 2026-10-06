@@ -9,6 +9,7 @@ import com.beauty4you.admin.R
 import com.beauty4you.admin.data.remote.toApiFailure
 import com.beauty4you.admin.data.repo.Catalog
 import com.beauty4you.admin.domain.Booking
+import com.beauty4you.admin.domain.BookingDraft
 import com.beauty4you.admin.domain.BookingError
 import com.beauty4you.admin.domain.BookingFormLogic
 import com.beauty4you.admin.domain.BookingStatus
@@ -56,7 +57,15 @@ data class BookingFormState(
     val error: BookingError? = null,
     val confirmCancel: Boolean = false,
     val closed: Boolean = false,
+    // Поля в момент открытия формы — для «Odrzucić zmiany?» (item76)
+    val initial: BookingDraft? = null,
 ) {
+    val draft: BookingDraft get() = BookingDraft(clientId, masterId, serviceId, date, time, status)
+
+    // Закрытую (только просмотр) запись изменить нельзя — и спрашивать при закрытии нечего
+    val isDirty: Boolean
+        get() = mode != FormMode.READ_ONLY && initial != null && BookingFormLogic.isDirty(initial, draft)
+
     val mode: FormMode
         get() = when {
             original == null -> FormMode.NEW
@@ -110,7 +119,7 @@ class BookingFormViewModel(private val container: AppContainer) : ViewModel() {
             date = original?.date ?: request.date ?: LocalDate.now(),
             time = original?.start?.toLocalTime(),
             status = BookingFormLogic.initialStatus(original),
-        )
+        ).let { it.copy(initial = it.draft) }
         viewModelScope.launch {
             try {
                 val catalog = container.catalogRepository.get()

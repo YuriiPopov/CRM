@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Checkbox
@@ -50,7 +52,6 @@ import com.beauty4you.admin.data.repo.Catalog
 import com.beauty4you.admin.domain.CatalogEditLogic
 import com.beauty4you.admin.domain.MasterFieldError
 import com.beauty4you.admin.ui.common.ColorDot
-import com.beauty4you.admin.ui.common.ConfirmDeleteDialog
 import com.beauty4you.admin.ui.common.DeleteSaveButtons
 import com.beauty4you.admin.ui.common.FormErrorBanner
 import com.beauty4you.admin.ui.common.FormHint
@@ -98,6 +99,7 @@ fun MasterFormSheet(editor: MasterEditorState, catalog: Catalog, viewModel: Cata
     FormSheet(
         title = stringResource(if (editor.isEdit) R.string.master_form_title_edit else R.string.master_form_title_new),
         busy = editor.saving,
+        dirty = editor.isDirty,
         onDismiss = viewModel::closeMaster,
     ) {
         FieldLabel(R.string.master_form_photo, top = 14.dp)
@@ -135,6 +137,14 @@ fun MasterFormSheet(editor: MasterEditorState, catalog: Catalog, viewModel: Cata
                 if (form.photo.preview != null) {
                     PillAction(null, stringResource(R.string.news_form_remove_photo), enabled = !editor.busy, color = StatusCancelled.fg, onClick = viewModel::removeMasterPhoto)
                 }
+            }
+        }
+
+        // График и блокировки — только у уже сохранённого мастера (нужен его id)
+        editor.original?.let { saved ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 12.dp)) {
+                PillAction(Icons.Filled.CalendarMonth, stringResource(R.string.schedule_open), enabled = !editor.busy) { viewModel.openSchedule(saved) }
+                PillAction(Icons.Filled.Block, stringResource(R.string.blocks_open), enabled = !editor.busy) { viewModel.openBlocks(saved) }
             }
         }
 
@@ -209,22 +219,14 @@ fun MasterFormSheet(editor: MasterEditorState, catalog: Catalog, viewModel: Cata
 
         editor.error?.let { FormErrorBanner(stringResource(it.messageRes())) }
 
+        // «Usuń» мастера скрыто до item80: DELETE /staff всегда отвечает 409 (обязательная
+        // специализация без каскада) — вывести мастера из работы можно статусом «Nieaktywny»
         DeleteSaveButtons(
-            showDelete = editor.isEdit,
+            showDelete = false,
             busy = editor.busy,
             saving = editor.saving,
-            onDelete = viewModel::askDeleteMaster,
+            onDelete = {},
             onSave = viewModel::saveMaster,
-        )
-    }
-
-    if (editor.confirmDelete) {
-        ConfirmDeleteDialog(
-            title = stringResource(R.string.master_delete_confirm_title),
-            text = stringResource(R.string.master_delete_confirm_text, editor.original?.name.orEmpty()),
-            confirmLabel = stringResource(R.string.master_delete_confirm_yes),
-            onConfirm = viewModel::confirmDeleteMaster,
-            onDismiss = viewModel::dismissDeleteMaster,
         )
     }
 }

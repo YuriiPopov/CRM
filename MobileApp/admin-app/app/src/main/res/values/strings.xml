@@ -225,12 +225,8 @@
     <string name="master_no_services">Brak usług — dodaj je w sekcji „Usługi”</string>
     <string name="master_error_name">Podaj imię</string>
     <string name="master_error_specialization">Wybierz co najmniej jedną specjalizację</string>
-    <string name="master_delete_confirm_title">Usunąć mistrza?</string>
-    <string name="master_delete_confirm_text">„%1$s” zniknie z listy mistrzów. Tej operacji nie można cofnąć.</string>
-    <string name="master_delete_confirm_yes">Usuń mistrza</string>
     <string name="toast_master_created">Mistrz dodany</string>
     <string name="toast_master_saved">Zmiany zapisane</string>
-    <string name="toast_master_deleted">Mistrz usunięty</string>
 
     <string name="service_add">Nowa usługa</string>
     <string name="service_form_title_new">Nowa usługa</string>
@@ -270,9 +266,71 @@
     <string name="toast_category_saved">Kategoria zapisana</string>
     <string name="toast_category_deleted">Kategoria usunięta</string>
 
-    <string name="catalog_error_master_in_use">Nie można usunąć mistrza — ma konto logowania, wizyty, usługi lub specjalizacje. Ustaw status „Nieaktywny”, aby ukryć go przed klientami.</string>
     <string name="catalog_error_master_has_bookings">Mistrz ma zaplanowane wizyty — najpierw je odwołaj lub przenieś do innego mistrza.</string>
     <string name="catalog_error_service_in_use">Nie można usunąć usługi — mają ją przypisaną mistrzowie lub istnieją na nią wizyty.</string>
     <string name="catalog_error_photo">Nie udało się dodać zdjęcia — dozwolone JPG, PNG lub WebP do 2 MB</string>
     <string name="catalog_error_not_found">Nie znaleziono — mogło zostać usunięte w CRM</string>
+
+    <!-- Odrzucić zmiany? — wszystkie formularze (item76) -->
+    <string name="discard_title">Odrzucić zmiany?</string>
+    <string name="discard_text">Wprowadzone zmiany nie zostaną zapisane.</string>
+    <string name="discard_yes">Odrzuć</string>
+    <string name="discard_no">Wróć do edycji</string>
+
+    <!-- Grafik pracy (item76) -->
+    <string name="schedule_open">Grafik pracy</string>
+    <string name="schedule_title">Grafik pracy: %1$s</string>
+    <string name="schedule_days">DNI TYGODNIA</string>
+    <string name="schedule_select_week">Zaznacz cały tydzień</string>
+    <string name="schedule_unselect_week">Odznacz tydzień</string>
+    <string name="schedule_day_off">Wolne</string>
+    <string name="schedule_day_unset">Nie ustawiono</string>
+    <string name="schedule_working">Pracuje</string>
+    <string name="schedule_hint">Zaznacz dni, ustaw godziny poniżej i dotknij „Zastosuj”. Zmienione dni oznaczono kropką.</string>
+    <string name="schedule_apply_label">USTAW DLA ZAZNACZONYCH</string>
+    <string name="schedule_from">OD</string>
+    <string name="schedule_to">DO</string>
+    <string name="schedule_select_first">Zaznacz co najmniej jeden dzień</string>
+    <plurals name="schedule_apply">
+        <item quantity="one">Zastosuj do %d dnia</item>
+        <item quantity="few">Zastosuj do %d dni</item>
+        <item quantity="many">Zastosuj do %d dni</item>
+        <item quantity="other">Zastosuj do %d dni</item>
+    </plurals>
+    <plurals name="schedule_conflicts_title">
+        <item quantity="one">%d wizyta wypada w dzień wolny</item>
+        <item quantity="few">%d wizyty wypadają w dni wolne</item>
+        <item quantity="many">%d wizyt wypada w dni wolne</item>
+        <item quantity="other">%d wizyty wypadają w dni wolne</item>
+    </plurals>
+    <string name="schedule_conflicts_hint">Po zapisaniu wizyty pozostaną w kalendarzu — przenieś je lub odwołaj osobno.</string>
+    <string name="schedule_save_anyway">Zapisz mimo to</string>
+    <string name="toast_schedule_saved">Grafik zapisany</string>
+    <string name="hours_error_order">Godzina „od” musi być wcześniejsza niż „do”</string>
+    <string name="hours_error_range">Dozwolone godziny: 06:00–22:00</string>
+
+    <!-- Blokady (item76) -->
+    <string name="blocks_open">Blokady</string>
+    <string name="blocks_title">Blokady: %1$s</string>
+    <string name="blocks_empty">Brak zaplanowanych blokad</string>
+    <string name="blocks_add">Dodaj blokadę</string>
+    <string name="block_form_title">Nowa blokada</string>
+    <string name="block_form_date">DATA</string>
+    <string name="block_form_from">OD</string>
+    <string name="block_form_to">DO</string>
+    <string name="block_form_reason">PRZYCZYNA</string>
+    <string name="block_form_comment">KOMENTARZ</string>
+    <string name="block_reason_urlop">Urlop</string>
+    <string name="block_reason_przerwa">Przerwa</string>
+    <string name="block_reason_inne">Inne</string>
+    <string name="block_error_past">Nie można dodać blokady w przeszłości</string>
+    <string name="block_error_comment">Opisz przyczynę</string>
+    <string name="block_error_comment_long">Komentarz jest za długi</string>
+    <string name="block_error_overlaps_booking">W tym czasie mistrz ma wizyty — najpierw je przenieś lub odwołaj</string>
+    <string name="block_error_overlaps_block">Ten czas jest już zablokowany</string>
+    <string name="block_delete_confirm_title">Usunąć blokadę?</string>
+    <string name="block_delete_confirm_text">Blokada %1$s zostanie usunięta, a ten czas znów będzie dostępny do zapisu.</string>
+    <string name="block_delete_confirm_yes">Usuń blokadę</string>
+    <string name="toast_block_created">Blokada dodana</string>
+    <string name="toast_block_deleted">Blokada usunięta</string>
 </resources>

@@ -30,7 +30,20 @@ data class SavePlan(
     val isNoop: Boolean get() = !create && !reschedule && statusChange == null
 }
 
+// Поля формы визита, которые меняет пользователь — для «Odrzucić zmiany?» (item76)
+data class BookingDraft(
+    val clientId: String?,
+    val masterId: String?,
+    val serviceId: String?,
+    val date: LocalDate,
+    val time: LocalTime?,
+    val status: BookingStatus,
+)
+
 object BookingFormLogic {
+
+    // Есть несохранённые изменения: поля отличаются от тех, с которыми форма открылась
+    fun isDirty(initial: BookingDraft, current: BookingDraft): Boolean = initial != current
 
     // Новая запись от админа по умолчанию сразу «Potwierdzona» (админ сам договорился с клиентом);
     // при редактировании — текущий статус записи

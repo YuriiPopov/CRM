@@ -5,6 +5,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -98,11 +99,25 @@ interface ApiService {
         @Query("month") month: Int,
     ): List<ScheduleDayDto>
 
+    @PUT("master-schedules")
+    suspend fun saveSchedule(@Body body: ScheduleUpsertBody): List<ScheduleDayDto>
+
+    // Записи, попадающие на дни, которые в предлагаемом графике становятся выходными (без сохранения)
+    @POST("master-schedules/conflicts")
+    suspend fun scheduleConflicts(@Body body: ScheduleUpsertBody): List<BookingDto>
+
     @GET("master-blocks")
     suspend fun listBlocks(
         @Query("from") from: String,
-        @Query("to") to: String,
+        @Query("to") to: String? = null,
+        @Query("masterId") masterId: String? = null,
     ): List<MasterBlockDto>
+
+    @POST("master-blocks")
+    suspend fun createBlock(@Body body: CreateBlockBody): MasterBlockDto
+
+    @DELETE("master-blocks/{id}")
+    suspend fun deleteBlock(@Path("id") id: String)
 
     @GET("news")
     suspend fun listNews(): List<NewsPostDto>

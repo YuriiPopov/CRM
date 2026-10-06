@@ -39,9 +39,9 @@ data class MasterEditorState(
     val encodingPhoto: Boolean = false,
     val saving: Boolean = false,
     val error: CatalogError? = null,
-    val confirmDelete: Boolean = false,
 ) {
     val isEdit: Boolean get() = original != null
+    val isDirty: Boolean get() = CatalogEditLogic.isDirty(original, form)
     val fieldErrors: Set<MasterFieldError> get() = CatalogEditLogic.validate(form)
     val visibleFieldErrors: Set<MasterFieldError> get() = if (showFieldErrors) fieldErrors else emptySet()
     val busy: Boolean get() = saving || encodingPhoto
@@ -50,12 +50,15 @@ data class MasterEditorState(
 data class ServiceEditorState(
     val original: Service? = null,
     val form: ServiceForm = ServiceForm(),
+    // Форма в момент открытия — у новой услуги может быть предвыбрана категория
+    val initial: ServiceForm = form,
     val showFieldErrors: Boolean = false,
     val saving: Boolean = false,
     val error: CatalogError? = null,
     val confirmDelete: Boolean = false,
 ) {
     val isEdit: Boolean get() = original != null
+    val isDirty: Boolean get() = CatalogEditLogic.isDirty(initial, form)
 }
 
 data class CategoryEditorState(
@@ -69,6 +72,7 @@ data class CategoryEditorState(
     val deleteBlock: CategoryDeleteBlock? = null,
 ) {
     val isEdit: Boolean get() = original != null
+    val isDirty: Boolean get() = CatalogEditLogic.isCategoryDirty(original, name)
 }
 
 data class CatalogEditUiState(
@@ -77,6 +81,9 @@ data class CatalogEditUiState(
     val master: MasterEditorState? = null,
     val service: ServiceEditorState? = null,
     val category: CategoryEditorState? = null,
+    // Шторки «Grafik pracy» / «Blokady» поверх карточки мастера (item76, часть 2)
+    val scheduleMaster: Master? = null,
+    val blocksMaster: Master? = null,
 ) {
     val serviceFieldErrors: Set<ServiceFieldError>
         get() = service?.let { s ->
@@ -110,6 +117,14 @@ class CatalogEditViewModel(private val container: AppContainer) : ViewModel() {
         (master()?.form?.photo as? MasterPhotoState.Picked)?.let { DecodedImages.evict(it.dataUrl) }
         _state.update { it.copy(master = null) }
     }
+
+    fun openSchedule(master: Master) = _state.update { it.copy(scheduleMaster = master) }
+
+    fun closeSchedule() = _state.update { it.copy(scheduleMaster = null) }
+
+    fun openBlocks(master: Master) = _state.update { it.copy(blocksMaster = master) }
+
+    fun closeBlocks() = _state.update { it.copy(blocksMaster = null) }
 
     fun setMasterName(name: String) = updateMasterForm { it.copy(name = name) }
 
@@ -184,24 +199,6 @@ class CatalogEditViewModel(private val container: AppContainer) : ViewModel() {
                 done(if (editor.original == null) R.string.toast_master_created else R.string.toast_master_saved)
             } catch (e: Exception) {
                 updateMaster { it.copy(saving = false, error = mapError(e)) }
-            }
-        }
-    }
-
-    fun askDeleteMaster() = updateMaster { it.copy(confirmDelete = true, error = null) }
-
-    fun dismissDeleteMaster() = updateMaster { it.copy(confirmDelete = false) }
-
-    fun confirmDeleteMaster() {
-        val master = master()?.original ?: return
-        updateMaster { it.copy(confirmDelete = false, saving = true, error = null) }
-        viewModelScope.launch {
-            val error = runDelete { repository.deleteMaster(master.id) }
-            if (error == null) {
-                closeMaster()
-                done(R.string.toast_master_deleted)
-            } else {
-                updateMaster { it.copy(saving = false, error = error) }
             }
         }
     }
