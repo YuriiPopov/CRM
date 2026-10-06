@@ -13,8 +13,11 @@ import com.beauty4you.client.data.remote.SlotsResponse
 import com.beauty4you.client.data.remote.VerifyCodeBody
 import com.beauty4you.client.data.remote.VerifyCodeResponse
 import com.beauty4you.client.data.remote.ApiException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
@@ -32,6 +35,7 @@ class SalonRepositoryTest {
     private class FakeApi : ClientApi {
         var newsCalls = 0
         var newsResult: () -> List<NewsDto> = { emptyList() }
+        var newsGate: CompletableDeferred<Unit>? = null // ответ «в пути», пока гейт не открыт
 
         override suspend fun requestCode(body: RequestCodeBody): RequestCodeResponse = error("unused")
         override suspend fun verify(body: VerifyCodeBody): VerifyCodeResponse = error("unused")
@@ -43,6 +47,7 @@ class SalonRepositoryTest {
         override suspend fun cancelBooking(id: String): BookingDto = error("unused")
         override suspend fun news(): List<NewsDto> {
             newsCalls++
+            newsGate?.await()
             return newsResult()
         }
     }
@@ -53,9 +58,15 @@ class SalonRepositoryTest {
         NewsDto(id, "NOWOSC", "Tytuł", "Treść", imageUrl, "2026-10-05T10:00:00.000Z")
 
     private val decoded = mutableListOf<String>()
+    private var onDecode: () -> Unit = {}
 
     private fun repo(api: FakeApi, dispatcher: TestDispatcher) =
-        SalonRepository(api, { dataUrl, _ -> decoded += dataUrl; null }, imageMaxSide = 1080, decodeDispatcher = dispatcher)
+        SalonRepository(
+            api,
+            { dataUrl, _ -> decoded += dataUrl; onDecode(); null },
+            imageMaxSide = 1080,
+            decodeDispatcher = dispatcher,
+        )
 
     @Test
     fun `general load does not request news and succeeds while news fail`() = runTest {
@@ -135,6 +146,59 @@ class SalonRepositoryTest {
         repo.refreshNews()
 
         repo.clear()
+
+        assertEquals(NewsState.Loading, repo.news.value)
+    }
+
+    @Test
+    fun `news requested before logout do not reach the next client`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val api = FakeApi().apply {
+            newsResult = { listOf(news("old")) }
+            newsGate = gate
+        }
+        val repo = repo(api, StandardTestDispatcher(testScheduler))
+        val refresh = launch { repo.refreshNews() }
+        advanceUntilIdle()
+
+        repo.clear() // выход, пока /client/news ещё в пути
+        gate.complete(Unit)
+        refresh.join()
+
+        assertEquals(NewsState.Loading, repo.news.value)
+    }
+
+    @Test
+    fun `logout while images are decoding drops the old feed`() = runTest {
+        val api = FakeApi().apply { newsResult = { listOf(news("old", "data:image/jpeg;base64,AAAA")) } }
+        val repo = repo(api, StandardTestDispatcher(testScheduler))
+        onDecode = { repo.clear() } // clear() из главного потока посреди декодирования
+
+        repo.refreshNews()
+
+        assertEquals(NewsState.Loading, repo.news.value)
+
+        // Следующий клиент получает свою ленту, картинка декодируется заново — кэш прежнего не используется
+        onDecode = {}
+        repo.refreshNews()
+        assertEquals(listOf("old"), (repo.news.value as NewsState.Ready).items.map { it.id })
+        assertEquals(2, decoded.size)
+    }
+
+    @Test
+    fun `error of a request made before logout is swallowed`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val api = FakeApi().apply {
+            newsResult = { throw http(401) }
+            newsGate = gate
+        }
+        val repo = repo(api, StandardTestDispatcher(testScheduler))
+        val refresh = launch { repo.refreshNews() } // исключение уронило бы runTest
+        advanceUntilIdle()
+
+        repo.clear()
+        gate.complete(Unit)
+        refresh.join()
 
         assertEquals(NewsState.Loading, repo.news.value)
     }

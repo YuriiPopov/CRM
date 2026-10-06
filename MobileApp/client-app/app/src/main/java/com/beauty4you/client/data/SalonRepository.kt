@@ -19,6 +19,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Данные клиента с backend (эндпоинты client/...): профиль, каталог салона, свободные слоты и собственные
@@ -48,8 +49,14 @@ class SalonRepository(
 
     // Декодированные картинки новостей: ключ — id новости + хэш data URL (картинку могли заменить в
     // admin-app). Хранятся только картинки текущей ленты, удалённые новости выпадают при обновлении.
-    private val newsImages = HashMap<String, ImageBitmap?>()
+    // Карта читается и пишется только под newsMutex; clear() её не трогает, а подменяет на новую —
+    // декодирование, начатое до выхода, дописывает в старую карту, которая уходит в GC.
+    @Volatile private var newsImages = HashMap<String, ImageBitmap?>()
     private val newsMutex = Mutex()
+
+    // Сессия клиента: clear() увеличивает счётчик, и ответ /client/news, запрошенный до выхода из
+    // аккаунта, не попадает в ленту следующего клиента (он может быть из другого салона).
+    private val session = AtomicInteger()
 
     suspend fun refreshAll() = coroutineScope {
         val me = async { apiCall { api.me() } }
@@ -64,19 +71,29 @@ class SalonRepository(
     /**
      * Перезагружает ленту. Ошибка при уже показанной ленте её не стирает (pull-to-refresh без сети),
      * а без ленты переводит вкладку в [NewsState.Failed]; в обоих случаях [ApiException] пробрасывается.
+     * Если между запросом и ответом был [clear] (выход из аккаунта), результат и ошибка отбрасываются.
      */
     suspend fun refreshNews() {
+        val started = session.get()
         if (_news.value !is NewsState.Ready) _news.value = NewsState.Loading
         try {
             val dtos = apiCall { api.news() }
-            _news.value = NewsState.Ready(newsMutex.withLock { withContext(decodeDispatcher) { decodeFeed(dtos) } })
+            val feed = newsMutex.withLock {
+                val images = newsImages // до проверки сессии: clear() сначала меняет счётчик, потом карту
+                if (session.get() != started) return
+                withContext(decodeDispatcher) { decodeFeed(images, dtos) }
+            }
+            // Клиент вышел, пока декодировались картинки, — лента уже не его
+            if (session.get() == started) _news.value = NewsState.Ready(feed)
         } catch (e: ApiException) {
+            // Ошибка запроса прежнего клиента: не показываем её и не пробрасываем (401 разлогинил бы нового)
+            if (session.get() != started) return
             if (_news.value !is NewsState.Ready) _news.value = NewsState.Failed(e)
             throw e
         }
     }
 
-    private fun decodeFeed(dtos: List<NewsDto>): List<NewsItem> {
+    private fun decodeFeed(newsImages: HashMap<String, ImageBitmap?>, dtos: List<NewsDto>): List<NewsItem> {
         val wanted = dtos.mapNotNull { dto -> dto.imageUrl?.let { imageKey(dto.id, it) } }.toSet()
         newsImages.keys.retainAll(wanted)
         return dtos.toNewsFeed(
@@ -114,8 +131,9 @@ class SalonRepository(
         _client.value = null
         _catalog.value = null
         _bookings.value = emptyList()
+        session.incrementAndGet()
         _news.value = NewsState.Loading
-        newsImages.clear()
+        newsImages = HashMap()
     }
 }
 

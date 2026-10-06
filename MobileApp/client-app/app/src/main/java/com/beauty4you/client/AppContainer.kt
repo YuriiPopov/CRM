@@ -38,7 +38,7 @@ class AppContainer(app: Application) {
 
 /**
  * "data:image/webp;base64,...." → ImageBitmap (фото мастера и картинка новости хранятся в БД как
- * data URL, item41/item75), с уменьшением до [maxSide] по длинной стороне — см. [inSampleSize].
+ * data URL, item41/item75), с уменьшением так, чтобы короткая сторона была не меньше [maxSide], — см. [inSampleSize].
  * Вызывается из SalonRepository на Dispatchers.Default, не в главном потоке.
  */
 private fun decodeDataUrl(dataUrl: String, maxSide: Int): ImageBitmap? = runCatching {
