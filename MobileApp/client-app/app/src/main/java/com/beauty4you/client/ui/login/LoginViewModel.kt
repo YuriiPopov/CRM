@@ -11,6 +11,7 @@ import com.beauty4you.client.R
 import com.beauty4you.client.data.AuthRepository
 import com.beauty4you.client.data.VerifyOutcome
 import com.beauty4you.client.data.remote.ApiException
+import com.beauty4you.client.domain.PhoneInput
 import com.beauty4you.client.ui.errorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +23,8 @@ enum class LoginStep { PHONE, CODE, PROFILE }
 
 data class LoginState(
     val step: LoginStep = LoginStep.PHONE,
-    val phone: String = "+48 ",
+    /** Только национальные цифры (до 9); «+48» — фиксированный префикс в UI. */
+    val phone: String = "",
     /** Нормализованный сервером телефон, на который реально ушёл код. */
     val sentTo: String = "",
     val code: String = "",
@@ -39,7 +41,7 @@ class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
     private val _state = MutableStateFlow(LoginState())
     val state: StateFlow<LoginState> = _state.asStateFlow()
 
-    fun onPhoneChange(value: String) = _state.update { it.copy(phone = value, error = null) }
+    fun onPhoneChange(value: String) = _state.update { it.copy(phone = PhoneInput.normalize(value), error = null) }
     fun onCodeChange(value: String) = _state.update { it.copy(code = value.filter(Char::isDigit).take(6), error = null) }
     fun onNameChange(value: String) = _state.update { it.copy(name = value, error = null) }
     fun onConsentChange(value: Boolean) = _state.update { it.copy(consent = value, error = null) }
@@ -49,7 +51,7 @@ class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
     }
 
     fun requestCode() = run {
-        val result = auth.requestCode(_state.value.phone)
+        val result = auth.requestCode(PhoneInput.toE164(_state.value.phone))
         _state.update {
             it.copy(step = LoginStep.CODE, sentTo = result.phone, devCode = result.devCode, code = "")
         }

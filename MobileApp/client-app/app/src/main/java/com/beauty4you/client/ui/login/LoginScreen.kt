@@ -28,7 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -39,15 +41,18 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.beauty4you.client.R
+import com.beauty4you.client.domain.PhoneInput
 import com.beauty4you.client.ui.common.AccentButton
 import com.beauty4you.client.ui.common.Pill
 import com.beauty4you.client.ui.common.VSpace
@@ -116,13 +121,14 @@ private fun PhoneStep(state: LoginState, vm: LoginViewModel) {
     Title(stringResource(R.string.login_title), stringResource(R.string.login_subtitle))
     Field(
         label = stringResource(R.string.login_phone_label),
-        value = state.phone,
+        value = PhoneInput.format(state.phone),
         onChange = vm::onPhoneChange,
         keyboardType = KeyboardType.Phone,
-        onDone = vm::requestCode,
+        onDone = { if (PhoneInput.isComplete(state.phone)) vm.requestCode() },
+        prefix = PhoneInput.COUNTRY_PREFIX,
     )
     VSpace(20.dp)
-    SubmitButton(stringResource(R.string.login_send_code), state.loading, enabled = state.phone.count(Char::isDigit) >= 9, onClick = vm::requestCode)
+    SubmitButton(stringResource(R.string.login_send_code), state.loading, enabled = PhoneInput.isComplete(state.phone), onClick = vm::requestCode)
 }
 
 @Composable
@@ -204,18 +210,37 @@ private fun Field(
     onDone: () -> Unit,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
     large: Boolean = false,
+    prefix: String? = null,
 ) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(label) { focus.requestFocus() }
     Text(label, style = B4UType.FieldLabel, color = Muted, modifier = Modifier.padding(bottom = 6.dp))
+    val textStyle = if (large) {
+        B4UType.ScreenTitle.copy(color = InkStrong, letterSpacing = 6.sp)
+    } else {
+        B4UType.CardTitle.copy(fontSize = 16.sp, color = InkStrong)
+    }
+    // Поле с префиксом (телефон): курсор всегда в конце, значение форматируется извне.
+    // Остальные поля (код, имя) редактируются как обычно — курсор можно ставить в середину.
+    var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
     BasicTextField(
-        value = value,
-        onValueChange = onChange,
+        value = field,
+        onValueChange = {
+            onChange(it.text)
+            field = if (prefix != null) TextFieldValue(value, TextRange(value.length)) else it
+        },
         singleLine = true,
-        textStyle = if (large) {
-            B4UType.ScreenTitle.copy(color = InkStrong, letterSpacing = 6.sp)
-        } else {
-            B4UType.CardTitle.copy(fontSize = 16.sp, color = InkStrong)
+        textStyle = textStyle,
+        decorationBox = { inner ->
+            if (prefix == null) {
+                inner()
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(prefix, style = textStyle, color = Muted, modifier = Modifier.padding(end = 8.dp))
+                    inner()
+                }
+            }
         },
         cursorBrush = SolidColor(Accent),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, capitalization = capitalization, imeAction = ImeAction.Done),
