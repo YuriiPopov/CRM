@@ -14,7 +14,21 @@ import kotlinx.coroutines.coroutineScope
 import java.time.LocalDate
 import java.time.YearMonth
 
-class ScheduleRepository(private val api: ApiService) {
+// То, что нужно шторке «Grafik pracy» — интерфейс, чтобы гонки ответов проверялись в unit-тестах
+interface MasterScheduleSource {
+    suspend fun monthsFor(masterId: String, months: List<YearMonth>): List<ScheduleDay>
+    suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<Booking>
+    suspend fun save(masterId: String, plan: ScheduleMonthPlan): List<ScheduleDay>
+}
+
+// То же для шторки «Blokady»
+interface MasterBlocksSource {
+    suspend fun blocksOf(masterId: String, from: LocalDate): List<MasterBlock>
+    suspend fun createBlock(masterId: String, startTime: String, endTime: String, reason: String): MasterBlock
+    suspend fun deleteBlock(id: String)
+}
+
+class ScheduleRepository(private val api: ApiService) : MasterScheduleSource, MasterBlocksSource {
 
     // График нескольких мастеров на набор дат. GET /master-schedules отдаёт один месяц одного
     // мастера — запрашиваем каждую пару (мастер, месяц) один раз.
@@ -40,25 +54,25 @@ class ScheduleRepository(private val api: ApiService) {
     // --- Редактирование графика и блокировок (item76, часть 2) ---
 
     // График одного мастера за несколько месяцев (неделя может захватить два)
-    suspend fun monthsFor(masterId: String, months: List<YearMonth>): List<ScheduleDay> = coroutineScope {
+    override suspend fun monthsFor(masterId: String, months: List<YearMonth>): List<ScheduleDay> = coroutineScope {
         months.map { month -> async { api.getSchedule(masterId, month.year, month.monthValue).map { it.toDomain() } } }
             .awaitAll()
             .flatten()
     }
 
     // Неизвестный этой версии статус записи даёт null (как в списках) — такая запись не покажется
-    suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<Booking> =
+    override suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<Booking> =
         api.scheduleConflicts(plan.toBody(masterId)).mapNotNull { it.toDomain() }
 
-    suspend fun save(masterId: String, plan: ScheduleMonthPlan): List<ScheduleDay> =
+    override suspend fun save(masterId: String, plan: ScheduleMonthPlan): List<ScheduleDay> =
         api.saveSchedule(plan.toBody(masterId)).map { it.toDomain() }
 
     // Блокировки мастера, заканчивающиеся после from (полночь дня, салонное время с меткой UTC)
-    suspend fun blocksOf(masterId: String, from: LocalDate): List<MasterBlock> =
+    override suspend fun blocksOf(masterId: String, from: LocalDate): List<MasterBlock> =
         api.listBlocks(from = "${from}T00:00:00.000Z", masterId = masterId).map { it.toDomain() }
 
-    suspend fun createBlock(masterId: String, startTime: String, endTime: String, reason: String): MasterBlock =
+    override suspend fun createBlock(masterId: String, startTime: String, endTime: String, reason: String): MasterBlock =
         api.createBlock(CreateBlockBody(masterId, startTime, endTime, reason)).toDomain()
 
-    suspend fun deleteBlock(id: String) = api.deleteBlock(id)
+    override suspend fun deleteBlock(id: String) = api.deleteBlock(id)
 }

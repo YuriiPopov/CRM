@@ -22,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,6 +47,7 @@ import com.beauty4you.admin.ui.common.ErrorState
 import com.beauty4you.admin.ui.common.FormErrorBanner
 import com.beauty4you.admin.ui.common.FormHint
 import com.beauty4you.admin.ui.common.FormSheet
+import com.beauty4you.admin.ui.common.OnSheetClosed
 import com.beauty4you.admin.ui.common.SelectChip
 import com.beauty4you.admin.ui.common.SkeletonList
 import com.beauty4you.admin.ui.common.TimeDropdown
@@ -74,8 +74,9 @@ import java.time.LocalDate
 fun ScheduleSheet(master: Master, onClose: () -> Unit) {
     val viewModel: ScheduleViewModel = viewModel(key = "schedule", factory = ScheduleViewModel.factory(appContainer()))
     val state by viewModel.state.collectAsState()
+    // После пересоздания Activity start() для того же мастера ничего не делает — правки остаются
     LaunchedEffect(master.id) { viewModel.start(master) }
-    DisposableEffect(Unit) { onDispose { viewModel.reset() } }
+    OnSheetClosed(viewModel::reset)
     LaunchedEffect(state.closed) { if (state.closed) onClose() }
     // Пока start() не отработал, в state может быть прошлый мастер — не показываем его график
     val ready = state.master?.id == master.id

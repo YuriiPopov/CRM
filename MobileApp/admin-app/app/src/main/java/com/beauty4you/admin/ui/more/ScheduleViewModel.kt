@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.beauty4you.admin.AppContainer
+import com.beauty4you.admin.AppEvents
 import com.beauty4you.admin.R
 import com.beauty4you.admin.data.remote.toApiFailure
+import com.beauty4you.admin.data.repo.Catalog
+import com.beauty4you.admin.data.repo.MasterScheduleSource
 import com.beauty4you.admin.domain.DaySchedule
 import com.beauty4you.admin.domain.DayStatus
 import com.beauty4you.admin.domain.HoursError
@@ -14,6 +17,8 @@ import com.beauty4you.admin.domain.Master
 import com.beauty4you.admin.domain.ScheduleConflict
 import com.beauty4you.admin.domain.ScheduleError
 import com.beauty4you.admin.domain.ScheduleLogic
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,21 +56,29 @@ data class ScheduleUiState(
 
 // «Grafik pracy» мастера (item76, часть 2): неделя с листанием, выбор нескольких дней,
 // перед сохранением — POST /master-schedules/conflicts, затем PUT по каждому месяцу.
-class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
+class ScheduleViewModel(
+    private val repository: MasterScheduleSource,
+    private val loadCatalog: suspend () -> Catalog,
+    private val events: AppEvents,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(ScheduleUiState())
     val state: StateFlow<ScheduleUiState> = _state.asStateFlow()
 
-    private val repository get() = container.scheduleRepository
+    private var loadJob: Job? = null
 
+    // Тот же мастер — шторка пересоздана вместе с Activity (поворот, смена темы): черновик остаётся
     fun start(master: Master) {
+        if (_state.value.master?.id == master.id) return
+        loadJob?.cancel()
         _state.value = ScheduleUiState(master = master)
         loadWeek()
     }
 
-    // Шторка закрыта: состояние сбрасывается, иначе при следующем открытии старый closed = true
-    // сразу закрыл бы её снова (ViewModel живёт дольше шторки — в записи навигации экрана)
+    // Шторка закрыта: загрузка отменяется, состояние сбрасывается, иначе при следующем открытии старый
+    // closed = true сразу закрыл бы её снова (ViewModel живёт дольше шторки — в записи навигации экрана)
     fun reset() {
+        loadJob?.cancel()
         _state.value = ScheduleUiState()
     }
 
@@ -125,9 +138,9 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                 if (!confirmed) {
                     val bookings = plans.flatMap { repository.conflicts(master.id, it) }
                     if (bookings.isNotEmpty()) {
-                        val catalog = container.catalogRepository.get()
+                        val catalog = loadCatalog()
                         val rows = ScheduleLogic.conflicts(bookings, catalog::clientName, catalog::serviceName)
-                        _state.update { it.copy(saving = false, conflicts = rows) }
+                        updateFor(master) { it.copy(saving = false, conflicts = rows) }
                         return@launch
                     }
                 }
@@ -135,14 +148,14 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                     repository.save(master.id, plan)
                     // Месяц сохранён: при ошибке на следующем повторное «Zapisz» его уже не отправит
                     val savedDates = plan.days.map { it.date }.toSet()
-                    _state.update { st -> st.copy(loaded = st.loaded + st.edited.filterKeys { it in savedDates }) }
+                    updateFor(master) { st -> st.copy(loaded = st.loaded + st.edited.filterKeys { it in savedDates }) }
                 }
-                container.events.notifyDataChanged()
-                container.events.toast(R.string.toast_schedule_saved)
-                _state.update { it.copy(saving = false, conflicts = emptyList(), closed = true) }
+                events.notifyDataChanged()
+                events.toast(R.string.toast_schedule_saved)
+                updateFor(master) { it.copy(saving = false, conflicts = emptyList(), closed = true) }
             } catch (e: Exception) {
                 android.util.Log.e("Schedule", "save failed", e)
-                _state.update { it.copy(saving = false, error = ScheduleLogic.mapError(e.toApiFailure().httpCode)) }
+                updateFor(master) { it.copy(saving = false, error = ScheduleLogic.mapError(e.toApiFailure().httpCode)) }
             }
         }
     }
@@ -156,8 +169,10 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
         loadWeek()
     }
 
-    // Догружает месяцы новой недели; уже загруженные (и правки в них) не трогает
+    // Догружает месяцы новой недели; уже загруженные (и правки в них) не трогает.
+    // Прошлая загрузка отменяется: её месяцы, если понадобятся, запросятся заново.
     private fun loadWeek() {
+        loadJob?.cancel()
         val s = _state.value
         val master = s.master ?: return
         val missing = ScheduleLogic.monthsOf(s.week).filter { it !in s.loadedMonths }
@@ -166,12 +181,12 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
             return
         }
         _state.update { it.copy(loading = true, loadError = false) }
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             try {
                 val records = repository.monthsFor(master.id, missing)
                 val dates = missing.flatMap { month -> (1..month.lengthOfMonth()).map { month.atDay(it) } }
                 val days = ScheduleLogic.fromServer(dates, records)
-                _state.update {
+                updateFor(master) {
                     it.copy(
                         loading = false,
                         loadedMonths = it.loadedMonths + missing,
@@ -179,16 +194,23 @@ class ScheduleViewModel(private val container: AppContainer) : ViewModel() {
                         edited = days + it.edited,
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("Schedule", "load failed", e)
-                _state.update { it.copy(loading = false, loadError = true) }
+                updateFor(master) { it.copy(loading = false, loadError = true) }
             }
         }
     }
 
+    // Ответ применяется, только если шторка всё ещё открыта на том же мастере: ответ для мастера A,
+    // пришедший после открытия мастера B, отбрасывается
+    private fun updateFor(master: Master, transform: (ScheduleUiState) -> ScheduleUiState) =
+        _state.update { if (it.master?.id == master.id) transform(it) else it }
+
     companion object {
         fun factory(container: AppContainer) = viewModelFactory {
-            initializer { ScheduleViewModel(container) }
+            initializer { ScheduleViewModel(container.scheduleRepository, { container.catalogRepository.get() }, container.events) }
         }
     }
 }

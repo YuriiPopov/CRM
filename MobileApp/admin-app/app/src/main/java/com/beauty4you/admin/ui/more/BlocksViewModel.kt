@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.beauty4you.admin.AppContainer
+import com.beauty4you.admin.AppEvents
 import com.beauty4you.admin.R
 import com.beauty4you.admin.data.remote.toApiFailure
+import com.beauty4you.admin.data.repo.MasterBlocksSource
 import com.beauty4you.admin.domain.BlockError
 import com.beauty4you.admin.domain.BlockFieldError
 import com.beauty4you.admin.domain.BlockForm
@@ -14,6 +16,8 @@ import com.beauty4you.admin.domain.BlockLogic
 import com.beauty4you.admin.domain.BlockReason
 import com.beauty4you.admin.domain.Master
 import com.beauty4you.admin.domain.MasterBlock
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,32 +48,50 @@ data class BlocksUiState(
     val deleting: Boolean = false,
     // Ошибка удаления — показывается в шторке списка, шторка не закрывается
     val error: BlockError? = null,
-)
+) {
+    fun ownsBlock(block: MasterBlock): Boolean =
+        master != null && block.masterId == master.id && blocks.any { it.id == block.id }
+}
 
 // «Blokady» мастера (item76, часть 2): будущие блокировки, «+» и удаление. GET/POST/DELETE /master-blocks.
-class BlocksViewModel(private val container: AppContainer) : ViewModel() {
+class BlocksViewModel(
+    private val repository: MasterBlocksSource,
+    private val events: AppEvents,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(BlocksUiState())
     val state: StateFlow<BlocksUiState> = _state.asStateFlow()
 
-    private val repository get() = container.scheduleRepository
+    private var loadJob: Job? = null
 
+    // Тот же мастер — шторка пересоздана вместе с Activity (поворот, смена темы): список и форма остаются
     fun start(master: Master) {
+        if (_state.value.master?.id == master.id) return
+        loadJob?.cancel()
         _state.value = BlocksUiState(master = master)
         load()
     }
 
+    // Шторка закрыта: загрузка отменяется, следующее открытие (даже того же мастера) начнёт с чистого листа
+    fun reset() {
+        loadJob?.cancel()
+        _state.value = BlocksUiState()
+    }
+
     fun load() {
         val master = _state.value.master ?: return
+        loadJob?.cancel()
         _state.update { it.copy(loading = it.blocks.isEmpty(), loadError = false) }
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             try {
                 val today = LocalDate.now()
                 val blocks = BlockLogic.upcoming(repository.blocksOf(master.id, today), master.id, today)
-                _state.update { it.copy(loading = false, blocks = blocks) }
+                updateFor(master) { it.copy(loading = false, blocks = blocks) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("Blocks", "load failed", e)
-                _state.update { it.copy(loading = false, loadError = it.blocks.isEmpty()) }
+                updateFor(master) { it.copy(loading = false, loadError = it.blocks.isEmpty()) }
             }
         }
     }
@@ -108,24 +130,36 @@ class BlocksViewModel(private val container: AppContainer) : ViewModel() {
                     endTime = BlockLogic.toApiDateTime(form.date, form.end),
                     reason = BlockLogic.reasonText(form),
                 )
-                _state.update { s -> s.copy(editor = null, blocks = (s.blocks + block).sortedBy { it.start }) }
+                updateFor(master) { s -> s.copy(editor = null, blocks = (s.blocks + block).sortedBy { it.start }) }
                 done(R.string.toast_block_created)
             } catch (e: Exception) {
                 android.util.Log.e("Blocks", "create failed", e)
                 val failure = e.toApiFailure()
-                updateEditor { it.copy(saving = false, error = BlockLogic.mapError(failure.httpCode, failure.message)) }
+                updateFor(master) { s ->
+                    s.copy(editor = s.editor?.copy(saving = false, error = BlockLogic.mapError(failure.httpCode, failure.message)))
+                }
             }
         }
     }
 
     // --- Удаление ---
 
-    fun askDelete(block: MasterBlock) = _state.update { it.copy(confirmDelete = block, error = null) }
+    // Удалить можно только блокировку из списка открытого мастера
+    fun askDelete(block: MasterBlock) {
+        if (!_state.value.ownsBlock(block)) return
+        _state.update { it.copy(confirmDelete = block, error = null) }
+    }
 
     fun dismissDelete() = _state.update { it.copy(confirmDelete = null) }
 
     fun confirmDelete() {
-        val block = _state.value.confirmDelete ?: return
+        val s = _state.value
+        val master = s.master ?: return
+        val block = s.confirmDelete ?: return
+        if (!s.ownsBlock(block)) {
+            _state.update { it.copy(confirmDelete = null) }
+            return
+        }
         _state.update { it.copy(confirmDelete = null, deleting = true, error = null) }
         viewModelScope.launch {
             val error = try {
@@ -137,19 +171,24 @@ class BlocksViewModel(private val container: AppContainer) : ViewModel() {
                 BlockLogic.mapError(failure.httpCode, failure.message).takeUnless { it == BlockError.NOT_FOUND }
             }
             if (error == null) {
-                _state.update { s -> s.copy(deleting = false, blocks = s.blocks.filterNot { it.id == block.id }) }
+                updateFor(master) { st -> st.copy(deleting = false, blocks = st.blocks.filterNot { it.id == block.id }) }
                 done(R.string.toast_block_deleted)
             } else {
-                _state.update { it.copy(deleting = false, error = error) }
+                updateFor(master) { it.copy(deleting = false, error = error) }
             }
         }
     }
 
     private fun done(toast: Int) {
         // Календарь и Timeline перечитают блокировки
-        container.events.notifyDataChanged()
-        container.events.toast(toast)
+        events.notifyDataChanged()
+        events.toast(toast)
     }
+
+    // Ответ применяется, только если шторка всё ещё открыта на том же мастере: ответ для мастера A,
+    // пришедший после открытия мастера B, отбрасывается
+    private fun updateFor(master: Master, transform: (BlocksUiState) -> BlocksUiState) =
+        _state.update { if (it.master?.id == master.id) transform(it) else it }
 
     private fun updateEditor(transform: (BlockEditorState) -> BlockEditorState) =
         _state.update { s -> s.copy(editor = s.editor?.let(transform)) }
@@ -159,7 +198,7 @@ class BlocksViewModel(private val container: AppContainer) : ViewModel() {
 
     companion object {
         fun factory(container: AppContainer) = viewModelFactory {
-            initializer { BlocksViewModel(container) }
+            initializer { BlocksViewModel(container.scheduleRepository, container.events) }
         }
     }
 }

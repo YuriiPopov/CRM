@@ -23,7 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +45,7 @@ import com.beauty4you.admin.ui.common.DeleteSaveButtons
 import com.beauty4you.admin.ui.common.ErrorState
 import com.beauty4you.admin.ui.common.FormErrorBanner
 import com.beauty4you.admin.ui.common.FormSheet
+import com.beauty4you.admin.ui.common.OnSheetClosed
 import com.beauty4you.admin.ui.common.FormTextField
 import com.beauty4you.admin.ui.common.PillAction
 import com.beauty4you.admin.ui.common.SelectChip
@@ -68,7 +69,9 @@ import java.time.LocalDate
 fun BlocksSheet(master: Master, onClose: () -> Unit) {
     val viewModel: BlocksViewModel = viewModel(key = "blocks", factory = BlocksViewModel.factory(appContainer()))
     val state by viewModel.state.collectAsState()
+    // После пересоздания Activity start() для того же мастера ничего не делает — форма блокировки остаётся
     LaunchedEffect(master.id) { viewModel.start(master) }
+    OnSheetClosed(viewModel::reset)
     val ready = state.master?.id == master.id
 
     // Список — не форма: изменений, которые можно потерять, в нём нет
@@ -158,7 +161,7 @@ private fun BlockFormSheet(editor: BlockEditorState, viewModel: BlocksViewModel)
     val form = editor.form
     val errors = editor.visibleFieldErrors
     val enabled = !editor.saving
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
 
     FormSheet(
         title = stringResource(R.string.block_form_title),

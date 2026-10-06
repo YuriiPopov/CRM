@@ -1,5 +1,8 @@
 package com.beauty4you.admin.ui.common
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -39,12 +42,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -99,7 +105,8 @@ fun FormSheet(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    var askDiscard by remember { mutableStateOf(false) }
+    // Переживает пересоздание Activity (поворот, смена темы) — вместе с черновиком во ViewModel
+    var askDiscard by rememberSaveable { mutableStateOf(false) }
     // Выбрано «Odrzuć» — дальше шторка закрывается без проверок
     var discarding by remember { mutableStateOf(false) }
     val currentDirty by rememberUpdatedState(dirty)
@@ -180,6 +187,23 @@ fun FormSheet(
             containerColor = SheetBackground,
         )
     }
+}
+
+// Шторка ушла из композиции, потому что её закрыли, — а не потому, что Activity пересоздаётся
+// (поворот, смена темы): тогда ViewModel с черновиком переживает пересоздание, и сбрасывать её нельзя
+@Composable
+fun OnSheetClosed(onClosed: () -> Unit) {
+    val activity = LocalContext.current.findActivity()
+    val currentOnClosed by rememberUpdatedState(onClosed)
+    DisposableEffect(Unit) {
+        onDispose { if (activity?.isChangingConfigurations != true) currentOnClosed() }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 // Поле ввода в стиле дизайна (рамка F0E1E2, радиус 12, отступы 11/14); ошибка — под полем
