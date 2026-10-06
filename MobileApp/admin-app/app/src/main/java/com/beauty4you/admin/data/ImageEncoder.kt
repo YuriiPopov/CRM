@@ -18,40 +18,43 @@ import java.io.ByteArrayOutputStream
 // карточки во всю ширину экрана.
 class ImageEncoder(private val context: Context) {
 
-    suspend fun encode(uri: Uri): String? = withContext(Dispatchers.IO) {
+    // Фото мастера (item76) — меньше: аватар на экране не больше 64 dp, сервер принимает до 2 МБ
+    suspend fun encode(
+        uri: Uri,
+        maxSide: Int = MAX_SIDE,
+        maxBytes: Int = NewsFormLogic.IMAGE_MAX_BYTES,
+    ): String? = withContext(Dispatchers.IO) {
         runCatching {
-            val bitmap = decode(uri) ?: return@runCatching null
+            val bitmap = decode(uri, maxSide) ?: return@runCatching null
             var quality = START_QUALITY
             var bytes = compress(bitmap, quality)
-            while (bytes.size > NewsFormLogic.IMAGE_MAX_BYTES && quality > MIN_QUALITY) {
+            while (bytes.size > maxBytes && quality > MIN_QUALITY) {
                 quality -= QUALITY_STEP
                 bytes = compress(bitmap, quality)
             }
             bitmap.recycle()
-            if (bytes.size > NewsFormLogic.IMAGE_MAX_BYTES) return@runCatching null
+            if (bytes.size > maxBytes) return@runCatching null
             // NO_WRAP: сервер проверяет data URL регулярным выражением без переводов строк
             "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
         }.getOrNull()
     }
 
-    private fun decode(uri: Uri): Bitmap? =
+    private fun decode(uri: Uri, maxSide: Int): Bitmap? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             // ImageDecoder сам учитывает EXIF-поворот снимка камеры
             ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                val scale = scaleFor(info.size.width, info.size.height)
+                val scale = maxSide.toFloat() / maxOf(info.size.width, info.size.height)
                 if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
             }
         } else {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
             var sample = 1
-            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_SIDE) sample *= 2
+            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
             val options = BitmapFactory.Options().apply { inSampleSize = sample }
             context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
         }
-
-    private fun scaleFor(width: Int, height: Int): Float = MAX_SIDE.toFloat() / maxOf(width, height)
 
     private fun compress(bitmap: Bitmap, quality: Int): ByteArray =
         ByteArrayOutputStream().use { out ->
@@ -59,10 +62,11 @@ class ImageEncoder(private val context: Context) {
             out.toByteArray()
         }
 
-    private companion object {
+    companion object {
         const val MAX_SIDE = 1600
-        const val START_QUALITY = 85
-        const val MIN_QUALITY = 40
-        const val QUALITY_STEP = 15
+        const val MASTER_PHOTO_SIDE = 640
+        private const val START_QUALITY = 85
+        private const val MIN_QUALITY = 40
+        private const val QUALITY_STEP = 15
     }
 }

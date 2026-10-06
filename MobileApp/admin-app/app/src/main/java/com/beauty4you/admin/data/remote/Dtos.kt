@@ -60,7 +60,7 @@ data class ServiceDto(
 )
 
 @Serializable
-data class CategoryDto(val id: String, val name: String)
+data class CategoryDto(val id: String, val name: String, val isDefault: Boolean = false)
 
 @Serializable
 data class ClientDto(
@@ -144,3 +144,26 @@ data class NewsBody(
 
 @Serializable
 data class NewsImageBody(val image: String)
+
+// Мастера, услуги, категории (item76). В PATCH null-поля не отправляются (explicitNulls = false).
+@Serializable
+data class MasterBody(
+    val name: String? = null,
+    val specializationCategoryIds: List<String>? = null,
+    val isActive: Boolean? = null,
+)
+
+@Serializable
+data class MasterPhotoBody(val photo: String)
+
+// price — число (IsNumber в CreateServiceDto), не строка; в ответе бэкенд отдаёт Decimal строкой
+@Serializable
+data class ServiceBody(
+    val name: String? = null,
+    val categoryId: String? = null,
+    val durationMin: Int? = null,
+    val price: Double? = null,
+)
+
+@Serializable
+data class CategoryBody(val name: String)

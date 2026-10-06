@@ -46,7 +46,9 @@ data class Service(
     val price: String,
 )
 
-data class Category(val id: String, val name: String)
+// isDefault — категория, в которую бэкенд переносит услуги при удалении другой категории;
+// саму её удалить нельзя (ServiceCategoriesService.remove)
+data class Category(val id: String, val name: String, val isDefault: Boolean = false)
 
 data class Client(
     val id: String,

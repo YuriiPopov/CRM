@@ -7,12 +7,14 @@ import com.beauty4you.admin.domain.Category
 import com.beauty4you.admin.domain.Client
 import com.beauty4you.admin.domain.Master
 import com.beauty4you.admin.domain.MasterBlock
+import com.beauty4you.admin.domain.MasterFields
 import com.beauty4you.admin.domain.NewsCategory
 import com.beauty4you.admin.domain.NewsFields
 import com.beauty4you.admin.domain.NewsPost
 import com.beauty4you.admin.domain.NewsStatus
 import com.beauty4you.admin.domain.ScheduleDay
 import com.beauty4you.admin.domain.Service
+import com.beauty4you.admin.domain.ServiceFields
 import kotlinx.serialization.json.JsonPrimitive
 import java.time.Instant
 import java.time.LocalDate
@@ -59,7 +61,7 @@ fun ServiceDto.toDomain() = Service(
     price = (price as? JsonPrimitive)?.content ?: price.toString(),
 )
 
-fun CategoryDto.toDomain() = Category(id = id, name = name)
+fun CategoryDto.toDomain() = Category(id = id, name = name, isDefault = isDefault)
 
 fun ClientDto.toDomain() = Client(
     id = id,
@@ -109,4 +111,17 @@ fun NewsFields.toBody() = NewsBody(
     title = title,
     body = body,
     status = status?.name,
+)
+
+fun MasterFields.toBody() = MasterBody(
+    name = name,
+    specializationCategoryIds = categoryIds,
+    isActive = isActive,
+)
+
+fun ServiceFields.toBody() = ServiceBody(
+    name = name,
+    categoryId = categoryId,
+    durationMin = durationMin,
+    price = price?.toDouble(),
 )

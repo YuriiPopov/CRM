@@ -23,11 +23,17 @@ data class MoreUiState(
     val todayByMaster: Map<String, Int> = emptyMap(),
 )
 
-// Общая ViewModel вкладки «Więcej»: Mistrzowie и Usługi — только просмотр (этап 1)
+// Общая ViewModel вкладки «Więcej»: списки Mistrzowie и Usługi. Редактирование — в
+// CatalogEditViewModel (item76); после сохранения списки перечитываются по dataChanged.
 class MoreViewModel(private val container: AppContainer) : ViewModel() {
 
     private val _state = MutableStateFlow(MoreUiState())
     val state: StateFlow<MoreUiState> = _state.asStateFlow()
+
+    init {
+        // Кэш справочников уже сброшен репозиторием — обычный load() перечитает его с сервера
+        viewModelScope.launch { container.events.dataChanged.collect { load() } }
+    }
 
     fun load(force: Boolean = false) {
         viewModelScope.launch {

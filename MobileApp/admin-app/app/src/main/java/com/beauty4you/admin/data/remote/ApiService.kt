@@ -46,11 +46,50 @@ interface ApiService {
     @GET("staff")
     suspend fun listStaff(): List<StaffDto>
 
+    @POST("staff")
+    suspend fun createMaster(@Body body: MasterBody): StaffDto
+
+    @PATCH("staff/{id}")
+    suspend fun updateMaster(@Path("id") id: String, @Body body: MasterBody): StaffDto
+
+    @DELETE("staff/{id}")
+    suspend fun deleteMaster(@Path("id") id: String)
+
+    @POST("staff/{id}/services/{serviceId}")
+    suspend fun assignService(@Path("id") id: String, @Path("serviceId") serviceId: String)
+
+    @DELETE("staff/{id}/services/{serviceId}")
+    suspend fun unassignService(@Path("id") id: String, @Path("serviceId") serviceId: String)
+
+    @POST("staff/{id}/photo")
+    suspend fun uploadMasterPhoto(@Path("id") id: String, @Body body: MasterPhotoBody): StaffDto
+
+    @DELETE("staff/{id}/photo")
+    suspend fun deleteMasterPhoto(@Path("id") id: String)
+
     @GET("services")
     suspend fun listServices(): List<ServiceDto>
 
+    @POST("services")
+    suspend fun createService(@Body body: ServiceBody): ServiceDto
+
+    @PATCH("services/{id}")
+    suspend fun updateService(@Path("id") id: String, @Body body: ServiceBody): ServiceDto
+
+    @DELETE("services/{id}")
+    suspend fun deleteService(@Path("id") id: String)
+
     @GET("service-categories")
     suspend fun listCategories(): List<CategoryDto>
+
+    @POST("service-categories")
+    suspend fun createCategory(@Body body: CategoryBody): CategoryDto
+
+    @PATCH("service-categories/{id}")
+    suspend fun updateCategory(@Path("id") id: String, @Body body: CategoryBody): CategoryDto
+
+    @DELETE("service-categories/{id}")
+    suspend fun deleteCategory(@Path("id") id: String)
 
     @GET("master-schedules")
     suspend fun getSchedule(

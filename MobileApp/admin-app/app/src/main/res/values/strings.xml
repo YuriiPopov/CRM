@@ -207,4 +207,72 @@
     <string name="toast_news_published">Opublikowano dla klientów</string>
     <string name="toast_news_draft">Zapisano jako szkic</string>
     <string name="toast_news_deleted">Wpis usunięty</string>
+
+    <!-- Mistrzowie i Usługi — edycja (item76) -->
+    <string name="master_add">Nowy mistrz</string>
+    <string name="master_form_title_new">Nowy mistrz</string>
+    <string name="master_form_title_edit">Edytuj mistrza</string>
+    <string name="master_form_photo">ZDJĘCIE</string>
+    <string name="master_form_name">IMIĘ</string>
+    <string name="master_form_color">KOLOR W KALENDARZU</string>
+    <string name="master_form_specialization">SPECJALIZACJA</string>
+    <string name="master_form_services">USŁUGI</string>
+    <string name="master_form_status">STATUS</string>
+    <string name="master_color_auto">Nadawany automatycznie — taki sam jak w CRM</string>
+    <string name="master_color_after_save">Zostanie nadany automatycznie po zapisaniu</string>
+    <string name="master_active">Aktywny</string>
+    <string name="master_inactive_hint">Nieaktywnego mistrza nie można zapisać na wizytę i nie widzą go klienci.</string>
+    <string name="master_no_services">Brak usług — dodaj je w sekcji „Usługi”</string>
+    <string name="master_error_name">Podaj imię</string>
+    <string name="master_error_specialization">Wybierz co najmniej jedną specjalizację</string>
+    <string name="master_delete_confirm_title">Usunąć mistrza?</string>
+    <string name="master_delete_confirm_text">„%1$s” zniknie z listy mistrzów. Tej operacji nie można cofnąć.</string>
+    <string name="master_delete_confirm_yes">Usuń mistrza</string>
+    <string name="toast_master_created">Mistrz dodany</string>
+    <string name="toast_master_saved">Zmiany zapisane</string>
+    <string name="toast_master_deleted">Mistrz usunięty</string>
+
+    <string name="service_add">Nowa usługa</string>
+    <string name="service_form_title_new">Nowa usługa</string>
+    <string name="service_form_title_edit">Edytuj usługę</string>
+    <string name="service_form_category">KATEGORIA</string>
+    <string name="service_form_name">NAZWA</string>
+    <string name="service_form_duration">CZAS TRWANIA</string>
+    <string name="service_form_price">CENA</string>
+    <string name="service_unit_min">min</string>
+    <string name="service_unit_currency">zł</string>
+    <string name="service_error_category">Wybierz kategorię</string>
+    <string name="service_error_name">Podaj nazwę usługi</string>
+    <string name="service_error_duration">Od 1 do 1440 minut</string>
+    <string name="service_error_price">Nieprawidłowa cena (np. 150 lub 99,50)</string>
+    <string name="service_delete_confirm_title">Usunąć usługę?</string>
+    <string name="service_delete_confirm_text">„%1$s” zniknie z cennika. Tej operacji nie można cofnąć.</string>
+    <string name="service_delete_confirm_yes">Usuń usługę</string>
+    <string name="toast_service_created">Usługa dodana</string>
+    <string name="toast_service_saved">Zmiany zapisane</string>
+    <string name="toast_service_deleted">Usługa usunięta</string>
+
+    <string name="category_add">Kategoria</string>
+    <string name="category_edit">Edytuj kategorię</string>
+    <string name="category_empty">Brak usług w tej kategorii</string>
+    <string name="category_default_badge">domyślna</string>
+    <string name="category_form_title_new">Nowa kategoria</string>
+    <string name="category_form_title_edit">Edytuj kategorię</string>
+    <string name="category_form_name">NAZWA</string>
+    <string name="category_error_name">Podaj nazwę kategorii</string>
+    <string name="category_error_taken">Kategoria o tej nazwie już istnieje</string>
+    <string name="category_delete_blocked_default">To kategoria domyślna — nie można jej usunąć.</string>
+    <string name="category_delete_blocked_services">Można usunąć tylko pustą kategorię — najpierw przenieś lub usuń jej usługi.</string>
+    <string name="category_delete_confirm_title">Usunąć kategorię?</string>
+    <string name="category_delete_confirm_text">Kategoria „%1$s” zostanie usunięta. Specjalizacje mistrzów z tą kategorią przejdą na kategorię domyślną.</string>
+    <string name="category_delete_confirm_yes">Usuń kategorię</string>
+    <string name="toast_category_created">Kategoria dodana</string>
+    <string name="toast_category_saved">Kategoria zapisana</string>
+    <string name="toast_category_deleted">Kategoria usunięta</string>
+
+    <string name="catalog_error_master_in_use">Nie można usunąć mistrza — ma konto logowania, wizyty, usługi lub specjalizacje. Ustaw status „Nieaktywny”, aby ukryć go przed klientami.</string>
+    <string name="catalog_error_master_has_bookings">Mistrz ma zaplanowane wizyty — najpierw je odwołaj lub przenieś do innego mistrza.</string>
+    <string name="catalog_error_service_in_use">Nie można usunąć usługi — mają ją przypisaną mistrzowie lub istnieją na nią wizyty.</string>
+    <string name="catalog_error_photo">Nie udało się dodać zdjęcia — dozwolone JPG, PNG lub WebP do 2 MB</string>
+    <string name="catalog_error_not_found">Nie znaleziono — mogło zostać usunięte w CRM</string>
 </resources>

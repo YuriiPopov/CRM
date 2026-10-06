@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Снимки камеры для картинки новости (item75) — во временной папке кэша -->
+<!-- Снимки камеры для картинки новости (item75) и фото мастера (item76) — во временной папке кэша -->
 <paths>
     <cache-path name="news_camera" path="news_camera/" />
+    <cache-path name="master_camera" path="master_camera/" />
 </paths>
