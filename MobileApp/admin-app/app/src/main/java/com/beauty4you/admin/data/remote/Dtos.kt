@@ -32,6 +32,8 @@ data class BookingDto(
     val endTime: String,
     val status: String,
     val source: String = "ADMIN",
+    // Только в ответе POST /master-schedules/conflicts: DAY_OFF | OUTSIDE_HOURS
+    val reason: String? = null,
 )
 
 @Serializable

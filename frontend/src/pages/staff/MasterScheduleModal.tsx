@@ -6,6 +6,7 @@ import {
   findMasterScheduleConflicts,
   getMasterSchedule,
   upsertMasterSchedule,
+  type MasterScheduleConflict,
 } from '../../api/masterSchedules'
 import { RescheduleModal } from '../calendar/RescheduleModal'
 import { formatTimeRange, toDateOnly } from '../calendar/dateUtils'
@@ -86,7 +87,7 @@ export function MasterScheduleModal({
   const [saveError, setSaveError] = useState<string | null>(null)
   // null = конфликты ещё не проверялись для текущего состояния дней; [] = проверены и/или все
   // разрешены (перенесены/переназначены) — см. handleBookingResolved.
-  const [conflicts, setConflicts] = useState<Booking[] | null>(null)
+  const [conflicts, setConflicts] = useState<MasterScheduleConflict[] | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<Booking | null>(null)
   const [reassigningBookingId, setReassigningBookingId] = useState<string | null>(null)
   const [reassignMasterId, setReassignMasterId] = useState('')
@@ -523,7 +524,7 @@ export function MasterScheduleModal({
       {conflicts && conflicts.length > 0 && (
         <div className="master-schedule-conflicts">
           <p role="alert">
-            На даты, которые станут нерабочими, уже есть записи клиентов ({conflicts.length}).
+            На даты и часы, которые станут нерабочими, уже есть записи клиентов ({conflicts.length}).
             Перенесите или переназначьте каждую другому мастеру, прежде чем сохранить график.
           </p>
           <ul>
@@ -538,6 +539,9 @@ export function MasterScheduleModal({
                       {formatTimeRange(conflictBooking.startTime, conflictBooking.endTime)}
                     </span>
                     <span>{servicesById.get(conflictBooking.serviceId)?.name ?? 'Услуга не найдена'}</span>
+                    <span className="master-schedule-conflict-reason">
+                      {conflictBooking.reason === 'OUTSIDE_HOURS' ? 'Вне рабочих часов' : 'Выходной день'}
+                    </span>
                   </div>
 
                   <div className="master-schedule-conflict-actions">

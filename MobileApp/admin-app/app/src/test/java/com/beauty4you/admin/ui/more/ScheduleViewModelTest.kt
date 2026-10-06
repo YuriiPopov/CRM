@@ -3,6 +3,7 @@ package com.beauty4you.admin.ui.more
 import com.beauty4you.admin.AppEvents
 import com.beauty4you.admin.data.repo.MasterScheduleSource
 import com.beauty4you.admin.domain.Booking
+import com.beauty4you.admin.domain.BookingConflict
 import com.beauty4you.admin.domain.DayStatus
 import com.beauty4you.admin.domain.Master
 import com.beauty4you.admin.domain.ScheduleDay
@@ -61,7 +62,7 @@ class ScheduleViewModelTest {
             }
         }
 
-        override suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<Booking> = emptyList()
+        override suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<BookingConflict> = emptyList()
 
         override suspend fun save(masterId: String, plan: ScheduleMonthPlan): List<ScheduleDay> = emptyList()
     }

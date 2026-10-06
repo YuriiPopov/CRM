@@ -5,8 +5,10 @@ import com.beauty4you.admin.data.remote.CreateBlockBody
 import com.beauty4you.admin.data.remote.toBody
 import com.beauty4you.admin.data.remote.toDomain
 import com.beauty4you.admin.domain.Booking
+import com.beauty4you.admin.domain.BookingConflict
 import com.beauty4you.admin.domain.MasterBlock
 import com.beauty4you.admin.domain.ScheduleDay
+import com.beauty4you.admin.domain.ScheduleLogic
 import com.beauty4you.admin.domain.ScheduleMonthPlan
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -17,7 +19,7 @@ import java.time.YearMonth
 // То, что нужно шторке «Grafik pracy» — интерфейс, чтобы гонки ответов проверялись в unit-тестах
 interface MasterScheduleSource {
     suspend fun monthsFor(masterId: String, months: List<YearMonth>): List<ScheduleDay>
-    suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<Booking>
+    suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<BookingConflict>
     suspend fun save(masterId: String, plan: ScheduleMonthPlan): List<ScheduleDay>
 }
 
@@ -61,8 +63,10 @@ class ScheduleRepository(private val api: ApiService) : MasterScheduleSource, Ma
     }
 
     // Неизвестный этой версии статус записи даёт null (как в списках) — такая запись не покажется
-    override suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<Booking> =
-        api.scheduleConflicts(plan.toBody(masterId)).mapNotNull { it.toDomain() }
+    override suspend fun conflicts(masterId: String, plan: ScheduleMonthPlan): List<BookingConflict> =
+        api.scheduleConflicts(plan.toBody(masterId)).mapNotNull { dto ->
+            dto.toDomain()?.let { BookingConflict(it, ScheduleLogic.conflictReason(dto.reason)) }
+        }
 
     override suspend fun save(masterId: String, plan: ScheduleMonthPlan): List<ScheduleDay> =
         api.saveSchedule(plan.toBody(masterId)).map { it.toDomain() }

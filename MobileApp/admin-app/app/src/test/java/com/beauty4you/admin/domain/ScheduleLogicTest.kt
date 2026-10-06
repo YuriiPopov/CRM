@@ -146,11 +146,25 @@ class ScheduleLogicTest {
             end = LocalDateTime.of(2026, 10, day, hour + 1, 0),
             status = BookingStatus.CONFIRMED,
         )
-        val response = listOf(booking("b2", 7, 12), booking("b1", 6, 15), booking("b2", 7, 12))
+        fun conflict(b: Booking, reason: ConflictReason) = BookingConflict(b, reason)
+        val response = listOf(
+            conflict(booking("b2", 7, 12), ConflictReason.OUTSIDE_HOURS),
+            conflict(booking("b1", 6, 15), ConflictReason.DAY_OFF),
+            conflict(booking("b2", 7, 12), ConflictReason.OUTSIDE_HOURS),
+        )
         val rows = ScheduleLogic.conflicts(response, { "Klient $it" }, { "Manicure" })
 
         assertEquals(listOf("b1", "b2"), rows.map { it.bookingId })
-        assertEquals(ScheduleConflict("b1", d(6), t(15), "Klient c-b1", "Manicure"), rows.first())
+        assertEquals(ScheduleConflict("b1", d(6), t(15), "Klient c-b1", "Manicure", ConflictReason.DAY_OFF), rows.first())
+        assertEquals(ConflictReason.OUTSIDE_HOURS, rows.last().reason)
+    }
+
+    @Test
+    fun `conflict reason maps from the api string, unknown or missing means day off`() {
+        assertEquals(ConflictReason.OUTSIDE_HOURS, ScheduleLogic.conflictReason("OUTSIDE_HOURS"))
+        assertEquals(ConflictReason.DAY_OFF, ScheduleLogic.conflictReason("DAY_OFF"))
+        assertEquals(ConflictReason.DAY_OFF, ScheduleLogic.conflictReason(null))
+        assertEquals(ConflictReason.DAY_OFF, ScheduleLogic.conflictReason("SOMETHING_NEW"))
     }
 
     @Test

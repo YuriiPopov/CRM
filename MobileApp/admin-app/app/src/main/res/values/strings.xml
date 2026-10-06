@@ -298,12 +298,14 @@
         <item quantity="other">Zastosuj do %d dni</item>
     </plurals>
     <plurals name="schedule_conflicts_title">
-        <item quantity="one">%d wizyta wypada w dzień wolny</item>
-        <item quantity="few">%d wizyty wypadają w dni wolne</item>
-        <item quantity="many">%d wizyt wypada w dni wolne</item>
-        <item quantity="other">%d wizyty wypadają w dni wolne</item>
+        <item quantity="one">%d wizyta koliduje z nowym grafikiem</item>
+        <item quantity="few">%d wizyty kolidują z nowym grafikiem</item>
+        <item quantity="many">%d wizyt koliduje z nowym grafikiem</item>
+        <item quantity="other">%d wizyty kolidują z nowym grafikiem</item>
     </plurals>
     <string name="schedule_conflicts_hint">Po zapisaniu wizyty pozostaną w kalendarzu — przenieś je lub odwołaj osobno.</string>
+    <string name="schedule_conflict_day_off">Dzień wolny</string>
+    <string name="schedule_conflict_outside_hours">Poza godzinami pracy</string>
     <string name="schedule_save_anyway">Zapisz mimo to</string>
     <string name="toast_schedule_saved">Grafik zapisany</string>
     <string name="hours_error_order">Godzina „od” musi być wcześniejsza niż „do”</string>

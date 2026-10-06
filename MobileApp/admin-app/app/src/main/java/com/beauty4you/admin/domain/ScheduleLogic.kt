@@ -27,13 +27,20 @@ data class ScheduleMonthPlan(val month: YearMonth, val days: List<ScheduleDayInp
 
 data class ScheduleDayInput(val date: LocalDate, val isWorking: Boolean, val start: LocalTime? = null, val end: LocalTime? = null)
 
-// Строка списка конфликтов: запись, попадающая на день, который становится выходным
+// Почему запись конфликтует с новым графиком: попадает на новый выходной или выходит за новые часы
+enum class ConflictReason { DAY_OFF, OUTSIDE_HOURS }
+
+// Запись из ответа POST /master-schedules/conflicts вместе с причиной конфликта
+data class BookingConflict(val booking: Booking, val reason: ConflictReason)
+
+// Строка списка конфликтов: запись, конфликтующая с новым графиком
 data class ScheduleConflict(
     val bookingId: String,
     val date: LocalDate,
     val start: LocalTime,
     val clientName: String,
     val serviceName: String,
+    val reason: ConflictReason = ConflictReason.DAY_OFF,
 )
 
 enum class ScheduleError { VALIDATION, NOT_FOUND, NETWORK, UNKNOWN }
@@ -119,17 +126,23 @@ object ScheduleLogic {
             }
             .map { (month, days) -> ScheduleMonthPlan(month, days) }
 
-    // Ответ POST /master-schedules/conflicts — записи (Booking) мастера на днях, которые становятся
-    // выходными. Запросов по месяцу может быть два — убираем повторы, сортируем по времени.
+    // Ответ POST /master-schedules/conflicts — записи (Booking) мастера на новых выходных и за
+    // новыми часами работы. Запросов по месяцу может быть два — убираем повторы, сортируем по времени.
     fun conflicts(
-        bookings: List<Booking>,
+        bookings: List<BookingConflict>,
         clientName: (String) -> String,
         serviceName: (String) -> String,
     ): List<ScheduleConflict> =
         bookings
-            .distinctBy { it.id }
-            .sortedBy { it.start }
-            .map { ScheduleConflict(it.id, it.date, it.start.toLocalTime(), clientName(it.clientId), serviceName(it.serviceId)) }
+            .distinctBy { it.booking.id }
+            .sortedBy { it.booking.start }
+            .map { (b, reason) ->
+                ScheduleConflict(b.id, b.date, b.start.toLocalTime(), clientName(b.clientId), serviceName(b.serviceId), reason)
+            }
+
+    // Старый бэкенд reason не присылал и отдавал только записи на выходных
+    fun conflictReason(raw: String?): ConflictReason =
+        if (raw == "OUTSIDE_HOURS") ConflictReason.OUTSIDE_HOURS else ConflictReason.DAY_OFF
 
     fun mapError(httpCode: Int?): ScheduleError = when (httpCode) {
         null -> ScheduleError.NETWORK

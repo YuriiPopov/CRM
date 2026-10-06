@@ -209,44 +209,105 @@ describe('MasterSchedulesService', () => {
   });
 
   describe('findConflicts', () => {
-    it('reports bookings that fall on a day becoming non-working', async () => {
-      prisma.master.findFirst.mockResolvedValue({ id: 'master-1' });
-      const conflictingBooking = {
-        id: 'booking-1',
-        startTime: new Date('2026-03-03T10:00:00.000Z'),
-      };
-      prisma.booking.findMany.mockResolvedValue([conflictingBooking]);
-
-      const result = await service.findConflicts(
-        {
-          masterId: 'master-1',
-          year: 2026,
-          month: 3,
-          days: [{ date: '2026-03-03', isWorking: false }],
-        },
-        admin,
-      );
-
-      expect(prisma.booking.findMany).toHaveBeenCalledWith({
-        where: {
-          salonId: 'salon-1',
-          masterId: 'master-1',
-          status: { notIn: [BookingStatus.CANCELLED, BookingStatus.NO_SHOW] },
-          OR: [
-            {
-              startTime: {
-                gte: new Date('2026-03-03T00:00:00.000Z'),
-                lt: new Date('2026-03-04T00:00:00.000Z'),
-              },
-            },
-          ],
-        },
-        orderBy: { startTime: 'asc' },
+    describe('with a fixed "now"', () => {
+      // 2026-03-01 12:00 UTC в Варшаве (зима, UTC+1) — настенное время салона 13:00
+      beforeEach(() => {
+        jest
+          .useFakeTimers()
+          .setSystemTime(new Date('2026-03-01T12:00:00.000Z'));
+        prisma.master.findFirst.mockResolvedValue({ id: 'master-1' });
       });
-      expect(result).toEqual([conflictingBooking]);
+      afterEach(() => jest.useRealTimers());
+
+      const booking = (id: string, start: string, end: string) => ({
+        id,
+        startTime: new Date(`2026-03-03T${start}:00.000Z`),
+        endTime: new Date(`2026-03-03T${end}:00.000Z`),
+      });
+      const narrowed = {
+        masterId: 'master-1',
+        year: 2026,
+        month: 3,
+        days: [
+          {
+            date: '2026-03-03',
+            isWorking: true,
+            startTime: '09:00',
+            endTime: '14:00',
+          },
+        ],
+      };
+
+      it('queries only active bookings starting from salon now on the proposed days', async () => {
+        prisma.booking.findMany.mockResolvedValue([]);
+
+        await service.findConflicts(
+          {
+            ...narrowed,
+            days: [...narrowed.days, { date: '2026-03-04', isWorking: false }],
+          },
+          admin,
+        );
+
+        expect(prisma.booking.findMany).toHaveBeenCalledWith({
+          where: {
+            salonId: 'salon-1',
+            masterId: 'master-1',
+            status: { in: [BookingStatus.CREATED, BookingStatus.CONFIRMED] },
+            startTime: { gte: new Date('2026-03-01T13:00:00.000Z') },
+            OR: [
+              {
+                startTime: {
+                  gte: new Date('2026-03-03T00:00:00.000Z'),
+                  lt: new Date('2026-03-04T00:00:00.000Z'),
+                },
+              },
+              {
+                startTime: {
+                  gte: new Date('2026-03-04T00:00:00.000Z'),
+                  lt: new Date('2026-03-05T00:00:00.000Z'),
+                },
+              },
+            ],
+          },
+          orderBy: { startTime: 'asc' },
+        });
+      });
+
+      it('flags bookings on a day becoming non-working as DAY_OFF', async () => {
+        const b = booking('b1', '10:00', '11:00');
+        prisma.booking.findMany.mockResolvedValue([b]);
+
+        const result = await service.findConflicts(
+          { ...narrowed, days: [{ date: '2026-03-03', isWorking: false }] },
+          admin,
+        );
+
+        expect(result).toEqual([{ ...b, reason: 'DAY_OFF' }]);
+      });
+
+      it('flags bookings partly or fully outside the new hours as OUTSIDE_HOURS, keeps inside ones', async () => {
+        const late = booking('late', '16:00', '17:00');
+        const partial = booking('partial', '13:30', '14:30');
+        const inside = booking('inside', '10:00', '11:00');
+        const edge = booking('edge', '13:00', '14:00');
+        prisma.booking.findMany.mockResolvedValue([
+          inside,
+          edge,
+          partial,
+          late,
+        ]);
+
+        const result = await service.findConflicts(narrowed, admin);
+
+        expect(result).toEqual([
+          { ...partial, reason: 'OUTSIDE_HOURS' },
+          { ...late, reason: 'OUTSIDE_HOURS' },
+        ]);
+      });
     });
 
-    it('reports no conflicts when no day in the proposed schedule becomes non-working', async () => {
+    it('reports no conflicts when no day is non-working and no hours are given', async () => {
       prisma.master.findFirst.mockResolvedValue({ id: 'master-1' });
 
       const result = await service.findConflicts(

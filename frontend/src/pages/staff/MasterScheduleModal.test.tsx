@@ -574,6 +574,21 @@ describe('MasterScheduleModal', () => {
       expect(mockedUpsertMasterSchedule).not.toHaveBeenCalled()
     })
 
+    it('shows the conflict reason: "Выходной день" for a day off, "Вне рабочих часов" for out-of-hours', async () => {
+      mockedGetMasterSchedule.mockResolvedValue([])
+      mockedFindConflicts.mockResolvedValue([
+        { ...conflictBooking({ id: 'booking-off' }), reason: 'DAY_OFF' },
+        { ...conflictBooking({ id: 'booking-late' }), reason: 'OUTSIDE_HOURS' },
+      ])
+      const user = userEvent.setup()
+
+      renderModal()
+      await markFirstDayOffAndSave(user)
+
+      expect(await screen.findByText('Выходной день')).toBeInTheDocument()
+      expect(screen.getByText('Вне рабочих часов')).toBeInTheDocument()
+    })
+
     it('resolves a conflict via "Перенести" (RescheduleModal) and unblocks saving', async () => {
       mockedGetMasterSchedule.mockResolvedValue([])
       mockedFindConflicts.mockResolvedValue([conflictBooking()])

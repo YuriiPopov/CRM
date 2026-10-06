@@ -16,6 +16,11 @@ export interface UpsertMasterScheduleInput {
   days: MasterScheduleDayInput[]
 }
 
+export type ScheduleConflictReason = 'DAY_OFF' | 'OUTSIDE_HOURS'
+
+// Запись, конфликтующая с предлагаемым графиком, + причина (выходной день или вне новых часов)
+export type MasterScheduleConflict = Booking & { reason?: ScheduleConflictReason }
+
 export async function getMasterSchedule(
   masterId: string,
   year: number,
@@ -35,11 +40,11 @@ export async function upsertMasterSchedule(
 }
 
 // Проверка "что сломается", если сохранить этот график — не сохраняет ничего сама, отдаёт
-// список Booking, попадающих на дни, которые становятся нерабочими (см. MasterScheduleModal —
+// список Booking, попадающих на новые выходные или за новые часы работы, с полем reason (см. MasterScheduleModal —
 // вызывается перед PUT, чтобы не переносить графиком записи клиентов молча).
 export async function findMasterScheduleConflicts(
   input: UpsertMasterScheduleInput,
-): Promise<Booking[]> {
-  const response = await apiClient.post<Booking[]>('/master-schedules/conflicts', input)
+): Promise<MasterScheduleConflict[]> {
+  const response = await apiClient.post<MasterScheduleConflict[]>('/master-schedules/conflicts', input)
   return response.data
 }

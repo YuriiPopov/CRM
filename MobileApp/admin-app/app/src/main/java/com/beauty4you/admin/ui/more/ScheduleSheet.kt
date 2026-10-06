@@ -40,6 +40,7 @@ import com.beauty4you.admin.domain.DayStatus
 import com.beauty4you.admin.domain.HoursError
 import com.beauty4you.admin.domain.Master
 import com.beauty4you.admin.domain.PolishDates
+import com.beauty4you.admin.domain.ConflictReason
 import com.beauty4you.admin.domain.ScheduleConflict
 import com.beauty4you.admin.domain.ScheduleError
 import com.beauty4you.admin.domain.ScheduleLogic
@@ -238,7 +239,7 @@ private fun BulkPanel(state: ScheduleUiState, viewModel: ScheduleViewModel) {
     }
 }
 
-// Записи на днях, которые станут выходными (ответ POST /master-schedules/conflicts)
+// Записи, конфликтующие с новым графиком — выходной или часы работы (ответ POST /master-schedules/conflicts)
 @Composable
 private fun ConflictsBlock(conflicts: List<ScheduleConflict>) {
     val today = LocalDate.now()
@@ -257,7 +258,8 @@ private fun ConflictsBlock(conflicts: List<ScheduleConflict>) {
         )
         conflicts.forEach { c ->
             Text(
-                "${PolishDates.weekdayShort(c.date)} ${PolishDates.shortDate(c.date, today)}, ${PolishDates.time(c.start)} · ${c.clientName} · ${c.serviceName}",
+                "${PolishDates.weekdayShort(c.date)} ${PolishDates.shortDate(c.date, today)}, ${PolishDates.time(c.start)} · ${c.clientName} · ${c.serviceName} · " +
+                    stringResource(if (c.reason == ConflictReason.OUTSIDE_HOURS) R.string.schedule_conflict_outside_hours else R.string.schedule_conflict_day_off),
                 style = B4UType.Caption,
                 color = InkStrong,
                 modifier = Modifier.padding(top = 4.dp),
