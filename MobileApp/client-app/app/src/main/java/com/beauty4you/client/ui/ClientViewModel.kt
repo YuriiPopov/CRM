@@ -67,6 +67,9 @@ sealed interface WeekSlots {
     data class Failed(@StringRes val message: Int) : WeekSlots
 }
 
+/** Полноэкранный просмотр фото услуги (item84): id фото по порядку и открытая страница. */
+data class PhotoViewer(val photoIds: List<String>, val page: Int)
+
 data class Toast(@StringRes val message: Int, val id: Long = System.nanoTime())
 
 data class NavState(
@@ -101,6 +104,9 @@ class ClientViewModel(
     private val _draft = MutableStateFlow<BookingDraft?>(null)
     val draft: StateFlow<BookingDraft?> = _draft.asStateFlow()
 
+    private val _viewer = MutableStateFlow<PhotoViewer?>(null)
+    val viewer: StateFlow<PhotoViewer?> = _viewer.asStateFlow()
+
     private val _toast = MutableStateFlow<Toast?>(null)
     val toast: StateFlow<Toast?> = _toast.asStateFlow()
 
@@ -125,6 +131,7 @@ class ClientViewModel(
             // Новая сессия (в т.ч. другой клиент после 401) — навигация с чистого листа
             _nav.value = NavState()
             _draft.value = null
+            _viewer.value = null
             reload()
         } else if (_load.value is LoadState.Failed) {
             reload()
@@ -173,6 +180,7 @@ class ClientViewModel(
     }
 
     fun logout() {
+        _viewer.value = null
         viewModelScope.launch {
             auth.logout()
             _load.value = LoadState.Loading
@@ -182,6 +190,7 @@ class ClientViewModel(
     // --- Навигация ---
 
     fun selectTab(tab: Tab) {
+        _viewer.value = null
         _nav.update { it.copy(tab = tab, pushed = null) }
         // Записи могли измениться в салоне (подтверждение, отмена администратором),
         // новости — опубликованы или удалены в admin-app
@@ -190,9 +199,21 @@ class ClientViewModel(
     }
 
     fun openMaster(id: String) = _nav.update { it.copy(pushed = Pushed.MasterDetail(id)) }
+    // Пустой список — просматривать нечего, просмотр не открывается
+    fun openViewer(photoIds: List<String>, page: Int) {
+        if (photoIds.isEmpty()) return
+        _viewer.value = PhotoViewer(photoIds, page.coerceIn(0, photoIds.lastIndex))
+    }
+
+    // Страница, на которой остановился пользователь: переживает пересоздание Activity (поворот экрана)
+    fun setViewerPage(page: Int) = _viewer.update { it?.copy(page = page) }
+    fun closeViewer() { _viewer.value = null }
     fun openService(id: String) = _nav.update { it.copy(pushed = Pushed.ServiceDetail(id)) }
     fun openLoyalty() = _nav.update { it.copy(pushed = Pushed.Loyalty) }
-    fun back() = _nav.update { it.copy(pushed = null) }
+    fun back() {
+        _viewer.value = null
+        _nav.update { it.copy(pushed = null) }
+    }
     fun setBookingsUpcoming(upcoming: Boolean) = _nav.update { it.copy(bookingsShowUpcoming = upcoming) }
     fun setServicesCategory(categoryId: String?) = _nav.update { it.copy(servicesCategoryId = categoryId) }
 
@@ -209,6 +230,7 @@ class ClientViewModel(
      * до его услуг. Если в текущей неделе нет свободных слотов, календарь сам листает вперёд.
      */
     fun startBooking(serviceId: String? = null, masterId: String? = null, fromMaster: Boolean = false) {
+        _viewer.value = null
         val catalog = catalog.value ?: return
         _draft.value = newBookingDraft(catalog, serviceId, masterId, fromMaster, LocalDate.now())
         loadWeek(autoAdvance = true)
@@ -311,6 +333,7 @@ class ClientViewModel(
             try {
                 repo.createBooking(masterId, serviceId, slot)
                 _draft.value = null
+                _viewer.value = null
                 _nav.update { it.copy(tab = Tab.BOOKINGS, pushed = null, bookingsShowUpcoming = true) }
                 showToast(R.string.toast_booked)
             } catch (e: ApiException) {

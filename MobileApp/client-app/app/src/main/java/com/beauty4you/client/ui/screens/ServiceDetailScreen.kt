@@ -1,5 +1,7 @@
 package com.beauty4you.client.ui.screens
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,30 +24,32 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.core.view.WindowCompat
 import com.beauty4you.client.R
 import com.beauty4you.client.data.Catalog
 import com.beauty4you.client.data.Service
 import com.beauty4you.client.ui.ClientViewModel
+import com.beauty4you.client.ui.PhotoViewer
 import com.beauty4you.client.ui.common.AccentButton
 import com.beauty4you.client.ui.common.EmojiTile
 import com.beauty4you.client.ui.common.PagePadding
@@ -159,8 +163,6 @@ private val GALLERY_SHAPE = androidx.compose.foundation.shape.RoundedCornerShape
 @Composable
 private fun Gallery(vm: ClientViewModel, service: Service, ids: List<String>) {
     val pager = rememberPagerState(pageCount = { ids.size })
-    // Номер фото в полноэкранном просмотре; null — просмотр закрыт. Переживает поворот экрана.
-    var viewerPage by rememberSaveable(service.id) { mutableStateOf<Int?>(null) }
     val widthPx = screenWidthPx()
 
     Column {
@@ -170,7 +172,7 @@ private fun Gallery(vm: ClientViewModel, service: Service, ids: List<String>) {
                     photos = vm.servicePhotos,
                     photoId = ids[page],
                     maxSidePx = widthPx,
-                    modifier = Modifier.fillMaxSize().clickable { viewerPage = page },
+                    modifier = Modifier.fillMaxSize().clickable { vm.openViewer(ids, page) },
                     contentDescription = stringResource(R.string.service_photo_alt, page + 1, ids.size),
                     placeholder = { EmojiTile(service.emoji, Modifier.fillMaxSize(), fontSize = 40, shape = androidx.compose.ui.graphics.RectangleShape) },
                 )
@@ -179,10 +181,6 @@ private fun Gallery(vm: ClientViewModel, service: Service, ids: List<String>) {
         if (ids.size > 1) {
             PagerDots(pager, ids.size, Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp))
         }
-    }
-
-    viewerPage?.let { start ->
-        FullscreenViewer(vm, service, ids, start, widthPx, onClose = { viewerPage = null })
     }
 }
 
@@ -200,52 +198,69 @@ private fun PagerDots(state: PagerState, count: Int, modifier: Modifier = Modifi
     }
 }
 
-// Полноэкранный просмотр: чёрный фон, картинка целиком (Fit), листание, «Назад» и ✕ закрывают
+/**
+ * Полноэкранный просмотр: оверлей поверх всего окна приложения (в том числе под статус- и навигационной
+ * панелями), чёрный фон, картинка целиком (Fit), листание; «Назад» и ✕ закрывают. Не Dialog — окно диалога
+ * на части устройств не рисует фон под системными панелями, и там оставалась светлая полоса.
+ */
 @Composable
-private fun FullscreenViewer(
-    vm: ClientViewModel,
-    service: Service,
-    ids: List<String>,
-    startPage: Int,
-    widthPx: Int,
-    onClose: () -> Unit,
-) {
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        val pager = rememberPagerState(initialPage = startPage.coerceIn(0, ids.lastIndex), pageCount = { ids.size })
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), key = { ids[it] }) { page ->
-                ServicePhotoImage(
-                    photos = vm.servicePhotos,
-                    photoId = ids[page],
-                    maxSidePx = widthPx,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit,
-                    contentDescription = stringResource(R.string.service_photo_alt, page + 1, ids.size),
-                    placeholder = { CircularProgressIndicator(color = Color.White) },
-                )
-            }
-            Row(
-                Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.service_photo_counter, pager.currentPage + 1, ids.size),
-                    style = B4UType.Body.copy(fontWeight = FontWeight.Medium),
-                    color = Color.White,
-                    modifier = Modifier.weight(1f),
-                )
-                val close = stringResource(R.string.service_viewer_close)
-                Text(
-                    "✕",
-                    fontSize = 20.sp,
-                    color = Color.White,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable(onClick = onClose)
-                        .padding(10.dp)
-                        .semantics { contentDescription = close },
-                )
-            }
+fun PhotoViewerOverlay(vm: ClientViewModel, viewer: PhotoViewer) {
+    BackHandler(onBack = vm::closeViewer)
+
+    // Иконки статус-бара на чёрном фоне — светлые; по закрытии возвращаем прежний вид
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        val window = (view.context as? Activity)?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        val previousStatus = controller?.isAppearanceLightStatusBars
+        val previousNav = controller?.isAppearanceLightNavigationBars
+        controller?.isAppearanceLightStatusBars = false
+        controller?.isAppearanceLightNavigationBars = false
+        onDispose {
+            previousStatus?.let { controller.isAppearanceLightStatusBars = it }
+            previousNav?.let { controller.isAppearanceLightNavigationBars = it }
+        }
+    }
+
+    val ids = viewer.photoIds
+    if (ids.isEmpty()) return
+    // Стартовая страница — последняя, на которой был пользователь (хранится в ViewModel и переживает поворот)
+    val pager = rememberPagerState(initialPage = viewer.page.coerceIn(0, ids.lastIndex), pageCount = { ids.size })
+    LaunchedEffect(pager) { snapshotFlow { pager.currentPage }.collect(vm::setViewerPage) }
+    val widthPx = screenWidthPx()
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), key = { ids[it] }) { page ->
+            ServicePhotoImage(
+                photos = vm.servicePhotos,
+                photoId = ids[page],
+                maxSidePx = widthPx,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+                contentDescription = stringResource(R.string.service_photo_alt, page + 1, ids.size),
+                placeholder = { CircularProgressIndicator(color = Color.White) },
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.service_photo_counter, pager.currentPage + 1, ids.size),
+                style = B4UType.Body.copy(fontWeight = FontWeight.Medium),
+                color = Color.White,
+                modifier = Modifier.weight(1f),
+            )
+            val close = stringResource(R.string.service_viewer_close)
+            Text(
+                "✕",
+                fontSize = 20.sp,
+                color = Color.White,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = vm::closeViewer)
+                    .padding(10.dp)
+                    .semantics { contentDescription = close },
+            )
         }
     }
 }

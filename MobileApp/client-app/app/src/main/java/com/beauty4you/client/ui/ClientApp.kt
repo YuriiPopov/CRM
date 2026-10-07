@@ -54,6 +54,7 @@ import com.beauty4you.client.ui.screens.LoyaltyScreen
 import com.beauty4you.client.ui.screens.MasterDetailScreen
 import com.beauty4you.client.ui.screens.NewsScreen
 import com.beauty4you.client.ui.screens.ProfileScreen
+import com.beauty4you.client.ui.screens.PhotoViewerOverlay
 import com.beauty4you.client.ui.screens.ServiceDetailScreen
 import com.beauty4you.client.ui.screens.ServicesScreen
 import com.beauty4you.client.ui.theme.Accent
@@ -111,44 +112,49 @@ private fun MainContent(vm: ClientViewModel, catalog: Catalog, client: Client) {
     val nav by vm.nav.collectAsStateWithLifecycle()
     val draft by vm.draft.collectAsStateWithLifecycle()
     val toast by vm.toast.collectAsStateWithLifecycle()
+    val viewer by vm.viewer.collectAsStateWithLifecycle()
 
     BackHandler(enabled = nav.pushed != null) { vm.back() }
     // Объявлен позже — при открытой записи «Назад» закрывает её и возвращает туда, откуда пришли
     BackHandler(enabled = draft != null) { vm.closeBooking() }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(AppBackground)
-            .statusBarsPadding(),
-    ) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            val currentDraft = draft
-            // Запись — полноэкранный экран поверх вкладки/pushed-экрана; nav не трогаем, чтобы вернуться туда же
-            if (currentDraft != null) {
-                BookingScreen(vm, catalog, currentDraft)
-            } else when (val pushed = nav.pushed) {
-                is Pushed.MasterDetail -> MasterDetailScreen(vm, catalog, pushed.masterId)
-                is Pushed.ServiceDetail -> ServiceDetailScreen(vm, catalog, pushed.serviceId)
-                Pushed.Loyalty -> LoyaltyScreen(vm)
-                null -> when (nav.tab) {
-                    Tab.NEWS -> NewsScreen(vm)
-                    Tab.HOME -> HomeScreen(vm, catalog, client)
-                    Tab.SERVICES -> ServicesScreen(vm, catalog)
-                    Tab.BOOKINGS -> BookingsScreen(vm)
-                    Tab.PROFILE -> ProfileScreen(vm, client)
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(AppBackground)
+                .statusBarsPadding(),
+        ) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                val currentDraft = draft
+                // Запись — полноэкранный экран поверх вкладки/pushed-экрана; nav не трогаем, чтобы вернуться туда же
+                if (currentDraft != null) {
+                    BookingScreen(vm, catalog, currentDraft)
+                } else when (val pushed = nav.pushed) {
+                    is Pushed.MasterDetail -> MasterDetailScreen(vm, catalog, pushed.masterId)
+                    is Pushed.ServiceDetail -> ServiceDetailScreen(vm, catalog, pushed.serviceId)
+                    Pushed.Loyalty -> LoyaltyScreen(vm)
+                    null -> when (nav.tab) {
+                        Tab.NEWS -> NewsScreen(vm)
+                        Tab.HOME -> HomeScreen(vm, catalog, client)
+                        Tab.SERVICES -> ServicesScreen(vm, catalog)
+                        Tab.BOOKINGS -> BookingsScreen(vm)
+                        Tab.PROFILE -> ProfileScreen(vm, client)
+                    }
                 }
+
+                ToastHost(
+                    toast,
+                    onTimeout = vm::clearToast,
+                    // На экране записи — над закреплённой панелью с итогом и кнопкой
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (draft != null) 124.dp else 0.dp),
+                )
             }
 
-            ToastHost(
-                toast,
-                onTimeout = vm::clearToast,
-                // На экране записи — над закреплённой панелью с итогом и кнопкой
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (draft != null) 124.dp else 0.dp),
-            )
+            if (draft == null) BottomBar(activeTab = nav.tab, onSelect = vm::selectTab)
         }
-
-        if (draft == null) BottomBar(activeTab = nav.tab, onSelect = vm::selectTab)
+        // Просмотр фото — поверх всего окна, включая зоны системных панелей
+        viewer?.let { PhotoViewerOverlay(vm, it) }
     }
 }
 
