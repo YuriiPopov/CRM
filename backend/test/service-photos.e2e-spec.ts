@@ -78,6 +78,7 @@ class FakePrismaService {
 
   serviceCategory = { findMany: () => Promise.resolve([]) };
   master = { findMany: () => Promise.resolve([]) };
+  booking = { findMany: () => Promise.resolve([]) };
 
   service = {
     findFirst: ({

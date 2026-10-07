@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Booking, Prisma } from '@prisma/client';
+import { Booking, BookingStatus, Prisma } from '@prisma/client';
 import { BookingsService } from '../bookings/bookings.service';
 import { AvailableSlotsQueryDto } from '../public-booking/dto/available-slots-query.dto';
 import { PublicBookingService } from '../public-booking/public-booking.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toClientProfile } from './auth/client-auth.service';
 import { AuthenticatedClient } from './auth/client-jwt';
+import {
+  categoryCoverPhotoIds,
+  clientServiceHistory,
+} from './client-catalog.util';
 import { CreateClientBookingDto } from './dto/create-client-booking.dto';
 
 const bookingInclude = {
@@ -77,40 +81,74 @@ export class ClientPortalService {
 
   async catalog(client: AuthenticatedClient) {
     const { salonId } = client;
-    const [salon, categories, services, masters] = await Promise.all([
-      this.prisma.salon.findUniqueOrThrow({
-        where: { id: salonId },
-        select: { name: true, address: true },
-      }),
-      this.prisma.serviceCategory.findMany({
-        where: { salonId },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true, name: true },
-      }),
-      this.prisma.service.findMany({
-        where: { salonId },
-        orderBy: { createdAt: 'asc' },
-        include: serviceListInclude,
-      }),
-      this.prisma.master.findMany({
-        where: { salonId, isActive: true },
-        orderBy: { createdAt: 'asc' },
-        include: {
-          services: { select: { serviceId: true } },
-          specializations: { select: { category: { select: { name: true } } } },
-        },
-      }),
-    ]);
+    const [salon, categories, services, masters, completedVisits] =
+      await Promise.all([
+        this.prisma.salon.findUniqueOrThrow({
+          where: { id: salonId },
+          select: { name: true, address: true },
+        }),
+        this.prisma.serviceCategory.findMany({
+          where: { salonId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, name: true },
+        }),
+        this.prisma.service.findMany({
+          where: { salonId },
+          orderBy: { createdAt: 'asc' },
+          include: serviceListInclude,
+        }),
+        this.prisma.master.findMany({
+          where: { salonId, isActive: true },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            services: { select: { serviceId: true } },
+            specializations: {
+              select: {
+                categoryId: true,
+                category: { select: { name: true } },
+              },
+            },
+          },
+        }),
+        // Только визиты этой клиентки в её салоне; по ним считаем isNew и «Twoje usługi» (item88)
+        this.prisma.booking.findMany({
+          where: {
+            clientId: client.clientId,
+            salonId,
+            status: BookingStatus.COMPLETED,
+          },
+          orderBy: { startTime: 'desc' },
+          select: { serviceId: true, masterId: true, startTime: true },
+        }),
+      ]);
 
     // Услуга без единого активного мастера не бронируется — клиенту её не показываем
     const bookable = services.filter((s) => s.masters.length > 0);
 
+    const clientServices = bookable.map(toClientService);
+    const covers = categoryCoverPhotoIds(
+      bookable.map((s) => ({
+        categoryId: s.categoryId,
+        createdAt: s.createdAt,
+        coverPhotoId: s.photos[0]?.id ?? null,
+      })),
+    );
+
     return {
       salon,
-      categories: categories.filter((c) =>
-        bookable.some((s) => s.categoryId === c.id),
-      ),
-      services: bookable.map(toClientService),
+      // Пустые категории (без услуг или без мастеров) не отдаём; base64 фото — никогда, только id
+      categories: categories
+        .filter((c) => bookable.some((s) => s.categoryId === c.id))
+        .map((c) => ({ ...c, coverPhotoId: covers.get(c.id) ?? null })),
+      client: {
+        // Новая клиентка — ни одного COMPLETED-визита; отменённые и будущие не считаются
+        isNew: completedVisits.length === 0,
+        services: clientServiceHistory(
+          completedVisits,
+          new Set(bookable.map((s) => s.id)),
+        ),
+      },
+      services: clientServices,
       masters: masters.map((m) => ({
         id: m.id,
         name: m.name,
@@ -118,6 +156,7 @@ export class ClientPortalService {
         photo: m.photo,
         serviceIds: m.services.map((link) => link.serviceId),
         specializations: m.specializations.map((sp) => sp.category.name),
+        specializationCategoryIds: m.specializations.map((sp) => sp.categoryId),
       })),
     };
   }

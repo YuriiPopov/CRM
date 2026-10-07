@@ -165,7 +165,7 @@ rezerwacja** открывается с любого экрана и предза
 
 **Backend — модуль `client-portal` (`/client/*`):**
 - `POST /client/auth/request-code`, `POST /client/auth/verify` — вход (анонимные, под rate limit);
-- `GET /client/me`, `GET /client/catalog` — профиль; услуги, категории и активные мастера салона (с фото);
+- `GET /client/me`, `GET /client/catalog` — профиль; услуги, категории (с `coverPhotoId`) и активные мастера салона (с `specializationCategoryIds`), плюс `client: { isNew, services: [{serviceId, lastMasterId, lastVisitAt}] }` по COMPLETED-визитам клиентки (item88);
 - `GET /client/slots` — свободные слоты мастера на день (та же логика, что у `/public/booking`);
 - `GET/POST /client/bookings`, `POST /client/bookings/:id/cancel` — собственные записи клиента;
   создание и отмена идут через `BookingsService` с теми же проверками (пересечения, буфер,
