@@ -5,25 +5,87 @@ import { AuthProvider } from './auth/AuthContext'
 import { setStoredToken } from './api/client'
 import { fetchCurrentUser } from './api/auth'
 import { getEffectiveDashboardWidgets } from './api/dashboardSettings'
+import { getPendingOnlineCount, listBookings } from './api/bookings'
+import { listClients } from './api/clients'
+import { getMaster, listMasterServiceLinks, listStaff } from './api/staff'
+import { listServices } from './api/services'
+import { listMasterBlocks } from './api/masterBlocks'
+import { getMasterSchedule } from './api/masterSchedules'
+import { getRevenueReport, listPayments } from './api/payments'
 
 vi.mock('./api/auth', () => ({
   login: vi.fn(),
   fetchCurrentUser: vi.fn(),
 }))
-// DashboardPage грузит его безусловно (см. DashboardPage.test.tsx) — без мока здесь запрос
-// уходил бы в реальную сеть (эта страница фигурирует в маршруте "/") и на 401 от бэкенда
-// разлогинивал бы пользователя через interceptor в api/client.ts, ломая редиректы ниже.
+// Страницы в маршрутах ("/" -> Dashboard / Calendar, /clients) грузят данные безусловно (см. их
+// собственные *.test.tsx) — без моков запросы уходят в реальную сеть (на localhost:3000 может
+// отвечать живой бэкенд) и на 401 interceptor из api/client.ts разлогинивает пользователя,
+// ломая редиректы ниже.
 vi.mock('./api/dashboardSettings', () => ({ getEffectiveDashboardWidgets: vi.fn() }))
+vi.mock('./api/bookings', () => ({
+  listBookings: vi.fn(),
+  updateBookingStatus: vi.fn(),
+  rescheduleBooking: vi.fn(),
+  getPendingOnlineCount: vi.fn(),
+}))
+vi.mock('./api/clients', () => ({ listClients: vi.fn() }))
+vi.mock('./api/staff', () => ({
+  listStaff: vi.fn(),
+  listMasterServiceLinks: vi.fn(),
+  getMaster: vi.fn(),
+}))
+vi.mock('./api/services', () => ({ listServices: vi.fn() }))
+vi.mock('./api/masterBlocks', () => ({
+  listMasterBlocks: vi.fn(),
+  createMasterBlock: vi.fn(),
+  deleteMasterBlock: vi.fn(),
+}))
+vi.mock('./api/masterSchedules', () => ({
+  getMasterSchedule: vi.fn(),
+  upsertMasterSchedule: vi.fn(),
+  findMasterScheduleConflicts: vi.fn(),
+}))
+vi.mock('./api/payments', () => ({
+  getRevenueReport: vi.fn(),
+  listPayments: vi.fn(),
+  createPayment: vi.fn(),
+}))
 
 const mockedFetchCurrentUser = vi.mocked(fetchCurrentUser)
-const mockedGetEffectiveDashboardWidgets = vi.mocked(getEffectiveDashboardWidgets)
-mockedGetEffectiveDashboardWidgets.mockResolvedValue([
+vi.mocked(getEffectiveDashboardWidgets).mockResolvedValue([
   'today-bookings-summary',
   'monthly-revenue',
   'daily-timeline',
   'weekly-timeline',
   'upcoming-bookings',
 ])
+vi.mocked(listBookings).mockResolvedValue([])
+vi.mocked(getPendingOnlineCount).mockResolvedValue(0)
+vi.mocked(listClients).mockResolvedValue([])
+vi.mocked(listStaff).mockResolvedValue([])
+vi.mocked(listMasterServiceLinks).mockResolvedValue([])
+vi.mocked(getMaster).mockResolvedValue({
+  id: 'master-rec-1',
+  salonId: 'salon-1',
+  name: 'Тестовый мастер',
+  specializationCategoryIds: [],
+  isActive: true,
+  photo: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  services: [],
+})
+vi.mocked(listServices).mockResolvedValue([])
+vi.mocked(listMasterBlocks).mockResolvedValue([])
+vi.mocked(getMasterSchedule).mockResolvedValue([])
+vi.mocked(listPayments).mockResolvedValue([])
+vi.mocked(getRevenueReport).mockResolvedValue({
+  from: '2026-03-01',
+  to: '2026-03-31T23:59:59.999Z',
+  paymentsCount: 0,
+  grossAmount: 0,
+  totalDiscount: 0,
+  netRevenue: 0,
+})
 
 function renderApp(initialPath: string) {
   return render(

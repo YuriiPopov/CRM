@@ -8,5 +8,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
+    // Node 25+ определяет собственный глобальный localStorage (без --localstorage-file он
+    // undefined) и перекрывает jsdom-овский — отключаем, чтобы `npx vitest run` работал без NODE_OPTIONS.
+    execArgv: ['--no-experimental-webstorage'],
   },
 })
