@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { assignService, getMaster, listMasterServiceLinks, listStaff, unassignService } from '../api/staff'
+import { assignService, deleteMaster, getMaster, listMasterServiceLinks, listStaff, unassignService } from '../api/staff'
 import { listServices } from '../api/services'
 import { listServiceCategories } from '../api/serviceCategories'
 import { getApiErrorMessage } from '../api/errors'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EditMasterModal } from './staff/EditMasterModal'
 import { MasterPhotoUpload } from './staff/MasterPhotoUpload'
 import { MasterScheduleModal } from './staff/MasterScheduleModal'
@@ -15,6 +16,7 @@ import type { Master, MasterDetail, MasterServiceLink } from '../types/staff'
 export function StaffDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const isAdmin = user?.role === 'ADMIN'
 
   const [master, setMaster] = useState<MasterDetail | null>(null)
@@ -28,6 +30,8 @@ export function StaffDetailPage() {
 
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [serviceToAssign, setServiceToAssign] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [detachingServiceId, setDetachingServiceId] = useState<string | null>(null)
@@ -123,6 +127,25 @@ export function StaffDetailPage() {
     }
   }
 
+  // Бэкенд сам проверяет отсутствие записей: canDelete мог устареть (запись появилась после
+  // загрузки карточки) — тогда придёт 409, показываем его текстом и перезагружаем карточку.
+  const handleDelete = async () => {
+    if (!id) return
+
+    setDeleting(true)
+    setActionError(null)
+    try {
+      await deleteMaster(id)
+      navigate('/staff', { replace: true })
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, 'Не удалось удалить мастера'))
+      setDeleteConfirmOpen(false)
+      await load()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return <p>Загрузка…</p>
   }
@@ -168,6 +191,11 @@ export function StaffDetailPage() {
           <button type="button" onClick={() => setScheduleModalOpen(true)}>
             График работы
           </button>
+          {master.canDelete === true && (
+            <button type="button" className="button-danger" onClick={() => setDeleteConfirmOpen(true)}>
+              Удалить мастера
+            </button>
+          )}
         </div>
       )}
 
@@ -231,6 +259,17 @@ export function StaffDetailPage() {
           master={master}
           onClose={() => setEditModalOpen(false)}
           onUpdated={() => void load()}
+        />
+      )}
+
+      {deleteConfirmOpen && (
+        <ConfirmDialog
+          title="Удаление мастера"
+          message={`Мастер «${master.name}» будет удалён вместе со специализациями, привязанными услугами, графиком и блокировками времени. Логин мастера будет отключён. Действие необратимо.`}
+          confirmLabel="Удалить"
+          busy={deleting}
+          onConfirm={() => void handleDelete()}
+          onCancel={() => setDeleteConfirmOpen(false)}
         />
       )}
 

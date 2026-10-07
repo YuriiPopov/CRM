@@ -5,6 +5,7 @@ import { StaffDetailPage } from './StaffDetailPage'
 import { useAuth } from '../auth/useAuth'
 import {
   assignService,
+  deleteMaster,
   getMaster,
   listMasterServiceLinks,
   listStaff,
@@ -24,6 +25,7 @@ vi.mock('../api/staff', () => ({
   listStaff: vi.fn(),
   listMasterServiceLinks: vi.fn(),
   assignService: vi.fn(),
+  deleteMaster: vi.fn(),
   unassignService: vi.fn(),
   updateMaster: vi.fn(),
   uploadMasterPhoto: vi.fn(),
@@ -44,6 +46,7 @@ const mockedListMasterServiceLinks = vi.mocked(listMasterServiceLinks)
 const mockedAssignService = vi.mocked(assignService)
 const mockedUnassignService = vi.mocked(unassignService)
 const mockedUpdateMaster = vi.mocked(updateMaster)
+const mockedDeleteMaster = vi.mocked(deleteMaster)
 const mockedListServices = vi.mocked(listServices)
 const mockedListServiceCategories = vi.mocked(listServiceCategories)
 const mockedGetMasterSchedule = vi.mocked(getMasterSchedule)
@@ -221,6 +224,7 @@ describe('StaffDetailPage', () => {
     expect(screen.queryByRole('button', { name: /редактировать/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /отвязать/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /график работы/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /удалить мастера/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/привязать услугу/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Загрузить фото')).not.toBeInTheDocument()
     expect(mockedListServices).not.toHaveBeenCalled()
@@ -336,5 +340,76 @@ describe('StaffDetailPage', () => {
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /к списку мастеров/i })).toBeInTheDocument()
+  })
+
+  describe('master deletion (item80)', () => {
+    function setupAdmin(overrides: Partial<MasterDetail>) {
+      mockedUseAuth.mockReturnValue({ status: 'authenticated', user: adminUser, login: vi.fn(), logout: vi.fn() })
+      mockedGetMaster.mockResolvedValue(makeMasterDetail(overrides))
+      mockedListServices.mockResolvedValue([massageService, manicureService])
+      mockedListServiceCategories.mockResolvedValue(categories)
+    }
+
+    it('hides the delete button when the master has bookings (canDelete=false)', async () => {
+      setupAdmin({ canDelete: false })
+
+      renderPage()
+
+      await screen.findByRole('heading', { name: 'Anna Kowalska' })
+      expect(screen.queryByRole('button', { name: /удалить мастера/i })).not.toBeInTheDocument()
+    })
+
+    it('hides the delete button when canDelete is absent', async () => {
+      setupAdmin({})
+
+      renderPage()
+
+      await screen.findByRole('heading', { name: 'Anna Kowalska' })
+      expect(screen.queryByRole('button', { name: /удалить мастера/i })).not.toBeInTheDocument()
+    })
+
+    it('deletes after confirmation and returns to the staff list', async () => {
+      setupAdmin({ canDelete: true })
+      mockedDeleteMaster.mockResolvedValue(undefined)
+
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: /удалить мастера/i }))
+
+      expect(mockedDeleteMaster).not.toHaveBeenCalled()
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /^удалить$/i }))
+
+      expect(mockedDeleteMaster).toHaveBeenCalledWith('master-1')
+      expect(await screen.findByText('Staff list')).toBeInTheDocument()
+    })
+
+    it('does not delete when the confirmation is cancelled', async () => {
+      setupAdmin({ canDelete: true })
+
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: /удалить мастера/i }))
+      await user.click(screen.getByRole('button', { name: /отмена/i }))
+
+      expect(mockedDeleteMaster).not.toHaveBeenCalled()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('shows a readable message on 409 MASTER_HAS_BOOKINGS and keeps the card', async () => {
+      setupAdmin({ canDelete: true })
+      mockedDeleteMaster.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 409, data: { code: 'MASTER_HAS_BOOKINGS', message: 'Master has bookings' } },
+      })
+
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(await screen.findByRole('button', { name: /удалить мастера/i }))
+      await user.click(await screen.findByRole('button', { name: /^удалить$/i }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/нельзя удалить мастера, у которого есть записи/i)
+      expect(screen.getByRole('heading', { name: 'Anna Kowalska' })).toBeInTheDocument()
+    })
   })
 })

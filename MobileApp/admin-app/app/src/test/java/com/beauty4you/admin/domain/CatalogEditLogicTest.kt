@@ -237,6 +237,12 @@ class CatalogEditLogicTest {
             CatalogError.MASTER_HAS_BOOKINGS,
             CatalogEditLogic.mapError(409, "Нельзя деактивировать мастера с активными записями — сначала отмените или перенесите их"),
         )
+        // item80: удаление мастера с записями — по коду, текст сообщения не важен
+        assertEquals(
+            CatalogError.MASTER_DELETE_HAS_BOOKINGS,
+            CatalogEditLogic.mapError(409, "Нельзя удалить мастера, у которого есть записи.", "MASTER_HAS_BOOKINGS"),
+        )
+        assertEquals(CatalogError.UNKNOWN, CatalogEditLogic.mapError(409, "что-то другое"))
         assertEquals(
             CatalogError.SERVICE_IN_USE,
             CatalogEditLogic.mapError(409, "Cannot delete a service that is still referenced by masters, materials, or bookings"),

@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 interface ApiErrorBody {
+  code?: string
   message?: string | string[]
 }
 
@@ -40,8 +41,8 @@ export function getApiErrorMessage(error: unknown, fallback = 'Не удалос
     if (rawMessage?.toLowerCase().includes('referenced by')) {
       return 'Услугу нельзя удалить — она ещё используется мастерами, материалами или записями.'
     }
-    if (rawMessage?.toLowerCase().includes('linked user account')) {
-      return 'Мастера нельзя удалить — с ним связаны логин, записи или привязанные услуги.'
+    if (body?.code === 'MASTER_HAS_BOOKINGS') {
+      return 'Нельзя удалить мастера, у которого есть записи. Переведите его в статус «Неактивен».'
     }
     if (rawMessage?.toLowerCase().includes('already exists')) {
       return 'Пользователь с таким email уже существует — выберите другой адрес.'

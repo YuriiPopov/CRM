@@ -38,6 +38,11 @@ export async function updateMaster(id: string, input: UpdateMasterInput): Promis
   return response.data
 }
 
+// 409 MASTER_HAS_BOOKINGS, если у мастера есть хоть одна запись (см. api/errors.ts)
+export async function deleteMaster(id: string): Promise<void> {
+  await apiClient.delete(`/staff/${id}`)
+}
+
 // Идемпотентно на бэкенде (upsert) — повторный вызов для уже привязанной услуги не ошибка
 export async function assignService(masterId: string, serviceId: string): Promise<void> {
   await apiClient.post(`/staff/${masterId}/services/${serviceId}`)

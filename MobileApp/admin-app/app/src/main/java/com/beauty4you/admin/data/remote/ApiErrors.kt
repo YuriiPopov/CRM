@@ -7,7 +7,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import retrofit2.HttpException
 
 // Ошибка API: httpCode == null — сеть/сервер недоступен
-data class ApiFailure(val httpCode: Int?, val message: String?)
+// code — машинный код ошибки из тела ответа (например, MASTER_HAS_BOOKINGS), если бэкенд его отдал
+data class ApiFailure(val httpCode: Int?, val message: String?, val code: String? = null)
 
 private val errorJson = Json { ignoreUnknownKeys = true }
 
@@ -22,7 +23,18 @@ fun parseNestErrorMessage(body: String?): String? {
     }
 }
 
+// Машинный код ошибки: {"code": "MASTER_HAS_BOOKINGS", ...}
+fun parseNestErrorCode(body: String?): String? {
+    if (body.isNullOrBlank()) return null
+    val root = runCatching { errorJson.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return null
+    return (root["code"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+}
+
 fun Throwable.toApiFailure(): ApiFailure = when (this) {
-    is HttpException -> ApiFailure(code(), parseNestErrorMessage(response()?.errorBody()?.string()))
+    is HttpException -> {
+        // errorBody().string() читается один раз — парсим из одной строки
+        val body = response()?.errorBody()?.string()
+        ApiFailure(code(), parseNestErrorMessage(body), parseNestErrorCode(body))
+    }
     else -> ApiFailure(null, message)
 }

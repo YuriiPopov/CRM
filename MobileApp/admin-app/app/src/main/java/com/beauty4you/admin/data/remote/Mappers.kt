@@ -53,6 +53,7 @@ fun StaffDto.toDomain() = Master(
     isActive = isActive,
     serviceIds = services.map { it.id }.toSet(),
     categoryIds = specializationCategoryIds,
+    canDelete = canDelete,
 )
 
 fun ServiceDto.toDomain() = Service(

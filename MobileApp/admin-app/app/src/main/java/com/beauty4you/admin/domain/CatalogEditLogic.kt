@@ -84,6 +84,8 @@ enum class CategoryDeleteBlock { DEFAULT, HAS_SERVICES }
 // Ошибка сохранения/удаления — показывается в форме, форма остаётся открытой
 enum class CatalogError {
     MASTER_HAS_BOOKINGS,
+    // Удаление мастера отклонено: у него есть записи (409 MASTER_HAS_BOOKINGS, item80)
+    MASTER_DELETE_HAS_BOOKINGS,
     SERVICE_IN_USE,
     CATEGORY_DEFAULT,
     PHOTO_INVALID,
@@ -259,10 +261,11 @@ object CatalogEditLogic {
 
     // httpCode == null — сервер недоступен. Тексты 409/400 — из StaffService, ServicesService,
     // ServiceCategoriesService и UploadMasterPhotoDto.
-    fun mapError(httpCode: Int?, message: String?): CatalogError {
+    fun mapError(httpCode: Int?, message: String?, code: String? = null): CatalogError {
         val text = message.orEmpty().lowercase()
         return when {
             httpCode == null -> CatalogError.NETWORK
+            httpCode == 409 && code == "MASTER_HAS_BOOKINGS" -> CatalogError.MASTER_DELETE_HAS_BOOKINGS
             httpCode == 409 && "активными записями" in text -> CatalogError.MASTER_HAS_BOOKINGS
             httpCode == 409 && "referenced by" in text -> CatalogError.SERVICE_IN_USE
             httpCode == 409 && "default category" in text -> CatalogError.CATEGORY_DEFAULT

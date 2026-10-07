@@ -91,6 +91,7 @@ describe('StaffService', () => {
         isActive: true,
         createdAt: new Date(),
         services: [],
+        _count: { bookings: 0 },
         specializations: [
           { masterId: 'master-1', categoryId: 'cat-1' },
           { masterId: 'master-1', categoryId: 'cat-2' },
@@ -116,6 +117,7 @@ describe('StaffService', () => {
         include: {
           services: { include: { service: true } },
           specializations: true,
+          _count: { select: { bookings: true } },
         },
       });
       expect(result.specializationCategoryIds).toEqual(['cat-1', 'cat-2']);
@@ -153,6 +155,7 @@ describe('StaffService', () => {
           id: 'master-1',
           salonId: 'salon-1',
           services: [],
+          _count: { bookings: 0 },
           specializations: [{ masterId: 'master-1', categoryId: 'cat-1' }],
         },
       ]);
@@ -165,12 +168,14 @@ describe('StaffService', () => {
         include: {
           services: { include: { service: true } },
           specializations: true,
+          _count: { select: { bookings: true } },
         },
       });
       expect(result).toEqual([
         {
           id: 'master-1',
           salonId: 'salon-1',
+          canDelete: true,
           services: [],
           specializationCategoryIds: ['cat-1'],
         },
@@ -188,6 +193,7 @@ describe('StaffService', () => {
         include: {
           services: { include: { service: true } },
           specializations: true,
+          _count: { select: { bookings: true } },
         },
       });
     });
@@ -203,6 +209,7 @@ describe('StaffService', () => {
         include: {
           services: { include: { service: true } },
           specializations: true,
+          _count: { select: { bookings: true } },
         },
       });
     });
@@ -220,6 +227,7 @@ describe('StaffService', () => {
             service: { id: 'svc-1', name: 'Manicure' },
           },
         ],
+        _count: { bookings: 0 },
         specializations: [{ masterId: 'master-1', categoryId: 'cat-1' }],
       });
 
@@ -228,6 +236,7 @@ describe('StaffService', () => {
       expect(result).toEqual({
         id: 'master-1',
         salonId: 'salon-1',
+        canDelete: true,
         services: [{ id: 'svc-1', name: 'Manicure' }],
         specializationCategoryIds: ['cat-1'],
       });
@@ -261,6 +270,7 @@ describe('StaffService', () => {
         id: 'master-1',
         isActive: false,
         services: [],
+        _count: { bookings: 0 },
         specializations: [],
       });
 
@@ -272,6 +282,7 @@ describe('StaffService', () => {
         include: {
           services: { include: { service: true } },
           specializations: true,
+          _count: { select: { bookings: true } },
         },
       });
       expect(prisma.masterSpecialization.deleteMany).not.toHaveBeenCalled();
@@ -287,6 +298,7 @@ describe('StaffService', () => {
       prisma.master.update.mockResolvedValue({
         id: 'master-1',
         services: [],
+        _count: { bookings: 0 },
         specializations: [{ masterId: 'master-1', categoryId: 'cat-2' }],
       });
 
@@ -308,6 +320,7 @@ describe('StaffService', () => {
         include: {
           services: { include: { service: true } },
           specializations: true,
+          _count: { select: { bookings: true } },
         },
       });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
@@ -386,6 +399,7 @@ describe('StaffService', () => {
         id: 'master-1',
         isActive: false,
         services: [],
+        _count: { bookings: 0 },
         specializations: [],
       });
 
@@ -404,6 +418,7 @@ describe('StaffService', () => {
         id: 'master-1',
         isActive: true,
         services: [],
+        _count: { bookings: 0 },
         specializations: [],
       });
 
@@ -415,30 +430,136 @@ describe('StaffService', () => {
   });
 
   describe('remove', () => {
+    let tx: {
+      booking: { count: jest.Mock };
+      masterSpecialization: { deleteMany: jest.Mock };
+      masterService: { deleteMany: jest.Mock };
+      masterSchedule: { deleteMany: jest.Mock };
+      masterBlock: { deleteMany: jest.Mock };
+      user: { updateMany: jest.Mock };
+      master: { delete: jest.Mock };
+    };
+
+    beforeEach(() => {
+      tx = {
+        booking: { count: jest.fn().mockResolvedValue(0) },
+        masterSpecialization: { deleteMany: jest.fn() },
+        masterService: { deleteMany: jest.fn() },
+        masterSchedule: { deleteMany: jest.fn() },
+        masterBlock: { deleteMany: jest.fn() },
+        user: { updateMany: jest.fn() },
+        master: { delete: jest.fn() },
+      };
+      prisma.$transaction.mockImplementation((arg: unknown) =>
+        typeof arg === 'function'
+          ? (arg as (t: typeof tx) => Promise<unknown>)(tx)
+          : Promise.all(arg as Promise<unknown>[]),
+      );
+    });
+
     it('throws NotFoundException when the master is not in the salon', async () => {
       prisma.master.findFirst.mockResolvedValue(null);
 
       await expect(
         service.remove('master-1', 'salon-1'),
       ).rejects.toBeInstanceOf(NotFoundException);
-      expect(prisma.master.delete).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('rejects deletion of a master with linked user/bookings/services', async () => {
+    it('deletes the master with its links, and unlinks and deactivates the user', async () => {
       prisma.master.findFirst.mockResolvedValue({
         id: 'master-1',
         salonId: 'salon-1',
       });
-      prisma.master.delete.mockRejectedValue(
+
+      await service.remove('master-1', 'salon-1');
+
+      expect(prisma.master.findFirst).toHaveBeenCalledWith({
+        where: { id: 'master-1', salonId: 'salon-1' },
+      });
+      expect(tx.booking.count).toHaveBeenCalledWith({
+        where: { masterId: 'master-1' },
+      });
+      for (const model of [
+        tx.masterSpecialization,
+        tx.masterService,
+        tx.masterSchedule,
+        tx.masterBlock,
+      ]) {
+        expect(model.deleteMany).toHaveBeenCalledWith({
+          where: { masterId: 'master-1' },
+        });
+      }
+      expect(tx.user.updateMany).toHaveBeenCalledWith({
+        where: { masterId: 'master-1' },
+        data: { masterId: null, isActive: false },
+      });
+      expect(tx.master.delete).toHaveBeenCalledWith({
+        where: { id: 'master-1' },
+      });
+    });
+
+    it('rejects with MASTER_HAS_BOOKINGS when the master has any booking', async () => {
+      prisma.master.findFirst.mockResolvedValue({
+        id: 'master-1',
+        salonId: 'salon-1',
+      });
+      tx.booking.count.mockResolvedValue(1);
+
+      const error: unknown = await service
+        .remove('master-1', 'salon-1')
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'MASTER_HAS_BOOKINGS',
+      });
+      expect(tx.master.delete).not.toHaveBeenCalled();
+      expect(tx.masterService.deleteMany).not.toHaveBeenCalled();
+      expect(tx.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('maps an FK violation raised by a concurrent booking to MASTER_HAS_BOOKINGS', async () => {
+      prisma.master.findFirst.mockResolvedValue({
+        id: 'master-1',
+        salonId: 'salon-1',
+      });
+      tx.master.delete.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError(
           'Foreign key constraint violated',
           { code: 'P2003', clientVersion: '6.19.3' },
         ),
       );
 
-      await expect(
-        service.remove('master-1', 'salon-1'),
-      ).rejects.toBeInstanceOf(ConflictException);
+      const error: unknown = await service
+        .remove('master-1', 'salon-1')
+        .catch((e: unknown) => e);
+
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'MASTER_HAS_BOOKINGS',
+      });
+    });
+  });
+
+  describe('canDelete', () => {
+    it('is true without bookings and false with at least one', async () => {
+      const base = {
+        salonId: 'salon-1',
+        name: 'A',
+        isActive: true,
+        createdAt: new Date(),
+        services: [],
+        specializations: [],
+      };
+      prisma.master.findMany.mockResolvedValue([
+        { ...base, id: 'm1', _count: { bookings: 0 } },
+        { ...base, id: 'm2', _count: { bookings: 3 } },
+      ]);
+
+      const result = await service.findAll(admin);
+
+      expect(result.map((m) => m.canDelete)).toEqual([true, false]);
+      expect(result[0]).not.toHaveProperty('_count');
     });
   });
 
@@ -511,6 +632,7 @@ describe('StaffService', () => {
         id: 'master-1',
         photo: validPhoto,
         services: [],
+        _count: { bookings: 0 },
         specializations: [],
       });
 
@@ -526,6 +648,7 @@ describe('StaffService', () => {
         include: {
           services: { include: { service: true } },
           specializations: true,
+          _count: { select: { bookings: true } },
         },
       });
       expect(result.photo).toEqual(validPhoto);

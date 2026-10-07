@@ -35,6 +35,8 @@ data class Master(
     val isActive: Boolean = true,
     val serviceIds: Set<String> = emptySet(),
     val categoryIds: List<String> = emptyList(),
+    // У мастера нет ни одной записи (любого статуса) — только тогда его можно удалить (item80)
+    val canDelete: Boolean = false,
 )
 
 data class Service(

@@ -29,6 +29,7 @@ interface MasterWhere {
 type MasterWithRelations = Master & {
   services: (MasterService & { service: Service })[];
   specializations: MasterSpecialization[];
+  _count: { bookings: number };
 };
 
 // Прогоняет реальные Staff-контроллер/сервис/guard'ы (включая привязку/отвязку услуг через MasterService
@@ -42,6 +43,7 @@ class FakePrismaService {
   private categoriesById = new Map<string, ServiceCategory>();
   private masterServices: MasterService[] = [];
   private masterSpecializations: MasterSpecialization[] = [];
+  private bookingMasterIds: string[] = [];
   private nextMasterId = 1;
 
   user = {
@@ -56,6 +58,30 @@ class FakePrismaService {
         return Promise.resolve(this.usersByEmail.get(where.email) ?? null);
       return Promise.resolve(null);
     },
+    updateMany: ({
+      where,
+      data,
+    }: {
+      where: { masterId: string };
+      data: Partial<User>;
+    }): Promise<{ count: number }> => {
+      let count = 0;
+      for (const user of [...this.usersById.values()]) {
+        if (user.masterId !== where.masterId) continue;
+        const updated = { ...user, ...data };
+        this.usersById.set(updated.id, updated);
+        this.usersByEmail.set(updated.email, updated);
+        count++;
+      }
+      return Promise.resolve({ count });
+    },
+  };
+
+  booking = {
+    count: ({ where }: { where: { masterId: string } }): Promise<number> =>
+      Promise.resolve(
+        this.bookingMasterIds.filter((id) => id === where.masterId).length,
+      ),
   };
 
   master = {
@@ -119,9 +145,9 @@ class FakePrismaService {
     delete: ({ where }: { where: { id: string } }): Promise<Master> => {
       const existing = this.mastersById.get(where.id);
       if (!existing) throw new Error('not found');
-      const hasLinks = this.masterServices.some(
-        (link) => link.masterId === where.id,
-      );
+      const hasLinks =
+        this.masterServices.some((link) => link.masterId === where.id) ||
+        this.bookingMasterIds.includes(where.id);
       if (hasLinks) {
         throw new Prisma.PrismaClientKnownRequestError(
           'Foreign key constraint violated',
@@ -194,6 +220,17 @@ class FakePrismaService {
       );
       return Promise.resolve(found ?? null);
     },
+    deleteMany: ({
+      where,
+    }: {
+      where: { masterId: string };
+    }): Promise<{ count: number }> => {
+      const before = this.masterServices.length;
+      this.masterServices = this.masterServices.filter(
+        (l) => l.masterId !== where.masterId,
+      );
+      return Promise.resolve({ count: before - this.masterServices.length });
+    },
     delete: ({
       where,
     }: {
@@ -208,6 +245,9 @@ class FakePrismaService {
       return Promise.resolve(removed);
     },
   };
+
+  masterSchedule = { deleteMany: () => Promise.resolve({ count: 0 }) };
+  masterBlock = { deleteMany: () => Promise.resolve({ count: 0 }) };
 
   masterSpecialization = {
     deleteMany: ({
@@ -233,7 +273,10 @@ class FakePrismaService {
     },
   };
 
-  $transaction = <T>(ops: Promise<T>[]): Promise<T[]> => Promise.all(ops);
+  // Поддерживает обе формы: массив операций и интерактивную транзакцию (callback). Фейк не
+  // откатывает изменения — тесты проверяют, что при отказе ничего не успело измениться.
+  $transaction = <T>(arg: Promise<T>[] | ((tx: this) => Promise<T>)) =>
+    typeof arg === 'function' ? arg(this) : Promise.all(arg);
 
   private withRelations(master: Master): MasterWithRelations {
     const services = this.masterServices
@@ -245,7 +288,10 @@ class FakePrismaService {
     const specializations = this.masterSpecializations.filter(
       (s) => s.masterId === master.id,
     );
-    return { ...master, services, specializations };
+    const bookings = this.bookingMasterIds.filter(
+      (id) => id === master.id,
+    ).length;
+    return { ...master, services, specializations, _count: { bookings } };
   }
 
   private matches(master: Master, where: MasterWhere): boolean {
@@ -272,6 +318,18 @@ class FakePrismaService {
 
   seedCategory(category: ServiceCategory) {
     this.categoriesById.set(category.id, category);
+  }
+
+  seedBooking(masterId: string) {
+    this.bookingMasterIds.push(masterId);
+  }
+
+  hasMaster(id: string): boolean {
+    return this.mastersById.has(id);
+  }
+
+  getUser(id: string): User | undefined {
+    return this.usersById.get(id);
   }
 
   seedMasterService(masterId: string, serviceId: string) {
@@ -759,23 +817,105 @@ describe('Staff (e2e)', () => {
   });
 
   describe('DELETE /staff/:id', () => {
-    it('deletes a master with no assigned services', async () => {
+    it('deletes a master without bookings together with services and specializations', async () => {
+      prisma.seedMasterService('master-rec-2', 'service-a');
       const token = await loginAs('admin@b4u.local', adminPassword);
 
       await request(app.getHttpServer())
         .delete('/staff/master-rec-2')
         .set('Authorization', `Bearer ${token}`)
         .expect(204);
+
+      expect(prisma.hasMaster('master-rec-2')).toBe(false);
+      await request(app.getHttpServer())
+        .get('/staff/master-rec-2')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
     });
 
-    it('rejects deleting a master with an assigned service', async () => {
-      prisma.seedMasterService('master-rec-1', 'service-a');
-      const token = await loginAs('admin@b4u.local', adminPassword);
+    it('unlinks and deactivates the master user so they can no longer log in', async () => {
+      const adminToken = await loginAs('admin@b4u.local', adminPassword);
+      const masterToken = await loginAs('master2@b4u.local', master2Password);
 
       await request(app.getHttpServer())
+        .delete('/staff/master-rec-2')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(204);
+
+      expect(prisma.getUser('master-user-2')).toMatchObject({
+        masterId: null,
+        isActive: false,
+      });
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: 'master2@b4u.local', password: master2Password })
+        .expect(401);
+      // уже выданный токен тоже перестаёт работать
+      await request(app.getHttpServer())
+        .get('/staff')
+        .set('Authorization', `Bearer ${masterToken}`)
+        .expect(401);
+    });
+
+    it('responds 409 MASTER_HAS_BOOKINGS when the master has any booking', async () => {
+      prisma.seedBooking('master-rec-1');
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      const response = await request(app.getHttpServer())
         .delete('/staff/master-rec-1')
         .set('Authorization', `Bearer ${token}`)
         .expect(409);
+
+      expect(response.body).toMatchObject({ code: 'MASTER_HAS_BOOKINGS' });
+      expect(prisma.hasMaster('master-rec-1')).toBe(true);
+      expect(prisma.getUser('master-user-1')?.isActive).toBe(true);
+    });
+
+    it('responds 404 for a master of another salon and leaves it intact', async () => {
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      await request(app.getHttpServer())
+        .delete('/staff/master-other-salon')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+
+      expect(prisma.hasMaster('master-other-salon')).toBe(true);
+    });
+
+    it('forbids a MASTER from deleting', async () => {
+      const token = await loginAs('master1@b4u.local', master1Password);
+
+      await request(app.getHttpServer())
+        .delete('/staff/master-rec-2')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+  });
+
+  describe('canDelete', () => {
+    it('is exposed by GET /staff and GET /staff/:id', async () => {
+      prisma.seedBooking('master-rec-1');
+      const token = await loginAs('admin@b4u.local', adminPassword);
+
+      const list = await request(app.getHttpServer())
+        .get('/staff')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      const byId = Object.fromEntries(
+        (list.body as { id: string; canDelete: boolean }[]).map((m) => [
+          m.id,
+          m.canDelete,
+        ]),
+      );
+      expect(byId['master-rec-1']).toBe(false);
+      expect(byId['master-rec-2']).toBe(true);
+
+      const one = await request(app.getHttpServer())
+        .get('/staff/master-rec-1')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(one.body).toMatchObject({ canDelete: false });
+      expect(one.body).not.toHaveProperty('_count');
     });
   });
 });

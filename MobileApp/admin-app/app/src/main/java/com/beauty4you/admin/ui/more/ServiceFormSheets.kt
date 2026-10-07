@@ -170,6 +170,7 @@ fun CategoryFormSheet(editor: CategoryEditorState, errors: Set<CategoryFieldErro
 @StringRes
 internal fun CatalogError.messageRes(): Int = when (this) {
     CatalogError.MASTER_HAS_BOOKINGS -> R.string.catalog_error_master_has_bookings
+    CatalogError.MASTER_DELETE_HAS_BOOKINGS -> R.string.catalog_error_master_delete_has_bookings
     CatalogError.SERVICE_IN_USE -> R.string.catalog_error_service_in_use
     CatalogError.CATEGORY_DEFAULT -> R.string.category_delete_blocked_default
     CatalogError.PHOTO_INVALID -> R.string.catalog_error_photo

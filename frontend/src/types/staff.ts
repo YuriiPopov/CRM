@@ -6,6 +6,9 @@ export interface Master {
   name: string
   specializationCategoryIds: string[]
   isActive: boolean
+  // true, если у мастера нет ни одной записи (любого статуса) — только тогда его можно удалить
+  // (DELETE /staff/:id, item80). Опционален: фикстуры без поля трактуются как «удалять нельзя».
+  canDelete?: boolean
   // Base64 data URL или null, если фото не загружено (item41). Отдаётся инлайн и в списке,
   // и в карточке мастера — см. StaffService.toMasterDetail на бэкенде.
   photo: string | null

@@ -15,6 +15,8 @@ import { UploadMasterPhotoDto } from './dto/upload-master-photo.dto';
 const masterInclude = {
   services: { include: { service: true } },
   specializations: true,
+  // canDelete = у мастера нет ни одной записи (любого статуса) — см. remove()
+  _count: { select: { bookings: true } },
 } satisfies Prisma.MasterInclude;
 
 // Лимит применяется к декодированным байтам, не к длине base64-строки (см. assertPhotoSize) —
@@ -123,22 +125,53 @@ export class StaffService {
     return this.toMasterDetail(master);
   }
 
+  // Удаление разрешено только мастеру без единой записи (включая CANCELLED/NO_SHOW) — иначе
+  // потерялась бы история клиентов и платежей. Пользователя-логин мастера не удаляем (на нём
+  // могут висеть блокировки createdBy и настройки дашборда), а отвязываем и деактивируем:
+  // JwtStrategy.validate() проверяет isActive на каждом запросе, поэтому вход и уже выданные
+  // токены перестают работать сразу.
   async remove(id: string, salonId: string): Promise<void> {
     await this.assertExistsInSalon(id, salonId);
 
     try {
-      await this.prisma.master.delete({ where: { id } });
+      await this.prisma.$transaction(async (tx) => {
+        const bookingsCount = await tx.booking.count({
+          where: { masterId: id },
+        });
+        if (bookingsCount > 0) {
+          throw this.masterHasBookingsError();
+        }
+
+        await tx.masterSpecialization.deleteMany({ where: { masterId: id } });
+        await tx.masterService.deleteMany({ where: { masterId: id } });
+        await tx.masterSchedule.deleteMany({ where: { masterId: id } });
+        await tx.masterBlock.deleteMany({ where: { masterId: id } });
+        await tx.user.updateMany({
+          where: { masterId: id },
+          data: { masterId: null, isActive: false },
+        });
+        await tx.master.delete({ where: { id } });
+      });
     } catch (error) {
+      // Запись могла появиться между проверкой и удалением — FK bookings.masterId.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2003'
       ) {
-        throw new ConflictException(
-          'Cannot delete a master with a linked user account, bookings, or assigned services',
-        );
+        throw this.masterHasBookingsError();
       }
       throw error;
     }
+  }
+
+  private masterHasBookingsError(): ConflictException {
+    return new ConflictException({
+      statusCode: 409,
+      code: 'MASTER_HAS_BOOKINGS',
+      message:
+        'Нельзя удалить мастера, у которого есть записи. Переведите его в статус «Nieaktywny».',
+      error: 'Conflict',
+    });
   }
 
   // Привязка услуги к мастеру — идемпотентна (повторная привязка не ошибка)
@@ -207,9 +240,10 @@ export class StaffService {
   }
 
   private toMasterDetail(master: MasterWithRelations) {
-    const { services, specializations, ...rest } = master;
+    const { services, specializations, _count, ...rest } = master;
     return {
       ...rest,
+      canDelete: _count.bookings === 0,
       services: services.map((link) => link.service),
       specializationCategoryIds: specializations.map((s) => s.categoryId),
     };

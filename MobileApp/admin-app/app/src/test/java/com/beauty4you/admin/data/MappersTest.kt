@@ -95,6 +95,13 @@ class MappersTest {
     }
 
     @Test
+    fun `staff canDelete is mapped and defaults to false`() {
+        assertEquals(true, StaffDto("m1", "Maria", canDelete = true).toDomain().canDelete)
+        assertEquals(false, StaffDto("m2", "Olga", canDelete = false).toDomain().canDelete)
+        assertEquals(false, StaffDto("m3", "Ewa").toDomain().canDelete)
+    }
+
+    @Test
     fun `schedule day parses date-only and hours`() {
         val day = ScheduleDayDto("m1", "2026-10-05T00:00:00.000Z", true, "10:00", "17:30").toDomain()
         assertEquals(LocalDate.of(2026, 10, 5), day.date)

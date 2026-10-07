@@ -49,6 +49,7 @@ data class StaffDto(
     val isActive: Boolean = true,
     val services: List<StaffServiceDto> = emptyList(),
     val specializationCategoryIds: List<String> = emptyList(),
+    val canDelete: Boolean = false,
 )
 
 @Serializable

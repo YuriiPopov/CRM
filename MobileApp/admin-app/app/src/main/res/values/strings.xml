@@ -276,6 +276,11 @@
     <string name="toast_category_deleted">Kategoria usunięta</string>
 
     <string name="catalog_error_master_has_bookings">Mistrz ma zaplanowane wizyty — najpierw je odwołaj lub przenieś do innego mistrza.</string>
+    <string name="catalog_error_master_delete_has_bookings">Nie można usunąć mistrza, który ma wizyty (także odwołane). Ustaw status „Nieaktywny”.</string>
+    <string name="master_delete_confirm_title">Usunąć mistrza?</string>
+    <string name="master_delete_confirm_text">Mistrz „%1$s” zniknie z kalendarza, katalogu klientów i list razem ze specjalizacjami, usługami, grafikiem i blokadami. Jego login przestanie działać. Tej operacji nie można cofnąć.</string>
+    <string name="master_delete_confirm_yes">Usuń mistrza</string>
+    <string name="toast_master_deleted">Mistrz usunięty</string>
     <string name="catalog_error_service_in_use">Nie można usunąć usługi — mają ją przypisaną mistrzowie lub istnieją na nią wizyty.</string>
     <string name="catalog_error_photo">Nie udało się dodać zdjęcia — dozwolone JPG, PNG lub WebP do 2 MB</string>
     <string name="catalog_error_not_found">Nie znaleziono — mogło zostać usunięte w CRM</string>

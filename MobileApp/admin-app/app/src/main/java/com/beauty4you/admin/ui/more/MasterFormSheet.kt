@@ -52,6 +52,7 @@ import com.beauty4you.admin.data.repo.Catalog
 import com.beauty4you.admin.domain.CatalogEditLogic
 import com.beauty4you.admin.domain.MasterFieldError
 import com.beauty4you.admin.ui.common.ColorDot
+import com.beauty4you.admin.ui.common.ConfirmDeleteDialog
 import com.beauty4you.admin.ui.common.DeleteSaveButtons
 import com.beauty4you.admin.ui.common.FormErrorBanner
 import com.beauty4you.admin.ui.common.FormHint
@@ -219,14 +220,24 @@ fun MasterFormSheet(editor: MasterEditorState, catalog: Catalog, viewModel: Cata
 
         editor.error?.let { FormErrorBanner(stringResource(it.messageRes())) }
 
-        // «Usuń» мастера скрыто до item80: DELETE /staff всегда отвечает 409 (обязательная
-        // специализация без каскада) — вывести мастера из работы можно статусом «Nieaktywny»
+        // «Usuń» — только у мастера без единой записи (canDelete, item80); иначе вывести
+        // мастера из работы можно статусом «Nieaktywny»
         DeleteSaveButtons(
-            showDelete = false,
+            showDelete = editor.canDelete,
             busy = editor.busy,
             saving = editor.saving,
-            onDelete = {},
+            onDelete = viewModel::askDeleteMaster,
             onSave = viewModel::saveMaster,
+        )
+    }
+
+    if (editor.confirmDelete) {
+        ConfirmDeleteDialog(
+            title = stringResource(R.string.master_delete_confirm_title),
+            text = stringResource(R.string.master_delete_confirm_text, editor.original?.name.orEmpty()),
+            confirmLabel = stringResource(R.string.master_delete_confirm_yes),
+            onConfirm = viewModel::confirmDeleteMaster,
+            onDismiss = viewModel::dismissDeleteMaster,
         )
     }
 }

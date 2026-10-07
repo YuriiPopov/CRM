@@ -42,8 +42,11 @@ data class MasterEditorState(
     val encodingPhoto: Boolean = false,
     val saving: Boolean = false,
     val error: CatalogError? = null,
+    val confirmDelete: Boolean = false,
 ) {
     val isEdit: Boolean get() = original != null
+    // «Usuń» — только у сохранённого мастера без единой записи (item80); иначе остаётся «Nieaktywny»
+    val canDelete: Boolean get() = original?.canDelete == true
     val isDirty: Boolean get() = CatalogEditLogic.isDirty(original, form)
     val fieldErrors: Set<MasterFieldError> get() = CatalogEditLogic.validate(form)
     val visibleFieldErrors: Set<MasterFieldError> get() = if (showFieldErrors) fieldErrors else emptySet()
@@ -212,6 +215,30 @@ class CatalogEditViewModel(private val container: AppContainer) : ViewModel() {
                 done(if (editor.original == null) R.string.toast_master_created else R.string.toast_master_saved)
             } catch (e: Exception) {
                 updateMaster { it.copy(saving = false, error = mapError(e)) }
+            }
+        }
+    }
+
+    fun askDeleteMaster() = updateMaster { if (it.canDelete && !it.busy) it.copy(confirmDelete = true, error = null) else it }
+
+    fun dismissDeleteMaster() = updateMaster { it.copy(confirmDelete = false) }
+
+    // Успех — форма закрывается, события dataChanged обновляют список мастеров. 409
+    // MASTER_HAS_BOOKINGS (запись появилась после загрузки списка) показываем в форме.
+    fun confirmDeleteMaster() {
+        val master = master()?.original ?: return
+        updateMaster { it.copy(confirmDelete = false, saving = true, error = null) }
+        viewModelScope.launch {
+            val error = runDelete { repository.deleteMaster(master.id) }
+            if (error == null) {
+                closeMaster()
+                done(R.string.toast_master_deleted)
+            } else {
+                // Запись появилась после загрузки списка — прячем устаревшее «Usuń»
+                updateMaster { e ->
+                    val stale = error == CatalogError.MASTER_DELETE_HAS_BOOKINGS
+                    e.copy(saving = false, error = error, original = if (stale) e.original?.copy(canDelete = false) else e.original)
+                }
             }
         }
     }
@@ -462,7 +489,7 @@ class CatalogEditViewModel(private val container: AppContainer) : ViewModel() {
     private fun mapError(e: Exception): CatalogError {
         android.util.Log.e("CatalogEdit", "request failed", e)
         val failure = e.toApiFailure()
-        return CatalogEditLogic.mapError(failure.httpCode, failure.message)
+        return CatalogEditLogic.mapError(failure.httpCode, failure.message, failure.code)
     }
 
     private fun done(@StringRes toast: Int) {
