@@ -8,7 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.beauty4you.client.B4UClientApp
 import com.beauty4you.client.R
-import com.beauty4you.client.data.AuthRepository
+import com.beauty4you.client.data.LoginAuth
 import com.beauty4you.client.data.VerifyOutcome
 import com.beauty4you.client.data.remote.ApiException
 import com.beauty4you.client.domain.PhoneInput
@@ -16,6 +16,8 @@ import com.beauty4you.client.ui.errorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -36,10 +38,19 @@ data class LoginState(
 )
 
 /** Вход по телефону: номер → SMS-код → (только для нового клиента) имя и согласие RODO. */
-class LoginViewModel(private val auth: AuthRepository) : ViewModel() {
+class LoginViewModel(private val auth: LoginAuth) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginState())
     val state: StateFlow<LoginState> = _state.asStateFlow()
+
+    init {
+        // ViewModel живёт на уровне Activity и переживает смену сессии (вход → выход / 401).
+        // Вход состоялся — экран входа больше не нужен: к следующему показу он должен быть
+        // начальным. Поворот экрана сюда не попадает: сессия не меняется, state сохраняется.
+        viewModelScope.launch {
+            auth.isLoggedIn.distinctUntilChanged().filter { it }.collect { _state.value = LoginState() }
+        }
+    }
 
     fun onPhoneChange(value: String) = _state.update { it.copy(phone = PhoneInput.normalize(value), error = null) }
     fun onCodeChange(value: String) = _state.update { it.copy(code = value.filter(Char::isDigit).take(6), error = null) }
