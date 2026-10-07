@@ -27,23 +27,38 @@ fun isDaySelectable(day: LocalDate, today: LocalDate, week: WeekSlots?): Boolean
 }
 
 /** Услуги на экране — по категориям, как во вкладке «Usługi»; при входе из карточки мастера — только его услуги. */
-fun bookableServices(catalog: Catalog, narrowToMasterId: String?): List<Service> {
+fun bookableServices(catalog: Catalog, narrowToMasterId: String?, narrowToCategoryId: String? = null): List<Service> {
     val categoryOrder = catalog.categories.withIndex().associate { (i, c) -> c.id to i }
     val master = narrowToMasterId?.let(catalog::master)
     return catalog.services
         .filter { master == null || it.id in master.serviceIds }
+        .filter { narrowToCategoryId == null || it.categoryId == narrowToCategoryId }
         .sortedBy { categoryOrder[it.categoryId] ?: Int.MAX_VALUE }
 }
 
-/** Мастера, оказывающие выбранную услугу; без услуги — только мастер из карточки, если вход был оттуда. */
-fun bookableMasters(catalog: Catalog, serviceId: String?, narrowToMasterId: String?): List<Master> = when {
+/**
+ * Мастера, оказывающие выбранную услугу; без услуги — в режиме категории те, у кого есть специализация в ней
+ * (item88) и выполняют хотя бы одну её услугу, иначе только мастер из карточки, если вход был оттуда.
+ */
+fun bookableMasters(
+    catalog: Catalog,
+    serviceId: String?,
+    narrowToMasterId: String?,
+    narrowToCategoryId: String? = null,
+): List<Master> = when {
     serviceId != null -> catalog.mastersFor(serviceId)
+    narrowToCategoryId != null -> {
+        val categoryServiceIds = catalog.services.filter { it.categoryId == narrowToCategoryId }.map { it.id }.toSet()
+        catalog.masters.filter { m ->
+            narrowToCategoryId in m.specializationCategoryIds && m.serviceIds.any { it in categoryServiceIds }
+        }
+    }
     else -> listOfNotNull(narrowToMasterId?.let(catalog::master))
 }
 
 /**
  * Черновик при открытии экрана. [fromMaster] — вход из карточки мастера: мастер предвыбран, услуги сужены
- * до его услуг. Единственная доступная услуга/мастер выбираются сразу.
+ * до его услуг; [categoryId] — вход из категории (item88): услуги сужены до неё. Единственная доступная услуга/мастер выбираются сразу.
  */
 fun newBookingDraft(
     catalog: Catalog,
@@ -51,15 +66,18 @@ fun newBookingDraft(
     masterId: String?,
     fromMaster: Boolean,
     today: LocalDate,
+    categoryId: String? = null,
 ): BookingDraft {
     val knownMasterId = masterId?.takeIf { catalog.master(it) != null }
     val narrowTo = if (fromMaster) knownMasterId else null
-    val services = bookableServices(catalog, narrowTo)
+    val narrowToCategory = categoryId?.takeIf { id -> catalog.categories.any { it.id == id } }
+    val services = bookableServices(catalog, narrowTo, narrowToCategory)
     val service = serviceId?.takeIf { id -> services.any { it.id == id } } ?: services.singleOrNull()?.id
     val base = BookingDraft(
         serviceId = null,
         masterId = knownMasterId,
         narrowToMasterId = narrowTo,
+        narrowToCategoryId = narrowToCategory,
         weekStart = weekStartOf(today),
     )
     return if (service != null) base.withService(catalog, service) else base

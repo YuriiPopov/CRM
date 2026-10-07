@@ -46,13 +46,21 @@ data class CatalogDto(
     val categories: List<CategoryDto>,
     val services: List<ServiceDto>,
     val masters: List<MasterDto>,
+    // Отсутствует у старого backend — тогда клиентка считается новой
+    val client: ClientCatalogDto? = null,
 )
+
+@Serializable
+data class ClientCatalogDto(val isNew: Boolean, val services: List<ClientServiceDto> = emptyList())
+
+@Serializable
+data class ClientServiceDto(val serviceId: String, val lastMasterId: String, val lastVisitAt: String)
 
 @Serializable
 data class SalonDto(val name: String, val address: String? = null)
 
 @Serializable
-data class CategoryDto(val id: String, val name: String)
+data class CategoryDto(val id: String, val name: String, val coverPhotoId: String? = null)
 
 @Serializable
 data class ServiceDto(
@@ -77,6 +85,7 @@ data class MasterDto(
     val photo: String? = null,
     val serviceIds: List<String>,
     val specializations: List<String>,
+    val specializationCategoryIds: List<String> = emptyList(),
 )
 
 @Serializable

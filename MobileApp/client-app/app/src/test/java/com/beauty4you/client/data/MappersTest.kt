@@ -3,6 +3,8 @@ package com.beauty4you.client.data
 import com.beauty4you.client.data.remote.BookingDto
 import com.beauty4you.client.data.remote.CatalogDto
 import com.beauty4you.client.data.remote.CategoryDto
+import com.beauty4you.client.data.remote.ClientCatalogDto
+import com.beauty4you.client.data.remote.ClientServiceDto
 import com.beauty4you.client.data.remote.MasterDto
 import com.beauty4you.client.data.remote.NewsDto
 import com.beauty4you.client.data.remote.SalonDto
@@ -102,6 +104,35 @@ class MappersTest {
         )
         assertEquals(0, dto.photoCount)
         assertNull(dto.coverPhotoId)
+    }
+
+    @Test
+    fun `catalog maps category cover, master specializations and client history`() {
+        val dto = CatalogDto(
+            salon = SalonDto("B4U"),
+            categories = listOf(CategoryDto("c1", "Paznokcie", coverPhotoId = "p1"), CategoryDto("c2", "Włosy")),
+            services = listOf(ServiceDto("s1", "Manicure", "c1", 60, 100.0)),
+            masters = listOf(MasterDto("m1", "Olga", null, listOf("s1"), listOf("Paznokcie"), specializationCategoryIds = listOf("c1"))),
+            client = ClientCatalogDto(false, listOf(ClientServiceDto("s1", "m1", "2026-09-30T09:00:00.000Z"))),
+        )
+
+        val catalog = dto.toDomain { null }
+
+        assertEquals("p1", catalog.categories[0].coverPhotoId)
+        assertNull(catalog.categories[1].coverPhotoId)
+        assertEquals(listOf("c1"), catalog.masters[0].specializationCategoryIds)
+        assertFalse(catalog.isNewClient)
+        assertEquals(ClientServiceVisit("s1", "m1", LocalDateTime.of(2026, 9, 30, 9, 0)), catalog.clientServices.single())
+    }
+
+    @Test
+    fun `catalog without client block is treated as new client`() {
+        val dto = CatalogDto(SalonDto("B4U"), emptyList(), emptyList(), emptyList())
+
+        val catalog = dto.toDomain { null }
+
+        assertTrue(catalog.isNewClient)
+        assertTrue(catalog.clientServices.isEmpty())
     }
 
     @Test

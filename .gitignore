@@ -23,3 +23,6 @@ local.properties
 .claude/
 graphify-out/
 Claude outputs/
+
+# Скриншоты для отчётов по задачам
+MobileApp/client-app/screenshots/

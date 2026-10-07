@@ -127,6 +127,80 @@ class BookingLogicTest {
         assertNull(draft("strzyzenie", "daria").withService(catalog, "manicure").masterId)
     }
 
+    // --- Запись из категории (item88) ---
+
+    // hair: strzyzenie (Daria, Ewa), farbowanie (Ewa); nails: manicure (Olga, Anna) — Anna без специализации
+    private val categoryCatalog = Catalog(
+        salonName = "B4U",
+        categories = listOf(Category("nails", "Paznokcie"), Category("hair", "Włosy")),
+        services = listOf(
+            service("manicure").copy(categoryId = "nails"),
+            service("strzyzenie").copy(categoryId = "hair"),
+            service("farbowanie").copy(categoryId = "hair"),
+        ),
+        masters = listOf(
+            master("olga", "manicure").copy(specializationCategoryIds = listOf("nails")),
+            master("anna", "manicure"),
+            master("daria", "strzyzenie").copy(specializationCategoryIds = listOf("hair")),
+            master("ewa", "strzyzenie", "farbowanie").copy(specializationCategoryIds = listOf("hair", "nails")),
+        ),
+    )
+
+    @Test
+    fun `category mode narrows services to the category`() {
+        assertEquals(listOf("strzyzenie", "farbowanie"), bookableServices(categoryCatalog, null, "hair").map { it.id })
+    }
+
+    @Test
+    fun `category mode without service shows masters specialised in the category`() {
+        assertEquals(listOf("daria", "ewa"), bookableMasters(categoryCatalog, null, null, "hair").map { it.id })
+        // ewa специализирована в nails, но не делает ни одной услуги этой категории — скрыта
+        assertEquals(listOf("olga"), bookableMasters(categoryCatalog, null, null, "nails").map { it.id })
+    }
+
+    @Test
+    fun `category mode hides specialised masters who perform none of its services`() {
+        val withIdle = categoryCatalog.copy(
+            masters = categoryCatalog.masters + master("zofia", "manicure").copy(specializationCategoryIds = listOf("hair")),
+        )
+        assertEquals(listOf("daria", "ewa"), bookableMasters(withIdle, null, null, "hair").map { it.id })
+    }
+
+    @Test
+    fun `category mode after service choice shows only masters who perform it`() {
+        assertEquals(listOf("ewa"), bookableMasters(categoryCatalog, "farbowanie", null, "hair").map { it.id })
+    }
+
+    @Test
+    fun `category with several services leaves service unselected`() {
+        val d = newBookingDraft(categoryCatalog, null, null, fromMaster = false, today, categoryId = "hair")
+        assertEquals("hair", d.narrowToCategoryId)
+        assertNull(d.serviceId)
+        assertNull(d.masterId)
+    }
+
+    @Test
+    fun `category with a single service selects it at once`() {
+        val d = newBookingDraft(categoryCatalog, null, null, fromMaster = false, today, categoryId = "nails")
+        assertEquals("manicure", d.serviceId)
+        assertNull(d.masterId) // у manicure двое мастеров — выбирает клиентка
+    }
+
+    @Test
+    fun `unknown category is ignored`() {
+        val d = newBookingDraft(categoryCatalog, null, null, fromMaster = false, today, categoryId = "gone")
+        assertNull(d.narrowToCategoryId)
+        assertEquals(3, bookableServices(categoryCatalog, null, d.narrowToCategoryId).size)
+    }
+
+    @Test
+    fun `service from home keeps preselected master and allows changing it`() {
+        val d = newBookingDraft(categoryCatalog, "manicure", "olga", fromMaster = false, today)
+        assertEquals("manicure", d.serviceId)
+        assertEquals("olga", d.masterId)
+        assertEquals("anna", d.withMaster("anna").masterId)
+    }
+
     // --- Сброс времени при смене выбора ---
 
     @Test

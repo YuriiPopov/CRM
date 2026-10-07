@@ -95,14 +95,14 @@ fun BookingScreen(vm: ClientViewModel, catalog: Catalog, draft: BookingDraft) {
 
             SectionLabel(stringResource(R.string.booking_service))
             ServiceGrid(
-                services = bookableServices(catalog, draft.narrowToMasterId),
+                services = bookableServices(catalog, draft.narrowToMasterId, draft.narrowToCategoryId),
                 photos = vm.servicePhotos,
                 selectedId = draft.serviceId,
                 onSelect = vm::selectDraftService,
             )
 
             SectionLabel(stringResource(R.string.booking_master))
-            val masters = bookableMasters(catalog, draft.serviceId, draft.narrowToMasterId)
+            val masters = bookableMasters(catalog, draft.serviceId, draft.narrowToMasterId, draft.narrowToCategoryId)
             if (masters.isEmpty()) {
                 Hint(stringResource(R.string.booking_pick_service_first))
             } else {

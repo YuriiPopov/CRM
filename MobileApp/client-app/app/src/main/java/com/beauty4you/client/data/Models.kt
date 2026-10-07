@@ -13,7 +13,8 @@ data class Client(val id: String, val name: String, val phone: String, val email
             .take(2).joinToString("") { it.first().uppercase() }
 }
 
-data class Category(val id: String, val name: String)
+// coverPhotoId — обложка «главной» услуги категории (item88); null → на главной заглушка
+data class Category(val id: String, val name: String, val coverPhotoId: String? = null)
 
 data class Service(
     val id: String,
@@ -37,13 +38,21 @@ data class Master(
     val photo: ImageBitmap?,
     val specialty: String,
     val serviceIds: List<String>,
+    // Категории, в которых у мастера есть специализация (MasterSpecialization) — для записи из категории
+    val specializationCategoryIds: List<String> = emptyList(),
 )
+
+/** Услуга из завершённых визитов клиентки: у какого мастера была в последний раз (item88). */
+data class ClientServiceVisit(val serviceId: String, val lastMasterId: String, val lastVisitAt: LocalDateTime)
 
 data class Catalog(
     val salonName: String,
     val categories: List<Category>,
     val services: List<Service>,
     val masters: List<Master>,
+    // Нет ни одного COMPLETED-визита — на главной категории вместо «Twoje usługi» (item88)
+    val isNewClient: Boolean = true,
+    val clientServices: List<ClientServiceVisit> = emptyList(),
 ) {
     fun service(id: String): Service? = services.firstOrNull { it.id == id }
     fun master(id: String): Master? = masters.firstOrNull { it.id == id }

@@ -52,6 +52,8 @@ data class BookingDraft(
     val masterId: String?,
     /** Вход из карточки мастера: список услуг сужен до его услуг. */
     val narrowToMasterId: String? = null,
+    /** Вход из категории на главной (item88): услуги сужены до неё, мастера — со специализацией в ней. */
+    val narrowToCategoryId: String? = null,
     /** Понедельник показываемой недели календаря. */
     val weekStart: LocalDate,
     val date: LocalDate? = null,
@@ -229,10 +231,15 @@ class ClientViewModel(
      * Открывает экран записи. [fromMaster] — вход из карточки мастера: мастер предвыбран, услуги сужены
      * до его услуг. Если в текущей неделе нет свободных слотов, календарь сам листает вперёд.
      */
-    fun startBooking(serviceId: String? = null, masterId: String? = null, fromMaster: Boolean = false) {
+    fun startBooking(
+        serviceId: String? = null,
+        masterId: String? = null,
+        fromMaster: Boolean = false,
+        categoryId: String? = null,
+    ) {
         _viewer.value = null
         val catalog = catalog.value ?: return
-        _draft.value = newBookingDraft(catalog, serviceId, masterId, fromMaster, LocalDate.now())
+        _draft.value = newBookingDraft(catalog, serviceId, masterId, fromMaster, LocalDate.now(), categoryId)
         loadWeek(autoAdvance = true)
     }
 

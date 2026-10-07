@@ -23,6 +23,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +39,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.beauty4you.client.R
 import com.beauty4you.client.data.Catalog
+import com.beauty4you.client.data.Category
 import com.beauty4you.client.data.Client
+import com.beauty4you.client.data.serviceEmoji
+import com.beauty4you.client.ui.common.ServicePhotoImage
+import com.beauty4you.client.ui.home.buildHomeBlocks
+import com.beauty4you.client.ui.theme.ChipBg
+import com.beauty4you.client.ui.theme.TileShape
 import com.beauty4you.client.ui.ClientViewModel
 import com.beauty4you.client.ui.Tab
 import com.beauty4you.client.ui.common.B4UCard
@@ -132,31 +140,50 @@ fun HomeScreen(vm: ClientViewModel, catalog: Catalog, client: Client) {
             QuickAction("⭐", stringResource(R.string.points_value, points), Modifier.weight(1f)) { vm.openLoyalty() }
         }
 
-        VSpace(26.dp)
-        SectionHeader(stringResource(R.string.home_popular))
-        VSpace(10.dp)
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(horizontal = PagePadding),
-            modifier = Modifier.bleed(PagePadding),
-        ) {
-            items(catalog.services.take(4), key = { it.id }) { sv ->
-                B4UCard(
-                    modifier = Modifier.width(140.dp),
-                    onClick = { vm.startBooking(sv.id) },
-                    contentPadding = PaddingValues(12.dp),
-                ) {
-                    EmojiTile(sv.emoji, Modifier.fillMaxWidth().height(70.dp))
-                    VSpace(8.dp)
-                    // Две строки у всех карточек — чтобы длинные названия не обрезались, а высота
-                    // карточек в карусели оставалась одинаковой.
-                    Text(sv.name, style = B4UType.CardTitle.copy(fontSize = 12.5.sp), color = InkStrong, minLines = 2, maxLines = 2)
-                    VSpace(2.dp)
-                    Text(
-                        stringResource(R.string.price_and_duration, formatPrice(sv.price), sv.durationMin),
-                        style = B4UType.Button,
-                        color = Accent,
-                    )
+        val blocks = remember(catalog) { buildHomeBlocks(catalog) }
+        if (blocks.yourServices.isNotEmpty()) {
+            VSpace(26.dp)
+            SectionHeader(stringResource(R.string.home_your_services))
+            VSpace(10.dp)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = PagePadding),
+                modifier = Modifier.bleed(PagePadding),
+            ) {
+                items(blocks.yourServices, key = { it.service.id }) { your ->
+                    val sv = your.service
+                    B4UCard(
+                        modifier = Modifier.width(140.dp),
+                        onClick = { vm.startBooking(sv.id, your.masterId) },
+                        contentPadding = PaddingValues(12.dp),
+                    ) {
+                        EmojiTile(sv.emoji, Modifier.fillMaxWidth().height(70.dp))
+                        VSpace(8.dp)
+                        // Две строки у всех карточек — чтобы длинные названия не обрезались, а высота
+                        // карточек в карусели оставалась одинаковой.
+                        Text(sv.name, style = B4UType.CardTitle.copy(fontSize = 12.5.sp), color = InkStrong, minLines = 2, maxLines = 2)
+                        VSpace(2.dp)
+                        Text(
+                            stringResource(R.string.price_and_duration, formatPrice(sv.price), sv.durationMin),
+                            style = B4UType.Button,
+                            color = Accent,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (blocks.categories.isNotEmpty()) {
+            VSpace(26.dp)
+            SectionHeader(stringResource(R.string.home_categories))
+            VSpace(10.dp)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = PagePadding),
+                modifier = Modifier.bleed(PagePadding),
+            ) {
+                items(blocks.categories, key = { it.id }) { category ->
+                    CategoryCard(vm, category, Modifier.width(160.dp))
                 }
             }
         }
@@ -186,6 +213,27 @@ fun HomeScreen(vm: ClientViewModel, catalog: Catalog, client: Client) {
                 Text(next.masterName, style = B4UType.Caption, color = OnDarkMuted)
             }
         }
+    }
+}
+
+@Composable
+private fun CategoryCard(vm: ClientViewModel, category: Category, modifier: Modifier) {
+    val sidePx = with(LocalDensity.current) { 160.dp.roundToPx() }
+    B4UCard(
+        modifier = modifier,
+        onClick = { vm.startBooking(categoryId = category.id) },
+        contentPadding = PaddingValues(10.dp),
+    ) {
+        val placeholder = @Composable { EmojiTile(serviceEmoji(category.name, ""), Modifier.fillMaxSize(), fontSize = 28) }
+        val tile = Modifier.fillMaxWidth().height(90.dp).clip(TileShape).background(ChipBg)
+        val cover = category.coverPhotoId
+        if (cover != null) {
+            ServicePhotoImage(vm.servicePhotos, cover, sidePx, tile, placeholder = placeholder)
+        } else {
+            Box(tile) { placeholder() }
+        }
+        VSpace(8.dp)
+        Text(category.name, style = B4UType.CardTitle.copy(fontSize = 12.5.sp), color = InkStrong, maxLines = 2)
     }
 }
 

@@ -44,7 +44,7 @@ fun CatalogDto.toDomain(decodePhoto: (String) -> ImageBitmap?): Catalog {
     val categoryNames = categories.associate { it.id to it.name }
     return Catalog(
         salonName = salon.name,
-        categories = categories.map { Category(it.id, it.name) },
+        categories = categories.map { Category(it.id, it.name, it.coverPhotoId) },
         services = services.map {
             Service(
                 id = it.id,
@@ -65,7 +65,12 @@ fun CatalogDto.toDomain(decodePhoto: (String) -> ImageBitmap?): Catalog {
                 photo = it.photo?.let(decodePhoto),
                 specialty = it.specializations.joinToString(", "),
                 serviceIds = it.serviceIds,
+                specializationCategoryIds = it.specializationCategoryIds,
             )
+        },
+        isNewClient = client?.isNew ?: true,
+        clientServices = client?.services.orEmpty().map {
+            ClientServiceVisit(it.serviceId, it.lastMasterId, parseSalonTime(it.lastVisitAt))
         },
     )
 }
