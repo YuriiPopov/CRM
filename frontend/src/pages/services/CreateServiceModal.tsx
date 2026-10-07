@@ -110,6 +110,8 @@ export function CreateServiceModal({ onClose, onCreated }: CreateServiceModalPro
           />
         </label>
 
+        <p className="service-photos-hint">Фото можно добавить после создания услуги.</p>
+
         {error && <p role="alert">{error}</p>}
 
         <div className="modal-actions">

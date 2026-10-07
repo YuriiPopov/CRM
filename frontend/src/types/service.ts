@@ -15,3 +15,10 @@ export interface Service {
   price: number
   createdAt: string
 }
+
+// Фото услуги (item84): image — base64 data URL, position 0 = обложка
+export interface ServicePhoto {
+  id: string
+  position: number
+  image: string
+}

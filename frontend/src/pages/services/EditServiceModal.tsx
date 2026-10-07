@@ -5,6 +5,7 @@ import { updateService } from '../../api/services'
 import { listServiceCategories } from '../../api/serviceCategories'
 import { getApiErrorMessage } from '../../api/errors'
 import type { Service, ServiceCategoryRef } from '../../types/service'
+import { ServicePhotosBlock } from './ServicePhotosBlock'
 
 interface EditServiceModalProps {
   service: Service
@@ -111,6 +112,8 @@ export function EditServiceModal({ service, onClose, onUpdated }: EditServiceMod
             required
           />
         </label>
+
+        <ServicePhotosBlock serviceId={service.id} />
 
         {error && <p role="alert">{error}</p>}
 

@@ -67,6 +67,7 @@ model Salon {
   dashboardWidgetUserOverrides DashboardWidgetUserOverride[]
   clientOtps                   ClientOtp[]
   newsPosts                    NewsPost[]
+  servicePhotos                ServicePhoto[]
 
   @@map("salons")
 }
@@ -163,6 +164,7 @@ model Service {
   masters   MasterService[]
   materials ServiceMaterial[]
   bookings  Booking[]
+  photos    ServicePhoto[]
 
   @@index([salonId])
   @@index([categoryId])
@@ -420,4 +422,21 @@ model NewsPost {
 
   @@index([salonId, status, publishedAt])
   @@map("news_posts")
+}
+
+// Фото услуги (item84), до 5 штук. image — base64 data URL, как NewsPost.imageUrl; в списки услуг
+// не попадает (там только photoCount/coverPhotoId). position — 0..4 без дыр, 0 = обложка.
+model ServicePhoto {
+  id        String   @id @default(uuid())
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id])
+  position  Int
+  image     String
+  createdAt DateTime @default(now())
+
+  @@unique([serviceId, position])
+  @@index([salonId])
+  @@map("service_photos")
 }

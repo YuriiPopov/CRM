@@ -8,11 +8,13 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AvailableSlotsQueryDto } from '../public-booking/dto/available-slots-query.dto';
 import { NewsService } from '../news/news.service';
+import { ServicePhotosService } from '../services/service-photos.service';
 import { ClientAuthService } from './auth/client-auth.service';
 import type { AuthenticatedClient } from './auth/client-jwt';
 import { ClientJwtAuthGuard } from './auth/client-jwt.strategy';
@@ -50,6 +52,7 @@ export class ClientPortalController {
   constructor(
     private readonly clientPortalService: ClientPortalService,
     private readonly newsService: NewsService,
+    private readonly servicePhotosService: ServicePhotosService,
   ) {}
 
   @Get('me')
@@ -60,6 +63,37 @@ export class ClientPortalController {
   @Get('catalog')
   catalog(@CurrentClient() client: AuthenticatedClient) {
     return this.clientPortalService.catalog(client);
+  }
+
+  // Услуги, доступные для записи: photoCount/coverPhotoId вместо base64 (item84)
+  @Get('services')
+  services(@CurrentClient() client: AuthenticatedClient) {
+    return this.clientPortalService.services(client);
+  }
+
+  @Get('services/:id/photos')
+  servicePhotos(
+    @CurrentClient() client: AuthenticatedClient,
+    @Param('id') id: string,
+  ) {
+    return this.servicePhotosService.listForClient(id, client.salonId);
+  }
+
+  // Бинарный ответ: фото неизменяемо (PUT/PATCH нет), поэтому кэшируется приложением надолго
+  @Get('service-photos/:photoId')
+  async servicePhoto(
+    @CurrentClient() client: AuthenticatedClient,
+    @Param('photoId') photoId: string,
+  ) {
+    const { bytes, mime } = await this.servicePhotosService.getBinaryForClient(
+      photoId,
+      client.salonId,
+    );
+    return new StreamableFile(bytes, {
+      type: mime,
+      length: bytes.length,
+      disposition: 'inline',
+    });
   }
 
   // Только опубликованные новости салона клиента, новые сверху (item75)

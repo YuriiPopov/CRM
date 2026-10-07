@@ -14,6 +14,37 @@ const bookingInclude = {
   payment: { select: { amount: true } },
 } satisfies Prisma.BookingInclude;
 
+// Фото услуги в списках — только счётчик и id обложки (item84): base64 в список не попадает,
+// картинки клиент тянет отдельно (GET /client/service-photos/:photoId)
+const serviceListInclude = {
+  masters: {
+    where: { master: { isActive: true } },
+    select: { masterId: true },
+  },
+  photos: {
+    orderBy: { position: 'asc' },
+    take: 1,
+    select: { id: true },
+  },
+  _count: { select: { photos: true } },
+} satisfies Prisma.ServiceInclude;
+
+type ServiceForClient = Prisma.ServiceGetPayload<{
+  include: typeof serviceListInclude;
+}>;
+
+function toClientService(s: ServiceForClient) {
+  return {
+    id: s.id,
+    name: s.name,
+    categoryId: s.categoryId,
+    durationMin: s.durationMin,
+    price: Number(s.price),
+    photoCount: s._count.photos,
+    coverPhotoId: s.photos[0]?.id ?? null,
+  };
+}
+
 type BookingWithDetails = Prisma.BookingGetPayload<{
   include: typeof bookingInclude;
 }>;
@@ -35,6 +66,15 @@ export class ClientPortalService {
     return toClientProfile(found);
   }
 
+  async services(client: AuthenticatedClient) {
+    const services = await this.prisma.service.findMany({
+      where: { salonId: client.salonId },
+      orderBy: { createdAt: 'asc' },
+      include: serviceListInclude,
+    });
+    return services.filter((s) => s.masters.length > 0).map(toClientService);
+  }
+
   async catalog(client: AuthenticatedClient) {
     const { salonId } = client;
     const [salon, categories, services, masters] = await Promise.all([
@@ -50,12 +90,7 @@ export class ClientPortalService {
       this.prisma.service.findMany({
         where: { salonId },
         orderBy: { createdAt: 'asc' },
-        include: {
-          masters: {
-            where: { master: { isActive: true } },
-            select: { masterId: true },
-          },
-        },
+        include: serviceListInclude,
       }),
       this.prisma.master.findMany({
         where: { salonId, isActive: true },
@@ -75,13 +110,7 @@ export class ClientPortalService {
       categories: categories.filter((c) =>
         bookable.some((s) => s.categoryId === c.id),
       ),
-      services: bookable.map((s) => ({
-        id: s.id,
-        name: s.name,
-        categoryId: s.categoryId,
-        durationMin: s.durationMin,
-        price: Number(s.price),
-      })),
+      services: bookable.map(toClientService),
       masters: masters.map((m) => ({
         id: m.id,
         name: m.name,

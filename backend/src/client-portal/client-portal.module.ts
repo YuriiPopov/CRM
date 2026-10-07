@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { BookingsModule } from '../bookings/bookings.module';
 import { NewsModule } from '../news/news.module';
+import { ServicesModule } from '../services/services.module';
 import { PublicBookingModule } from '../public-booking/public-booking.module';
 import { ClientAuthService } from './auth/client-auth.service';
 import { ClientJwtStrategy } from './auth/client-jwt.strategy';
@@ -32,6 +33,7 @@ import { DEFAULT_JWT_SECRET } from '../common/config/assert-production-config';
     BookingsModule,
     PublicBookingModule,
     NewsModule,
+    ServicesModule,
   ],
   controllers: [ClientAuthController, ClientPortalController],
   providers: [
