@@ -4,6 +4,7 @@ import com.beauty4you.admin.data.remote.ApiService
 import com.beauty4you.admin.data.remote.CategoryBody
 import com.beauty4you.admin.data.remote.CreateClientRequest
 import com.beauty4you.admin.data.remote.MasterPhotoBody
+import com.beauty4you.admin.data.remote.ServicePhotoBody
 import com.beauty4you.admin.data.remote.toBody
 import com.beauty4you.admin.data.remote.toDomain
 import com.beauty4you.admin.domain.Category
@@ -11,6 +12,8 @@ import com.beauty4you.admin.domain.Client
 import com.beauty4you.admin.domain.Master
 import com.beauty4you.admin.domain.MasterFields
 import com.beauty4you.admin.domain.Service
+import com.beauty4you.admin.domain.ServicePhotoDraft
+import com.beauty4you.admin.domain.ServicePhotosLogic
 import com.beauty4you.admin.domain.ServiceFields
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -87,6 +90,19 @@ class CatalogRepository(private val api: ApiService) {
     suspend fun updateService(id: String, fields: ServiceFields): Service = mutate { api.updateService(id, fields.toBody()).toDomain() }
 
     suspend fun deleteService(id: String) = mutate { api.deleteService(id) }
+
+    // Фото услуги (item84). Каталог (список услуг) фото не содержит, кэш не сбрасываем.
+    suspend fun listServicePhotos(serviceId: String): List<ServicePhotoDraft> =
+        ServicePhotosLogic.fromServer(api.listServicePhotos(serviceId).sortedBy { it.position }.map { it.id to it.image })
+
+    suspend fun addServicePhoto(serviceId: String, dataUrl: String): String =
+        api.addServicePhoto(serviceId, ServicePhotoBody(dataUrl)).id
+
+    suspend fun reorderServicePhotos(serviceId: String, photoIds: List<String>) {
+        api.reorderServicePhotos(serviceId, photoIds)
+    }
+
+    suspend fun deleteServicePhoto(serviceId: String, photoId: String) = api.deleteServicePhoto(serviceId, photoId)
 
     suspend fun createCategory(name: String): Category = mutate { api.createCategory(CategoryBody(name)).toDomain() }
 

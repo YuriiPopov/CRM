@@ -74,6 +74,37 @@ class MappersTest {
     }
 
     @Test
+    fun `catalog carries photoCount and coverPhotoId, services without photos have none`() {
+        val dto = CatalogDto(
+            salon = SalonDto("B4U"),
+            categories = listOf(CategoryDto("c1", "Massage")),
+            services = listOf(
+                ServiceDto("s1", "Relax", "c1", 30, 99.5, photoCount = 3, coverPhotoId = "p1"),
+                ServiceDto("s2", "Plain", "c1", 30, 50.0),
+            ),
+            masters = emptyList(),
+        )
+
+        val catalog = dto.toDomain(decodePhoto = { null })
+
+        assertEquals(3, catalog.service("s1")!!.photoCount)
+        assertEquals("p1", catalog.service("s1")!!.coverPhotoId)
+        assertTrue(catalog.service("s1")!!.hasPhotos)
+        assertEquals(0, catalog.service("s2")!!.photoCount)
+        assertNull(catalog.service("s2")!!.coverPhotoId)
+        assertFalse(catalog.service("s2")!!.hasPhotos)
+    }
+
+    @Test
+    fun `catalog json without photo fields still parses (older backend)`() {
+        val dto = com.beauty4you.client.data.remote.ApiJson.decodeFromString<ServiceDto>(
+            """{"id":"s1","name":"Relax","categoryId":"c1","durationMin":30,"price":99.5}""",
+        )
+        assertEquals(0, dto.photoCount)
+        assertNull(dto.coverPhotoId)
+    }
+
+    @Test
     fun `unknown category falls back to sparkles`() {
         assertEquals("✨", serviceEmoji("Inne", "Konsultacja"))
     }

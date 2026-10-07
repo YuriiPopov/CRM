@@ -235,6 +235,15 @@
     <string name="service_form_name">NAZWA</string>
     <string name="service_form_duration">CZAS TRWANIA</string>
     <string name="service_form_price">CENA</string>
+    <string name="service_photos_label">ZDJĘCIA</string>
+    <string name="service_photos_hint">%1$d/%2$d · pierwsze zdjęcie to okładka</string>
+    <string name="service_photos_limit">Maksymalnie %1$d zdjęć</string>
+    <string name="service_photos_cover">Okładka</string>
+    <string name="service_photos_add">Dodaj</string>
+    <string name="service_photos_move_left">Przesuń w lewo</string>
+    <string name="service_photos_move_right">Przesuń w prawo</string>
+    <string name="service_photos_remove">Usuń zdjęcie</string>
+    <string name="service_photos_error">Nie udało się zapisać zdjęć — dozwolone JPG, PNG lub WebP do 1 MB, maksymalnie 5 zdjęć</string>
     <string name="service_unit_min">min</string>
     <string name="service_unit_currency">zł</string>
     <string name="service_error_category">Wybierz kategorię</string>

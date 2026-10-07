@@ -42,7 +42,10 @@ import androidx.compose.ui.unit.sp
 import com.beauty4you.client.R
 import com.beauty4you.client.data.Catalog
 import com.beauty4you.client.data.Master
+import androidx.compose.ui.graphics.ImageBitmap
 import com.beauty4you.client.data.Service
+import com.beauty4you.client.data.ServicePhotos
+import com.beauty4you.client.ui.common.ServiceCover
 import com.beauty4you.client.data.Slot
 import com.beauty4you.client.ui.BookingDraft
 import com.beauty4you.client.ui.ClientViewModel
@@ -93,6 +96,7 @@ fun BookingScreen(vm: ClientViewModel, catalog: Catalog, draft: BookingDraft) {
             SectionLabel(stringResource(R.string.booking_service))
             ServiceGrid(
                 services = bookableServices(catalog, draft.narrowToMasterId),
+                photos = vm.servicePhotos,
                 selectedId = draft.serviceId,
                 onSelect = vm::selectDraftService,
             )
@@ -138,7 +142,12 @@ private fun Hint(text: String) {
 }
 
 @Composable
-private fun ServiceGrid(services: List<Service>, selectedId: String?, onSelect: (String) -> Unit) {
+private fun ServiceGrid(
+    services: List<Service>,
+    photos: ServicePhotos<ImageBitmap>,
+    selectedId: String?,
+    onSelect: (String) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         services.chunked(2).forEach { row ->
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -154,6 +163,12 @@ private fun ServiceGrid(services: List<Service>, selectedId: String?, onSelect: 
                             .clickable { onSelect(sv.id) }
                             .padding(horizontal = 12.dp, vertical = 11.dp),
                     ) {
+                        // Превью обложки — только у услуг с фото; без фото плитка такая же, как раньше
+                        val cover = sv.coverPhotoId?.takeIf { sv.hasPhotos }
+                        if (cover != null) {
+                            ServiceCover(photos, cover, size = 56.dp)
+                            VSpace(8.dp)
+                        }
                         Text(sv.name, style = B4UType.CardTitle, color = if (selected) Color.White else InkStrong)
                         VSpace(2.dp)
                         Text(

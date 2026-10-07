@@ -23,7 +23,12 @@ data class Service(
     val price: Double,
     // Плейсхолдер (подбирается по названию категории) до появления реальных иконок услуг.
     val emoji: String,
-)
+    // Фото услуги (item84): без фото — photoCount == 0 и coverPhotoId == null, экран выглядит как раньше
+    val photoCount: Int = 0,
+    val coverPhotoId: String? = null,
+) {
+    val hasPhotos: Boolean get() = photoCount > 0 && coverPhotoId != null
+}
 
 data class Master(
     val id: String,

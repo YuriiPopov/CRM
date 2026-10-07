@@ -13,6 +13,8 @@ import com.beauty4you.client.data.MockData
 import com.beauty4you.client.data.NewsState
 import com.beauty4you.client.data.DaySlots
 import com.beauty4you.client.data.SalonRepository
+import com.beauty4you.client.data.ServicePhotos
+import androidx.compose.ui.graphics.ImageBitmap
 import com.beauty4you.client.data.Slot
 import com.beauty4you.client.data.remote.ApiException
 import com.beauty4you.client.ui.booking.canConfirm
@@ -41,6 +43,7 @@ enum class Tab { NEWS, HOME, SERVICES, BOOKINGS, PROFILE }
 // lojalnościowy) — как в прототипе, где эти экраны не являются вкладками.
 sealed interface Pushed {
     data class MasterDetail(val masterId: String) : Pushed
+    data class ServiceDetail(val serviceId: String) : Pushed
     data object Loyalty : Pushed
 }
 
@@ -86,6 +89,7 @@ class ClientViewModel(
     val repo: SalonRepository,
     val loyalty: LoyaltyStore,
     private val auth: AuthRepository,
+    val servicePhotos: ServicePhotos<ImageBitmap>,
 ) : ViewModel() {
 
     private val _load = MutableStateFlow<LoadState>(LoadState.Loading)
@@ -186,6 +190,7 @@ class ClientViewModel(
     }
 
     fun openMaster(id: String) = _nav.update { it.copy(pushed = Pushed.MasterDetail(id)) }
+    fun openService(id: String) = _nav.update { it.copy(pushed = Pushed.ServiceDetail(id)) }
     fun openLoyalty() = _nav.update { it.copy(pushed = Pushed.Loyalty) }
     fun back() = _nav.update { it.copy(pushed = null) }
     fun setBookingsUpcoming(upcoming: Boolean) = _nav.update { it.copy(bookingsShowUpcoming = upcoming) }
@@ -352,7 +357,7 @@ class ClientViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val container = (this[androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as B4UClientApp).container
-                ClientViewModel(container.salonRepository, container.loyaltyStore, container.authRepository)
+                ClientViewModel(container.salonRepository, container.loyaltyStore, container.authRepository, container.servicePhotos)
             }
         }
     }

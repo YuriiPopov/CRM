@@ -87,6 +87,7 @@ enum class CatalogError {
     SERVICE_IN_USE,
     CATEGORY_DEFAULT,
     PHOTO_INVALID,
+    SERVICE_PHOTO_INVALID,
     VALIDATION,
     NOT_FOUND,
     NETWORK,

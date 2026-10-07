@@ -27,6 +27,8 @@ import org.junit.Assert.fail
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
+import com.beauty4you.client.data.remote.ServicePhotoDto
+import okhttp3.ResponseBody
 import java.io.IOException
 
 // item75-fix: новости грузятся отдельно — их ошибка не ломает профиль, каталог и записи
@@ -45,6 +47,8 @@ class SalonRepositoryTest {
         override suspend fun bookings(): List<BookingDto> = emptyList()
         override suspend fun createBooking(body: CreateBookingBody): BookingDto = error("unused")
         override suspend fun cancelBooking(id: String): BookingDto = error("unused")
+        override suspend fun servicePhotos(serviceId: String): List<ServicePhotoDto> = error("unused")
+        override suspend fun servicePhoto(photoId: String): ResponseBody = error("unused")
         override suspend fun news(): List<NewsDto> {
             newsCalls++
             newsGate?.await()

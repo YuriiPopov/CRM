@@ -53,6 +53,8 @@ fun CatalogDto.toDomain(decodePhoto: (String) -> ImageBitmap?): Catalog {
                 durationMin = it.durationMin,
                 price = it.price,
                 emoji = serviceEmoji(categoryNames[it.categoryId].orEmpty(), it.name),
+                photoCount = it.photoCount,
+                coverPhotoId = it.coverPhotoId,
             )
         },
         masters = masters.map {

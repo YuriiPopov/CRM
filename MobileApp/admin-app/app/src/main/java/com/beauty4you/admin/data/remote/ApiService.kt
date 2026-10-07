@@ -144,4 +144,18 @@ interface ApiService {
         @Query("serviceId") serviceId: String,
         @Query("date") date: String,
     ): SlotsResponse
+
+    // Фото услуги (item84) — только ADMIN
+    @GET("services/{id}/photos")
+    suspend fun listServicePhotos(@Path("id") id: String): List<ServicePhotoDto>
+
+    @POST("services/{id}/photos")
+    suspend fun addServicePhoto(@Path("id") id: String, @Body body: ServicePhotoBody): ServicePhotoDto
+
+    // Тело — массив id фото в новом порядке
+    @PUT("services/{id}/photos/order")
+    suspend fun reorderServicePhotos(@Path("id") id: String, @Body photoIds: List<String>): List<ServicePhotoDto>
+
+    @DELETE("services/{id}/photos/{photoId}")
+    suspend fun deleteServicePhoto(@Path("id") id: String, @Path("photoId") photoId: String)
 }

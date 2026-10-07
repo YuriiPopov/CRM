@@ -61,7 +61,13 @@ data class ServiceDto(
     val categoryId: String,
     val durationMin: Int,
     val price: Double,
+    // Фото услуги (item84): в списке только счётчик и id обложки, сами картинки — GET /client/service-photos/:id
+    val photoCount: Int = 0,
+    val coverPhotoId: String? = null,
 )
+
+@Serializable
+data class ServicePhotoDto(val id: String, val position: Int)
 
 @Serializable
 data class MasterDto(

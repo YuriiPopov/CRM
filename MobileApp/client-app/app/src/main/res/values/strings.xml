@@ -19,6 +19,11 @@
     <string name="price_and_duration">%1$s zł · %2$d min</string>
     <string name="duration_and_price">%1$d min · %2$s zł</string>
     <string name="book">Zarezerwuj</string>
+    <string name="service_title">Usługa</string>
+    <string name="service_photo_alt">Zdjęcie usługi %1$d z %2$d</string>
+    <string name="service_photo_counter">%1$d / %2$d</string>
+    <string name="service_photos_error">Nie udało się wczytać zdjęć</string>
+    <string name="service_viewer_close">Zamknij</string>
     <string name="soon">Ta sekcja pojawi się wkrótce</string>
     <string name="today">Dzisiaj</string>
 

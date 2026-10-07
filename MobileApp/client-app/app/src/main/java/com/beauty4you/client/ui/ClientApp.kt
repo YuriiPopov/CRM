@@ -54,6 +54,7 @@ import com.beauty4you.client.ui.screens.LoyaltyScreen
 import com.beauty4you.client.ui.screens.MasterDetailScreen
 import com.beauty4you.client.ui.screens.NewsScreen
 import com.beauty4you.client.ui.screens.ProfileScreen
+import com.beauty4you.client.ui.screens.ServiceDetailScreen
 import com.beauty4you.client.ui.screens.ServicesScreen
 import com.beauty4you.client.ui.theme.Accent
 import com.beauty4you.client.ui.theme.AppBackground
@@ -128,6 +129,7 @@ private fun MainContent(vm: ClientViewModel, catalog: Catalog, client: Client) {
                 BookingScreen(vm, catalog, currentDraft)
             } else when (val pushed = nav.pushed) {
                 is Pushed.MasterDetail -> MasterDetailScreen(vm, catalog, pushed.masterId)
+                is Pushed.ServiceDetail -> ServiceDetailScreen(vm, catalog, pushed.serviceId)
                 Pushed.Loyalty -> LoyaltyScreen(vm)
                 null -> when (nav.tab) {
                     Tab.NEWS -> NewsScreen(vm)

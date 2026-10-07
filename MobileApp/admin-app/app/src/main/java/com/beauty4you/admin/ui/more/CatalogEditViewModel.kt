@@ -22,6 +22,9 @@ import com.beauty4you.admin.domain.MasterFieldError
 import com.beauty4you.admin.domain.MasterForm
 import com.beauty4you.admin.domain.MasterPhotoState
 import com.beauty4you.admin.domain.Service
+import com.beauty4you.admin.domain.ServicePhotoDraft
+import com.beauty4you.admin.domain.ServicePhotosLogic
+import com.beauty4you.admin.domain.ServicePhotosPlan
 import com.beauty4you.admin.domain.ServiceFieldError
 import com.beauty4you.admin.domain.ServiceForm
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,13 +55,23 @@ data class ServiceEditorState(
     val form: ServiceForm = ServiceForm(),
     // Форма в момент открытия — у новой услуги может быть предвыбрана категория
     val initial: ServiceForm = form,
+    // Фото (item84): initialPhotos — что на сервере, photos — черновик; уходят на сервер по «Zapisz»
+    val initialPhotos: List<ServicePhotoDraft> = emptyList(),
+    val photos: List<ServicePhotoDraft> = emptyList(),
+    // Фото существующей услуги ещё грузятся / не загрузились — править их нельзя, чтобы не затереть
+    val photosLoading: Boolean = false,
+    val photosLoadFailed: Boolean = false,
+    val encodingPhoto: Boolean = false,
     val showFieldErrors: Boolean = false,
     val saving: Boolean = false,
     val error: CatalogError? = null,
     val confirmDelete: Boolean = false,
 ) {
     val isEdit: Boolean get() = original != null
-    val isDirty: Boolean get() = CatalogEditLogic.isDirty(initial, form)
+    val isDirty: Boolean
+        get() = CatalogEditLogic.isDirty(initial, form) || ServicePhotosLogic.isDirty(initialPhotos, photos)
+    val photosEditable: Boolean get() = !photosLoading && !photosLoadFailed && !saving
+    val canAddPhoto: Boolean get() = photosEditable && !encodingPhoto && ServicePhotosLogic.canAdd(photos.size)
 }
 
 data class CategoryEditorState(
@@ -217,11 +230,59 @@ class CatalogEditViewModel(private val container: AppContainer) : ViewModel() {
         CatalogEditUiState(catalog = catalog, service = ServiceEditorState(form = ServiceForm(categoryId = preselected)))
     }
 
-    fun openService(catalog: Catalog, service: Service) = _state.update {
-        CatalogEditUiState(catalog = catalog, service = ServiceEditorState(original = service, form = CatalogEditLogic.fromService(service)))
+    fun openService(catalog: Catalog, service: Service) {
+        _state.update {
+            CatalogEditUiState(
+                catalog = catalog,
+                service = ServiceEditorState(original = service, form = CatalogEditLogic.fromService(service), photosLoading = true),
+            )
+        }
+        loadServicePhotos(service.id)
     }
 
-    fun closeService() = _state.update { it.copy(service = null) }
+    fun closeService() {
+        _state.value.service?.photos?.forEach { DecodedImages.evict(it.dataUrl) }
+        _state.update { it.copy(service = null) }
+    }
+
+    // Фото существующей услуги: GET /services/:id/photos (в ответе base64, до 5 × 1 МБ)
+    private fun loadServicePhotos(serviceId: String) {
+        viewModelScope.launch {
+            try {
+                val photos = repository.listServicePhotos(serviceId)
+                updateService { it.copy(initialPhotos = photos, photos = photos, photosLoading = false, photosLoadFailed = false) }
+            } catch (e: Exception) {
+                updateService { it.copy(photosLoading = false, photosLoadFailed = true, error = mapPhotoError(e)) }
+            }
+        }
+    }
+
+    fun removeServicePhoto(key: String) = updateService { editor ->
+        editor.photos.firstOrNull { it.key == key && it.isNew }?.let { DecodedImages.evict(it.dataUrl) }
+        editor.copy(photos = ServicePhotosLogic.remove(editor.photos, key), error = null)
+    }
+
+    fun moveServicePhoto(key: String, delta: Int) =
+        updateService { it.copy(photos = ServicePhotosLogic.move(it.photos, key, delta), error = null) }
+
+    fun onServicePhotoPicked(uri: Uri) {
+        val editor = _state.value.service ?: return
+        if (!editor.canAddPhoto) return
+        updateService { it.copy(encodingPhoto = true, error = null) }
+        viewModelScope.launch {
+            val dataUrl = container.imageEncoder.encode(uri, ImageEncoder.MAX_SIDE, ServicePhotosLogic.MAX_BYTES)
+            updateService {
+                if (dataUrl == null || ServicePhotosLogic.tooLarge(dataUrl) || !ServicePhotosLogic.canAdd(it.photos.size)) {
+                    it.copy(encodingPhoto = false, error = CatalogError.SERVICE_PHOTO_INVALID)
+                } else {
+                    val draft = ServicePhotoDraft(key = "new-${nextPhotoKey++}", serverId = null, dataUrl = dataUrl)
+                    it.copy(encodingPhoto = false, photos = it.photos + draft)
+                }
+            }
+        }
+    }
+
+    private var nextPhotoKey = 1
 
     fun setServiceCategory(categoryId: String) = updateServiceForm { it.copy(categoryId = categoryId) }
 
@@ -233,27 +294,78 @@ class CatalogEditViewModel(private val container: AppContainer) : ViewModel() {
 
     fun saveService() {
         val editor = _state.value.service ?: return
-        if (editor.saving) return
+        if (editor.saving || editor.encodingPhoto || editor.photosLoading) return
         if (_state.value.serviceFieldErrors.isNotEmpty()) {
             updateService { it.copy(showFieldErrors = true) }
             return
         }
         val fields = CatalogEditLogic.serviceFields(editor.original, editor.form)
-        if (fields == null) {
+        // Если фото не загрузились, плана по ним нет — иначе пустой черновик стёр бы все фото
+        val photosPlan = if (editor.photosLoadFailed) ServicePhotosPlan() else ServicePhotosLogic.planSave(editor.initialPhotos, editor.photos)
+        if (fields == null && photosPlan.isNoop) {
             closeService()
             return
         }
         updateService { it.copy(saving = true, error = null, showFieldErrors = true) }
         viewModelScope.launch {
+            var saved = editor.original
             try {
                 val original = editor.original
-                if (original == null) repository.createService(fields) else repository.updateService(original.id, fields)
-                closeService()
-                done(if (original == null) R.string.toast_service_created else R.string.toast_service_saved)
+                if (original == null) {
+                    // Создаём услугу первой и запоминаем её: при ошибке на фото повторное «Zapisz» не создаст дубликат
+                    saved = repository.createService(fields!!)
+                    updateService { it.copy(original = saved, initial = it.form) }
+                } else if (fields != null) {
+                    repository.updateService(original.id, fields)
+                }
             } catch (e: Exception) {
                 updateService { it.copy(saving = false, error = mapError(e)) }
+                return@launch
+            }
+            val serviceId = saved?.id
+            if (serviceId != null && !photosPlan.isNoop) {
+                try {
+                    applyPhotosPlan(serviceId, editor.photos, photosPlan)
+                } catch (e: Exception) {
+                    // Часть шагов могла пройти — показываем фактическое состояние сервера, черновик фото сбрасываем
+                    val error = mapPhotoError(e)
+                    editor.photos.forEach { if (it.isNew) DecodedImages.evict(it.dataUrl) }
+                    val synced = runCatching { repository.listServicePhotos(serviceId) }.getOrNull()
+                    updateService {
+                        it.copy(
+                            saving = false,
+                            error = error,
+                            initialPhotos = synced ?: it.initialPhotos,
+                            photos = synced ?: it.initialPhotos,
+                            photosLoadFailed = synced == null,
+                        )
+                    }
+                    container.events.notifyDataChanged()
+                    return@launch
+                }
+            }
+            closeService()
+            done(if (editor.original == null) R.string.toast_service_created else R.string.toast_service_saved)
+        }
+    }
+
+    private suspend fun applyPhotosPlan(serviceId: String, photos: List<ServicePhotoDraft>, plan: ServicePhotosPlan) {
+        plan.deleteIds.forEach { id ->
+            try {
+                repository.deleteServicePhoto(serviceId, id)
+            } catch (e: Exception) {
+                // 404 — уже удалено (например, из веб-CRM)
+                if (e.toApiFailure().httpCode != 404) throw e
             }
         }
+        val uploaded = mutableMapOf<String, String>()
+        plan.uploads.forEach { draft -> uploaded[draft.key] = repository.addServicePhoto(serviceId, draft.dataUrl) }
+        if (plan.reorder) repository.reorderServicePhotos(serviceId, ServicePhotosLogic.orderIds(photos, uploaded))
+    }
+
+    private fun mapPhotoError(e: Exception): CatalogError {
+        android.util.Log.e("CatalogEdit", "service photos request failed", e)
+        return ServicePhotosLogic.mapError(e.toApiFailure().httpCode)
     }
 
     fun askDeleteService() = updateService { it.copy(confirmDelete = true, error = null) }

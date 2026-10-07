@@ -92,11 +92,13 @@ fun ServiceFormSheet(editor: ServiceEditorState, catalog: Catalog, errors: Set<S
             }
         }
 
+        ServicePhotosSection(editor, viewModel)
+
         editor.error?.let { FormErrorBanner(stringResource(it.messageRes())) }
 
         DeleteSaveButtons(
             showDelete = editor.isEdit,
-            busy = editor.saving,
+            busy = editor.saving || editor.encodingPhoto || editor.photosLoading,
             saving = editor.saving,
             onDelete = viewModel::askDeleteService,
             onSave = viewModel::saveService,
@@ -171,6 +173,7 @@ internal fun CatalogError.messageRes(): Int = when (this) {
     CatalogError.SERVICE_IN_USE -> R.string.catalog_error_service_in_use
     CatalogError.CATEGORY_DEFAULT -> R.string.category_delete_blocked_default
     CatalogError.PHOTO_INVALID -> R.string.catalog_error_photo
+    CatalogError.SERVICE_PHOTO_INVALID -> R.string.service_photos_error
     CatalogError.VALIDATION -> R.string.error_validation
     CatalogError.NOT_FOUND -> R.string.catalog_error_not_found
     CatalogError.NETWORK -> R.string.error_network

@@ -196,3 +196,10 @@ data class CreateBlockBody(
     val endTime: String,
     val reason: String? = null,
 )
+
+// Фото услуги (item84): image — base64 data URL; position 0 — обложка
+@Serializable
+data class ServicePhotoDto(val id: String, val position: Int, val image: String)
+
+@Serializable
+data class ServicePhotoBody(val image: String)

@@ -26,6 +26,7 @@ import com.beauty4you.client.ui.ClientViewModel
 import com.beauty4you.client.ui.common.AccentButton
 import com.beauty4you.client.ui.common.B4URowCard
 import com.beauty4you.client.ui.common.Overline
+import com.beauty4you.client.ui.common.ServiceCover
 import com.beauty4you.client.ui.common.PagePadding
 import com.beauty4you.client.ui.common.ScreenTitle
 import com.beauty4you.client.ui.common.VSpace
@@ -70,7 +71,9 @@ fun ServicesScreen(vm: ClientViewModel, catalog: Catalog) {
             }
             items(services, key = { it.id }) { sv ->
                 Column(Modifier.padding(bottom = 8.dp)) {
-                    B4URowCard {
+                    // Карточка с галереей — только у услуг с фото; без фото строка такая же, как раньше
+                    B4URowCard(onClick = if (sv.hasPhotos) ({ vm.openService(sv.id) }) else null) {
+                        sv.coverPhotoId?.takeIf { sv.hasPhotos }?.let { ServiceCover(vm.servicePhotos, it) }
                         Column(Modifier.weight(1f)) {
                             Text(sv.name, style = B4UType.CardTitle, color = InkStrong)
                             VSpace(1.dp)
