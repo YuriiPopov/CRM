@@ -61,6 +61,10 @@ $ npm run test:cov
 
 `app.enableCors()` в `main.ts` разрешает запросы с `FRONTEND_URL` (по умолчанию `http://localhost:5173`, если переменная не задана) и передачу credentials. При деплое фронтенда на другой origin — задать `FRONTEND_URL` в окружении backend.
 
+## Версия клиентского API (MIN_CLIENT_API)
+
+Все клиенты (веб-CRM, admin-app, master-app, client-app) шлют заголовок `X-Client-Api: <версия>` (сейчас `2`). Глобальный `ClientApiGuard` (`src/common/client-api/`) сравнивает его с `MIN_CLIENT_API`: если заголовка нет, он не число или меньше порога — ответ `426 {statusCode, code: "CLIENT_UPDATE_REQUIRED", message}`, и клиент показывает «обновите приложение». `MIN_CLIENT_API=0` (по умолчанию) — проверка выключена. Не проверяются `/`, `/health`, `/metrics`, `/public/*` и CORS preflight. Порог читается из env на каждый запрос; мусорное значение — backend не стартует.
+
 ## Время салона (SALON_TIMEZONE)
 
 **Соглашение хранения.** Время визитов хранится как *настенное время салона с меткой UTC*: визит в 10:00 по Варшаве лежит в БД как `10:00Z`, независимо от летнего/зимнего времени. Так хранятся `Booking.startTime`/`endTime` (и `originalStartTime`/`originalEndTime`), `MasterBlock.startTime`/`endTime`, часы графика `MasterSchedule.startTime`/`endTime` (`"HH:mm"`), а также слоты в `/public/booking/slots` и `/client/slots` (часы работы `09:00–19:00` — тоже время салона). Фронтенд и приложения показывают это время «как есть», без пересчёта поясов.

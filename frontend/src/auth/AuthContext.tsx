@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { fetchCurrentUser, login as loginRequest } from '../api/auth'
+import { isClientUpdateRequiredError } from '../api/clientUpdate'
 import { getStoredToken, setStoredToken, setUnauthorizedHandler } from '../api/client'
 import type { AuthenticatedUser } from '../types/auth'
 import { AuthContext } from './auth-context'
@@ -34,7 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(profile)
         setStatus('authenticated')
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        // 426: токен валиден, просто нужна новая версия — не разлогиниваем
+        if (isClientUpdateRequiredError(error)) return
         setStoredToken(null)
         setStatus('unauthenticated')
       })

@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.beauty4you.master.data.remote.UpdateRequired
+import com.beauty4you.master.ui.common.UpdateRequiredScreen
 import com.beauty4you.master.ui.common.appContainer
 import com.beauty4you.master.ui.login.LoginScreen
 import com.beauty4you.master.ui.nav.MainScaffold
@@ -30,7 +32,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             B4UMasterTheme {
-                MasterAppRoot()
+                val updateRequired by UpdateRequired.required.collectAsState()
+                if (updateRequired) UpdateRequiredScreen() else MasterAppRoot()
             }
         }
     }

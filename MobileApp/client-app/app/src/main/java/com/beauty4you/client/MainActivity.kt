@@ -7,6 +7,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.beauty4you.client.data.remote.UpdateRequired
+import com.beauty4you.client.ui.common.UpdateRequiredScreen
 import com.beauty4you.client.ui.ClientRoot
 import com.beauty4you.client.ui.theme.B4UClientTheme
 
@@ -22,7 +24,8 @@ class MainActivity : ComponentActivity() {
             B4UClientTheme {
                 val container = (application as B4UClientApp).container
                 val isLoggedIn by container.authRepository.isLoggedIn.collectAsState(initial = null)
-                ClientRoot(isLoggedIn)
+                val updateRequired by UpdateRequired.required.collectAsState()
+                if (updateRequired) UpdateRequiredScreen() else ClientRoot(isLoggedIn)
             }
         }
     }

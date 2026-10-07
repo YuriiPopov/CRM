@@ -30,6 +30,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       SALON_TIMEZONE: ${SALON_TIMEZONE:-Europe/Warsaw}
+      MIN_CLIENT_API: ${MIN_CLIENT_API:-0}
     volumes:
       - b4u-logs:/var/log/b4u-crm
     networks:

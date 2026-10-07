@@ -349,4 +349,8 @@
     <string name="block_delete_confirm_yes">Usuń blokadę</string>
     <string name="toast_block_created">Blokada dodana</string>
     <string name="toast_block_deleted">Blokada usunięta</string>
+
+    <string name="update_required_title">Dostępna nowa wersja aplikacji</string>
+    <string name="update_required_text">Zainstaluj aktualizację, aby kontynuować pracę z aplikacją.</string>
+    <string name="update_required_close">Zamknij</string>
 </resources>

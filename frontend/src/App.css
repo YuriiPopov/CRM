@@ -1411,3 +1411,10 @@
   height: 20px;
   font-size: 10px;
 }
+
+.update-required {
+  max-width: 28rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+  text-align: center;
+}

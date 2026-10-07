@@ -1,4 +1,10 @@
 import axios from 'axios'
+import {
+  CLIENT_API_HEADER,
+  CLIENT_API_VERSION,
+  isClientUpdateRequiredError,
+  markClientUpdateRequired,
+} from './clientUpdate'
 
 const TOKEN_STORAGE_KEY = 'b4u_token'
 
@@ -34,6 +40,7 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
+  config.headers.set(CLIENT_API_HEADER, String(CLIENT_API_VERSION))
   const token = getStoredToken()
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`)
@@ -44,6 +51,10 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
+    // 426 — не 401 и не сетевая ошибка: сессию не трогаем, показываем экран «Обновите страницу»
+    if (isClientUpdateRequiredError(error)) {
+      markClientUpdateRequired()
+    }
     if (axios.isAxiosError(error) && error.response?.status === 401) {
       setStoredToken(null)
       unauthorizedHandler?.()

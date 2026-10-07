@@ -5,6 +5,7 @@ import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
 import { assertProductionConfig } from './common/config/assert-production-config';
 import { loggerConfig } from './common/logger/logger.module';
+import { assertMinClientApi } from './common/client-api/client-api.guard';
 import { assertSalonTimezone } from './common/time/salon-time';
 
 async function bootstrap() {
@@ -20,6 +21,7 @@ async function bootstrap() {
   // После create: ConfigModule уже загрузил .env в process.env, а сервер ещё не слушает порт
   assertProductionConfig(process.env);
   assertSalonTimezone(process.env);
+  assertMinClientApi(process.env);
 
   // Заменяем встроенный логгер NestJS на Winston
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));

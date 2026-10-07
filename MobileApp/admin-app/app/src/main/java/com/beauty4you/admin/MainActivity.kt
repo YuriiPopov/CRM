@@ -13,6 +13,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.beauty4you.admin.data.remote.UpdateRequired
+import com.beauty4you.admin.ui.common.UpdateRequiredScreen
 import com.beauty4you.admin.ui.common.appContainer
 import com.beauty4you.admin.ui.login.LoginScreen
 import com.beauty4you.admin.ui.nav.MainScaffold
@@ -26,7 +28,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             B4UAdminTheme {
-                AdminAppRoot()
+                val updateRequired by UpdateRequired.required.collectAsState()
+                if (updateRequired) UpdateRequiredScreen() else AdminAppRoot()
             }
         }
     }

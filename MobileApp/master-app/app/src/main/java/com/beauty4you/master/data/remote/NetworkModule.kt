@@ -26,6 +26,7 @@ object NetworkModule {
         }
 
         val client = OkHttpClient.Builder()
+            .addInterceptor(ClientApiInterceptor())
             .addInterceptor(AuthInterceptor(session))
             .addInterceptor(logging)
             .build()

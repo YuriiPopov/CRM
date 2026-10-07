@@ -164,4 +164,8 @@
     <string name="login_create">Utwórz konto</string>
     <string name="login_error_code">Nieprawidłowy lub wygasły kod</string>
     <string name="login_error_phone">Nieprawidłowy numer telefonu</string>
+
+    <string name="update_required_title">Dostępna nowa wersja aplikacji</string>
+    <string name="update_required_text">Zainstaluj aktualizację, aby kontynuować pracę z aplikacją.</string>
+    <string name="update_required_close">Zamknij</string>
 </resources>

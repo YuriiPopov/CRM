@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { WinstonModule } from 'nest-winston';
 import { AppController } from './app.controller';
@@ -7,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { ClientPortalModule } from './client-portal/client-portal.module';
 import { ClientsModule } from './clients/clients.module';
+import { ClientApiGuard } from './common/client-api/client-api.guard';
 import { winstonOptions } from './common/logger/logger.module';
 import { MetricsModule } from './common/metrics/metrics.module';
 import { DashboardSettingsModule } from './dashboard-settings/dashboard-settings.module';
@@ -47,6 +49,6 @@ import { UsersModule } from './users/users.module';
     NewsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ClientApiGuard }],
 })
 export class AppModule {}
