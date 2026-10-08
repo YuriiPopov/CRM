@@ -6,4 +6,9 @@
         <item name="android:statusBarColor">@color/app_background</item>
         <item name="android:windowBackground">@color/app_background</item>
     </style>
+
+    <!-- Тема только для WebView статьи (item89): тёмная, когда система в тёмном режиме. Само приложение
+         светлое, а WebView берёт prefers-color-scheme из темы своего контекста — без этого статья
+         осталась бы светлой при включённой системной тёмной теме. -->
+    <style name="Theme.B4U.ArticleDark" parent="android:Theme.Material.NoActionBar" />
 </resources>

@@ -2,6 +2,7 @@ package com.beauty4you.admin.ui.article
 
 import android.annotation.SuppressLint
 import android.graphics.Color
+import android.view.ContextThemeWrapper
 import android.view.MotionEvent
 import android.view.ViewGroup
 import android.webkit.RenderProcessGoneDetail
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
+import com.beauty4you.admin.R
 
 /**
  * WebView страницы статьи (item89). Копия WebView из client-app (общего модуля у приложений нет) —
@@ -42,7 +44,9 @@ fun ArticleWebView(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            WebView(context).apply {
+            // Тёмная системная тема → тёмная тема контекста WebView (см. themes.xml), иначе он всегда «светлый»
+            val webContext = if (darkTheme) ContextThemeWrapper(context, R.style.Theme_B4U_ArticleDark) else context
+            WebView(webContext).apply {
                 layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                 setBackgroundColor(Color.TRANSPARENT)
                 isVerticalScrollBarEnabled = true
