@@ -34,14 +34,19 @@ export function assertMinClientApi(env: NodeJS.ProcessEnv): void {
 // Маршруты без проверки: мониторинг (docker/Prometheus не шлют заголовок) и публичные
 // эндпоинты для сайта. CORS preflight (OPTIONS) заголовков клиента не несёт.
 const EXEMPT_PATHS = [
-  /^\/$/,
-  /^\/health\/?$/,
-  /^\/metrics\/?$/,
-  /^\/public(\/|$)/,
+  /^\/$/i,
+  /^\/health\/?$/i,
+  /^\/metrics\/?$/i,
+  /^\/public(\/|$)/i,
 ];
 
 @Injectable()
 export class ClientApiGuard implements CanActivate {
+  // Мусор в MIN_CLIENT_API роняет создание гварда в любом окружении (main, тестовые модули, воркеры)
+  constructor() {
+    assertMinClientApi(process.env);
+  }
+
   canActivate(context: ExecutionContext): boolean {
     const min = minClientApi();
     if (min <= 0) return true;
@@ -52,9 +57,10 @@ export class ClientApiGuard implements CanActivate {
     if (EXEMPT_PATHS.some((pattern) => pattern.test(path))) return true;
 
     const header = req.headers[CLIENT_API_HEADER];
-    const version = Number(Array.isArray(header) ? header[0] : header);
-    // Нет заголовка или он не число — как версия 0
-    if (Number.isInteger(version) && version >= min) return true;
+    const raw = Array.isArray(header) ? header[0] : header;
+    // Нет заголовка или он не строка из одних цифр (0x2, 2e0, « 2 », пусто) — как версия 0
+    const version = raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : 0;
+    if (version >= min) return true;
 
     throw new HttpException(
       {

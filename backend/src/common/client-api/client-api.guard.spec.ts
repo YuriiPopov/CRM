@@ -68,6 +68,15 @@ describe('ClientApiGuard', () => {
     ).toBe(426);
   });
 
+  it('treats non-decimal or padded versions as version 0', () => {
+    process.env.MIN_CLIENT_API = '2';
+    for (const value of ['0x2', '2e0', '', ' 2', '2 ', ' 2 ', '+2', '2.0']) {
+      expect(
+        thrown(contextFor('/bookings', { 'x-client-api': value })).getStatus(),
+      ).toBe(426);
+    }
+  });
+
   it('lets version 2 and higher through at threshold 2', () => {
     process.env.MIN_CLIENT_API = '2';
     expect(
@@ -88,10 +97,26 @@ describe('ClientApiGuard', () => {
     );
   });
 
+  it('matches exempt paths case-insensitively', () => {
+    process.env.MIN_CLIENT_API = '2';
+    for (const path of ['/Health', '/HEALTH/', '/Metrics', '/PUBLIC/x']) {
+      expect(guard.canActivate(contextFor(path))).toBe(true);
+    }
+  });
+
   it('does not exempt paths that merely start like a public one', () => {
     process.env.MIN_CLIENT_API = '2';
     expect(thrown(contextFor('/publication')).getStatus()).toBe(426);
     expect(thrown(contextFor('/client/bookings')).getStatus()).toBe(426);
+  });
+
+  it('refuses to be created with a malformed MIN_CLIENT_API', () => {
+    for (const value of ['abc', '-1', '1.5']) {
+      process.env.MIN_CLIENT_API = value;
+      expect(() => new ClientApiGuard()).toThrow(/MIN_CLIENT_API/);
+    }
+    process.env.MIN_CLIENT_API = '2';
+    expect(() => new ClientApiGuard()).not.toThrow();
   });
 
   it('validates the env value at startup', () => {
