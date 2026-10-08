@@ -2,6 +2,7 @@ package com.beauty4you.admin.domain
 
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 
 // Картинка в форме: та, что уже на сервере (или её нет), новая выбранная, либо удалённая
 sealed interface NewsImage {
@@ -17,12 +18,27 @@ sealed interface NewsImage {
         }
 }
 
+// Статья в форме (item89): сохранённая на сервере (или её нет), выбранный файл либо удалённая
+sealed interface NewsArticle {
+    data class Saved(val exists: Boolean) : NewsArticle
+    data class Picked(val fileName: String, val sizeBytes: Long, val html: String) : NewsArticle
+    data object Removed : NewsArticle
+
+    val attached: Boolean
+        get() = when (this) {
+            is Saved -> exists
+            is Picked -> true
+            Removed -> false
+        }
+}
+
 data class NewsForm(
     val category: NewsCategory = NewsCategory.NOWOSC,
     val title: String = "",
     val body: String = "",
     val status: NewsStatus = NewsStatus.DRAFT,
     val image: NewsImage = NewsImage.Saved(null),
+    val article: NewsArticle = NewsArticle.Saved(false),
 )
 
 enum class NewsFieldError { TITLE_EMPTY, TITLE_TOO_LONG, BODY_EMPTY, BODY_TOO_LONG }
@@ -33,8 +49,11 @@ data class NewsFields(
     val title: String? = null,
     val body: String? = null,
     val status: NewsStatus? = null,
+    // HTML статьи; "" — удалить статью (так backend отличает «убрать» от «не менять»)
+    val contentHtml: String? = null,
 ) {
-    val isEmpty: Boolean get() = category == null && title == null && body == null && status == null
+    val isEmpty: Boolean
+        get() = category == null && title == null && body == null && status == null && contentHtml == null
 }
 
 // Шаги сохранения выполняются по порядку: create → картинка (upload/remove) → patch.
@@ -52,7 +71,13 @@ data class NewsSavePlan(
 enum class NewsSaveToast { PUBLISHED, DRAFT }
 
 // Ошибка сохранения/удаления — показывается в форме, форма остаётся открытой
-enum class NewsError { IMAGE_INVALID, VALIDATION, NOT_FOUND, NETWORK, UNKNOWN }
+enum class NewsError {
+    IMAGE_INVALID, VALIDATION, NOT_FOUND, NETWORK, UNKNOWN,
+
+    // Статья (item89): ответы backend 413/422 и проверки выбранного файла на устройстве
+    ARTICLE_TOO_LARGE, ARTICLE_RESULT_TOO_LARGE, ARTICLE_INVALID_HTML, ARTICLE_IMAGE_INVALID,
+    ARTICLE_NOT_HTML, ARTICLE_EMPTY, ARTICLE_UNREADABLE,
+}
 
 // Логика формы «Nowy wpis / Edytuj wpis» — чистый Kotlin, проверяется JVM unit-тестами.
 // Лимиты — те же, что проверяет бэкенд (CreateNewsDto, NewsService).
@@ -60,6 +85,8 @@ object NewsFormLogic {
     const val TITLE_MAX = 120
     const val BODY_MAX = 2000
     const val IMAGE_MAX_BYTES = 5 * 1024 * 1024
+    // Исходный HTML-файл статьи; после обработки на сервере — не более 4 МБ
+    const val ARTICLE_MAX_BYTES = 12 * 1024 * 1024
 
     fun fromPost(post: NewsPost) = NewsForm(
         category = post.category,
@@ -67,6 +94,7 @@ object NewsFormLogic {
         body = post.body,
         status = post.status,
         image = NewsImage.Saved(post.imageUrl),
+        article = NewsArticle.Saved(post.hasArticle),
     )
 
     // Есть несохранённые изменения (item76, «Odrzucić zmiany?»): форма отличается от исходной
@@ -98,12 +126,13 @@ object NewsFormLogic {
         val title = form.title.trim()
         val body = form.body.trim()
         val upload = (form.image as? NewsImage.Picked)?.dataUrl
+        val articleHtml = (form.article as? NewsArticle.Picked)?.html
 
         if (original == null) {
             // Новая публикуемая новость с картинкой: создаём черновиком, публикуем после загрузки
             val deferPublish = upload != null && form.status == NewsStatus.PUBLISHED
             return NewsSavePlan(
-                create = NewsFields(form.category, title, body, if (deferPublish) NewsStatus.DRAFT else form.status),
+                create = NewsFields(form.category, title, body, if (deferPublish) NewsStatus.DRAFT else form.status, articleHtml),
                 uploadImage = upload,
                 patch = if (deferPublish) NewsFields(status = NewsStatus.PUBLISHED) else null,
             )
@@ -114,6 +143,11 @@ object NewsFormLogic {
             title = title.takeIf { it != original.title },
             body = body.takeIf { it != original.body },
             status = form.status.takeIf { it != original.status },
+            contentHtml = when {
+                articleHtml != null -> articleHtml
+                form.article == NewsArticle.Removed && original.hasArticle -> ""
+                else -> null
+            },
         )
         return NewsSavePlan(
             uploadImage = upload,
@@ -122,9 +156,33 @@ object NewsFormLogic {
         )
     }
 
+    // Проверка выбранного файла статьи до чтения/отправки; null — файл подходит
+    fun validateArticleFile(fileName: String?, sizeBytes: Long?): NewsError? {
+        val name = fileName.orEmpty().lowercase()
+        if (!name.endsWith(".html") && !name.endsWith(".htm")) return NewsError.ARTICLE_NOT_HTML
+        if (sizeBytes != null && sizeBytes <= 0L) return NewsError.ARTICLE_EMPTY
+        if (sizeBytes != null && sizeBytes > ARTICLE_MAX_BYTES) return NewsError.ARTICLE_TOO_LARGE
+        return null
+    }
+
+    // «1,2 MB» / «340 KB» — размер файла рядом с именем
+    fun fileSizeLabel(bytes: Long): String = when {
+        bytes >= 1024 * 1024 -> String.format(Locale("pl", "PL"), "%.1f MB", bytes / 1024.0 / 1024.0)
+        bytes >= 1024 -> "${(bytes + 512) / 1024} KB"
+        else -> "$bytes B"
+    }
+
     // httpCode == null — сервер недоступен. Текст 400 от Nest отличает картинку от полей формы.
-    fun mapError(httpCode: Int?, message: String?): NewsError = when {
+    // code — машинный код 422 статьи (ARTICLE_*), 413 — тело больше лимита JSON.
+    fun mapError(httpCode: Int?, message: String?, code: String? = null): NewsError = when {
         httpCode == null -> NewsError.NETWORK
+        httpCode == 413 -> NewsError.ARTICLE_TOO_LARGE
+        httpCode == 422 -> when (code) {
+            "ARTICLE_TOO_LARGE" -> NewsError.ARTICLE_TOO_LARGE
+            "ARTICLE_RESULT_TOO_LARGE" -> NewsError.ARTICLE_RESULT_TOO_LARGE
+            "ARTICLE_IMAGE_INVALID" -> NewsError.ARTICLE_IMAGE_INVALID
+            else -> NewsError.ARTICLE_INVALID_HTML
+        }
         httpCode == 400 && message.orEmpty().contains("image", ignoreCase = true) -> NewsError.IMAGE_INVALID
         httpCode == 400 -> NewsError.VALIDATION
         httpCode == 404 -> NewsError.NOT_FOUND

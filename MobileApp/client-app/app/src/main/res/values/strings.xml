@@ -80,6 +80,11 @@
     <string name="news_empty_title">Brak aktualności</string>
     <string name="news_empty_text">Wróć tu wkrótce po nowości</string>
     <string name="news_error_title">Nie udało się załadować aktualności</string>
+    <string name="news_read_more">Czytaj dalej →</string>
+    <string name="news_article_error_title">Nie udało się otworzyć artykułu</string>
+    <string name="news_article_gone">Ten artykuł nie jest już dostępny</string>
+    <string name="news_article_empty_title">Artykuł jest pusty</string>
+    <string name="news_article_empty_text">Wróć do aktualności i sprawdź później</string>
 
     <!-- Profile -->
     <string name="profile_news_sub">Nowości i digest od salonu</string>

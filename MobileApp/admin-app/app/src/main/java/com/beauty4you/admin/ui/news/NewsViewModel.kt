@@ -9,6 +9,8 @@ import com.beauty4you.admin.AppContainer
 import com.beauty4you.admin.R
 import com.beauty4you.admin.data.DecodedImages
 import com.beauty4you.admin.data.remote.toApiFailure
+import com.beauty4you.admin.data.ArticleFileResult
+import com.beauty4you.admin.domain.NewsArticle
 import com.beauty4you.admin.domain.NewsError
 import com.beauty4you.admin.domain.NewsFieldError
 import com.beauty4you.admin.domain.NewsForm
@@ -22,6 +24,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+// Предпросмотр статьи (item89): тот же WebView, что в client-app
+sealed interface ArticlePreview {
+    data object Loading : ArticlePreview
+    data class Ready(val html: String) : ArticlePreview
+    data object Failed : ArticlePreview
+}
+
 data class NewsEditorState(
     // null — «Nowy wpis». После первого успешного шага сохранения сюда попадает созданная
     // новость: повторное «Zapisz» после ошибки не создаст дубликат
@@ -30,6 +39,8 @@ data class NewsEditorState(
     // Ошибки полей показываем только после первой попытки сохранить
     val showFieldErrors: Boolean = false,
     val encodingImage: Boolean = false,
+    val readingArticle: Boolean = false,
+    val preview: ArticlePreview? = null,
     val saving: Boolean = false,
     val error: NewsError? = null,
     val confirmDelete: Boolean = false,
@@ -37,7 +48,7 @@ data class NewsEditorState(
     val isEdit: Boolean get() = original != null
     val fieldErrors: Set<NewsFieldError> get() = NewsFormLogic.validate(form)
     val visibleFieldErrors: Set<NewsFieldError> get() = if (showFieldErrors) fieldErrors else emptySet()
-    val busy: Boolean get() = saving || encodingImage
+    val busy: Boolean get() = saving || encodingImage || readingArticle
 
     // Несохранённые изменения — при закрытии шторки спросим «Odrzucić zmiany?»
     val isDirty: Boolean get() = NewsFormLogic.isDirty(original, form)
@@ -112,6 +123,64 @@ class NewsViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    // --- Статья (item89) ---
+
+    fun onArticlePicked(uri: Uri) {
+        updateEditor { it.copy(readingArticle = true, error = null) }
+        viewModelScope.launch {
+            val result = container.articleFileReader.read(uri)
+            updateEditor {
+                when (result) {
+                    is ArticleFileResult.Failure -> it.copy(readingArticle = false, error = result.error)
+                    is ArticleFileResult.Success -> it.copy(
+                        readingArticle = false,
+                        form = it.form.copy(article = NewsArticle.Picked(result.fileName, result.sizeBytes, result.html)),
+                    )
+                }
+            }
+        }
+    }
+
+    fun removeArticle() = updateForm {
+        // Только что выбранный, но не сохранённый файл просто отбрасываем; сохранённую статью помечаем на удаление
+        val savedExists = editor()?.original?.hasArticle == true
+        it.copy(article = if (savedExists) NewsArticle.Removed else NewsArticle.Saved(false))
+    }
+
+    fun openPreview() {
+        val editor = editor() ?: return
+        when (val article = editor.form.article) {
+            is NewsArticle.Picked -> updateEditor { it.copy(preview = ArticlePreview.Ready(article.html)) }
+            is NewsArticle.Saved -> {
+                val id = editor.original?.id
+                if (!article.exists || id == null) return
+                updateEditor { it.copy(preview = ArticlePreview.Loading) }
+                loadSavedPreview(id)
+            }
+            NewsArticle.Removed -> Unit
+        }
+    }
+
+    fun retryPreview() {
+        val id = editor()?.original?.id ?: return
+        updateEditor { it.copy(preview = ArticlePreview.Loading) }
+        loadSavedPreview(id)
+    }
+
+    fun closePreview() = updateEditor { it.copy(preview = null) }
+
+    private fun loadSavedPreview(id: String) {
+        viewModelScope.launch {
+            val preview = try {
+                repository.articleHtml(id)?.takeIf { it.isNotBlank() }?.let { ArticlePreview.Ready(it) } ?: ArticlePreview.Failed
+            } catch (e: Exception) {
+                ArticlePreview.Failed
+            }
+            // Окно предпросмотра могли закрыть, пока шёл запрос
+            updateEditor { if (it.preview == null) it else it.copy(preview = preview) }
+        }
+    }
+
     fun save() {
         val editor = editor() ?: return
         if (editor.busy) return
@@ -132,6 +201,10 @@ class NewsViewModel(private val container: AppContainer) : ViewModel() {
                 plan.create?.let { fields ->
                     post = repository.create(fields)
                     rememberSaved(post!!)
+                    // Статья ушла вместе с create — при повторном «Zapisz» после сбоя картинки не шлём её снова
+                    if (fields.contentHtml != null) {
+                        updateEditor { e -> e.copy(form = e.form.copy(article = NewsArticle.Saved(post!!.hasArticle))) }
+                    }
                 }
                 plan.uploadImage?.let { dataUrl ->
                     val replaced = post!!.imageUrl
@@ -149,7 +222,7 @@ class NewsViewModel(private val container: AppContainer) : ViewModel() {
                 finish(post, NewsFormLogic.toast(status))
             } catch (e: Exception) {
                 val failure = e.toApiFailure()
-                updateEditor { it.copy(saving = false, error = NewsFormLogic.mapError(failure.httpCode, failure.message)) }
+                updateEditor { it.copy(saving = false, error = NewsFormLogic.mapError(failure.httpCode, failure.message, failure.code)) }
             }
         }
     }

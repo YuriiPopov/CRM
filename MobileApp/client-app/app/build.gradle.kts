@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.androidx.material3)
 
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.webkit)
 
     implementation(libs.retrofit.core)
     implementation(libs.retrofit.kotlinx.serialization.converter)

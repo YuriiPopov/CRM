@@ -106,6 +106,11 @@ data class NewsItem(
     val text: String,
     val date: LocalDate,
     val image: ImageBitmap?,
+    /** Нажатие на карточку открывает страницу статьи (item89). */
+    val hasArticle: Boolean = false,
 )
+
+/** Страница статьи новости; [html] == null или пусто — статья без содержимого. */
+data class NewsArticle(val id: String, val title: String, val html: String?)
 
 data class SalonContacts(val phone: String, val instagramUrl: String?, val facebookUrl: String?)

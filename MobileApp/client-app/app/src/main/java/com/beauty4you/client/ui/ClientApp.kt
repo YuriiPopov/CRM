@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -52,6 +53,7 @@ import com.beauty4you.client.ui.screens.BookingsScreen
 import com.beauty4you.client.ui.screens.HomeScreen
 import com.beauty4you.client.ui.screens.LoyaltyScreen
 import com.beauty4you.client.ui.screens.MasterDetailScreen
+import com.beauty4you.client.ui.screens.NewsArticleScreen
 import com.beauty4you.client.ui.screens.NewsScreen
 import com.beauty4you.client.ui.screens.ProfileScreen
 import com.beauty4you.client.ui.screens.PhotoViewerOverlay
@@ -113,6 +115,9 @@ private fun MainContent(vm: ClientViewModel, catalog: Catalog, client: Client) {
     val draft by vm.draft.collectAsStateWithLifecycle()
     val toast by vm.toast.collectAsStateWithLifecycle()
     val viewer by vm.viewer.collectAsStateWithLifecycle()
+    // Состояние ленты живёт здесь, а не в NewsScreen: пока открыта статья, лента уходит из композиции,
+    // и «назад» должна вернуть её на то же место
+    val newsListState = rememberLazyListState()
 
     BackHandler(enabled = nav.pushed != null) { vm.back() }
     // Объявлен позже — при открытой записи «Назад» закрывает её и возвращает туда, откуда пришли
@@ -134,8 +139,9 @@ private fun MainContent(vm: ClientViewModel, catalog: Catalog, client: Client) {
                     is Pushed.MasterDetail -> MasterDetailScreen(vm, catalog, pushed.masterId)
                     is Pushed.ServiceDetail -> ServiceDetailScreen(vm, catalog, pushed.serviceId)
                     Pushed.Loyalty -> LoyaltyScreen(vm)
+                    is Pushed.NewsArticle -> NewsArticleScreen(vm, pushed)
                     null -> when (nav.tab) {
-                        Tab.NEWS -> NewsScreen(vm)
+                        Tab.NEWS -> NewsScreen(vm, newsListState)
                         Tab.HOME -> HomeScreen(vm, catalog, client)
                         Tab.SERVICES -> ServicesScreen(vm, catalog)
                         Tab.BOOKINGS -> BookingsScreen(vm)

@@ -172,4 +172,27 @@ class MappersTest {
         val network = Json { explicitNulls = false }
         assertEquals("""{"title":"Nowy"}""", network.encodeToString(NewsBody.serializer(), NewsBody(title = "Nowy")))
     }
+
+    @Test
+    fun `news post carries hasArticle and defaults to false for older backends`() {
+        val with = json.decodeFromString<NewsPostDto>(
+            """{"id":"n1","category":"NOWOSC","title":"T","body":"B","status":"DRAFT","createdAt":"2026-10-01T10:00:00.000Z","hasArticle":true}""",
+        ).toDomain()!!
+        val without = json.decodeFromString<NewsPostDto>(
+            """{"id":"n1","category":"NOWOSC","title":"T","body":"B","status":"DRAFT","createdAt":"2026-10-01T10:00:00.000Z"}""",
+        ).toDomain()!!
+        assertEquals(true, with.hasArticle)
+        assertEquals(false, without.hasArticle)
+    }
+
+    @Test
+    fun `contentHtml is sent only when set, empty string means delete`() {
+        assertEquals(null, NewsFields(title = "T").toBody().contentHtml)
+        assertEquals("<p>x</p>", NewsFields(contentHtml = "<p>x</p>").toBody().contentHtml)
+        assertEquals("", NewsFields(contentHtml = "").toBody().contentHtml)
+        // null не попадает в JSON (explicitNulls = false в NetworkModule), "" — попадает
+        val encoder = kotlinx.serialization.json.Json { explicitNulls = false }
+        assertEquals("""{"title":"T"}""", encoder.encodeToString(NewsBody.serializer(), NewsFields(title = "T").toBody()))
+        assertEquals("""{"contentHtml":""}""", encoder.encodeToString(NewsBody.serializer(), NewsFields(contentHtml = "").toBody()))
+    }
 }

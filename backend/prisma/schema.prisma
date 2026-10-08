@@ -414,6 +414,10 @@ model NewsPost {
   body        String
   // Картинка как base64 data URL — так же, как фото мастера (Master.photo, item41)
   imageUrl    String?
+  // Страница статьи (item89): санитизированный HTML со встроенными data:image/*, до 4 МБ.
+  // body остаётся коротким анонсом для ленты. В списки не попадает — только GET /news/:id и
+  // GET /client/news/:id; лента отдаёт hasArticle.
+  contentHtml String?
   status      NewsStatus   @default(DRAFT)
   // Момент первой публикации; при возврате в черновик не сбрасывается (см. NewsService.update)
   publishedAt DateTime?

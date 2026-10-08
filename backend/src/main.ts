@@ -1,8 +1,8 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { json, urlencoded } from 'express';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
+import { registerBodyParsers } from './common/body-parsers';
 import { assertProductionConfig } from './common/config/assert-production-config';
 import { loggerConfig } from './common/logger/logger.module';
 import { assertMinClientApi } from './common/client-api/client-api.guard';
@@ -12,7 +12,8 @@ async function bootstrap() {
   // bodyParser: false — регистрируем json/urlencoded вручную ниже с увеличенным лимитом;
   // дефолтный лимит express (100kb) слишком мал для фото мастера в base64 (до ~2MB после
   // декодирования, ~2.7MB в base64 + JSON-обвязка, см. item41) и картинки новости (до 5MB
-  // после декодирования, ~6.7MB в base64, item75).
+  // после декодирования, ~6.7MB в base64, item75). Для POST /news и PATCH /news/:id лимит выше
+  // (HTML статьи до 12MB, item89) — см. common/body-parsers.ts.
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
     logger: loggerConfig,
@@ -26,8 +27,7 @@ async function bootstrap() {
   // Заменяем встроенный логгер NestJS на Winston
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
-  app.use(json({ limit: '8mb' }));
-  app.use(urlencoded({ extended: true, limit: '8mb' }));
+  registerBodyParsers(app);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.enableCors({
     origin: (process.env.FRONTEND_URL ?? 'http://localhost:5173')

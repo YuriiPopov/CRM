@@ -6,6 +6,7 @@ import com.beauty4you.client.data.remote.CategoryDto
 import com.beauty4you.client.data.remote.ClientCatalogDto
 import com.beauty4you.client.data.remote.ClientServiceDto
 import com.beauty4you.client.data.remote.MasterDto
+import com.beauty4you.client.data.remote.ApiJson
 import com.beauty4you.client.data.remote.NewsDto
 import com.beauty4you.client.data.remote.SalonDto
 import com.beauty4you.client.data.remote.ServiceDto
@@ -162,7 +163,21 @@ class MappersTest {
         publishedAt: String,
         category: String = "NOWOSC",
         imageUrl: String? = null,
-    ) = NewsDto(id = id, category = category, title = "Tytuł $id", body = "Treść $id", imageUrl = imageUrl, publishedAt = publishedAt)
+        hasArticle: Boolean = false,
+    ) = NewsDto(id = id, category = category, title = "Tytuł $id", body = "Treść $id", imageUrl = imageUrl, publishedAt = publishedAt, hasArticle = hasArticle)
+
+    @Test
+    fun `news feed carries hasArticle and defaults to false for older responses`() {
+        val feed = listOf(
+            news("with", "2026-10-03T08:15:00.000Z", hasArticle = true),
+            news("without", "2026-10-02T08:15:00.000Z"),
+        ).toNewsFeed({ _, _ -> null }, warsaw)
+
+        assertEquals(listOf(true, false), feed.map { it.hasArticle })
+        // ответ без поля hasArticle (старый backend) разбирается как «без статьи»
+        val old = """{"id":"n","category":"NOWOSC","title":"T","body":"B","publishedAt":"2026-10-03T08:15:00.000Z"}"""
+        assertEquals(false, ApiJson.decodeFromString<NewsDto>(old).hasArticle)
+    }
 
     @Test
     fun `news feed maps title, text, category tag and publication date`() {

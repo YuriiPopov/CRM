@@ -102,6 +102,15 @@ export class ClientPortalController {
     return this.newsService.findPublished(client.salonId);
   }
 
+  // Страница статьи (item89): HTML только опубликованной новости своего салона, иначе 404
+  @Get('news/:id')
+  newsArticle(
+    @CurrentClient() client: AuthenticatedClient,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.newsService.findPublishedArticle(id, client.salonId);
+  }
+
   @Get('slots')
   slots(
     @CurrentClient() client: AuthenticatedClient,

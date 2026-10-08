@@ -13,6 +13,9 @@ class NewsRepository(private val api: ApiService) {
 
     suspend fun list(): List<NewsPost> = api.listNews().mapNotNull { it.toDomain() }
 
+    // HTML сохранённой статьи для «Podgląd»; null — статьи нет
+    suspend fun articleHtml(id: String): String? = api.getNews(id).contentHtml
+
     suspend fun create(fields: NewsFields): NewsPost = api.createNews(fields.toBody()).toDomainOrThrow()
 
     suspend fun update(id: String, fields: NewsFields): NewsPost = api.updateNews(id, fields.toBody()).toDomainOrThrow()

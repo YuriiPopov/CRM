@@ -122,6 +122,10 @@ interface ApiService {
     @GET("news")
     suspend fun listNews(): List<NewsPostDto>
 
+    // Единственный ответ с contentHtml (список его не содержит) — предпросмотр сохранённой статьи
+    @GET("news/{id}")
+    suspend fun getNews(@Path("id") id: String): NewsPostDto
+
     @POST("news")
     suspend fun createNews(@Body body: NewsBody): NewsPostDto
 

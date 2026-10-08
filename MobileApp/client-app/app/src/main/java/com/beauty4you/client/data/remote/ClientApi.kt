@@ -33,6 +33,9 @@ interface ClientApi {
     @GET("client/news")
     suspend fun news(): List<NewsDto>
 
+    @GET("client/news/{id}")
+    suspend fun newsArticle(@Path("id") id: String): NewsArticleDto
+
     @GET("client/slots")
     suspend fun slots(
         @Query("masterId") masterId: String,

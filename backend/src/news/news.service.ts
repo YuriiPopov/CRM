@@ -5,6 +5,12 @@ import {
 } from '@nestjs/common';
 import { NewsPost, NewsStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ArticleException } from './article/article-errors';
+import { sanitizeArticleHtml } from './article/article-sanitizer';
+import {
+  ARTICLE_RESULT_MAX_BYTES,
+  ARTICLE_SOURCE_MAX_BYTES,
+} from './dto/article-limits';
 import { CreateNewsDto } from './dto/create-news.dto';
 import { UpdateNewsDto } from './dto/update-news.dto';
 import { UploadNewsImageDto } from './dto/upload-news-image.dto';
@@ -23,20 +29,44 @@ const clientNewsSelect = {
   publishedAt: true,
 } as const;
 
+// Админский вид новости: HTML статьи (до 4 МБ) в ответ не попадает — только признак hasArticle
+type AdminNewsPost = Omit<NewsPost, 'contentHtml'> & { hasArticle: boolean };
+
+function toAdminView(post: NewsPost): AdminNewsPost {
+  const { contentHtml, ...rest } = post;
+  return { ...rest, hasArticle: contentHtml !== null };
+}
+
 @Injectable()
 export class NewsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(salonId: string) {
-    return this.prisma.newsPost.findMany({
+  async findAll(salonId: string): Promise<AdminNewsPost[]> {
+    const posts = await this.prisma.newsPost.findMany({
       where: { salonId },
       orderBy: { createdAt: 'desc' },
+      omit: { contentHtml: true },
     });
+    const withArticle = await this.idsWithArticle(salonId);
+    return posts.map((post) => ({
+      ...post,
+      hasArticle: withArticle.has(post.id),
+    }));
   }
 
-  create(dto: CreateNewsDto, salonId: string) {
+  // Единственный админский маршрут, отдающий contentHtml (форма редактирования и «Podgląd»)
+  async findOne(
+    id: string,
+    salonId: string,
+  ): Promise<NewsPost & { hasArticle: boolean }> {
+    const post = await this.findInSalon(id, salonId);
+    return { ...post, hasArticle: post.contentHtml !== null };
+  }
+
+  async create(dto: CreateNewsDto, salonId: string): Promise<AdminNewsPost> {
     const status = dto.status ?? NewsStatus.DRAFT;
-    return this.prisma.newsPost.create({
+    const contentHtml = await this.processArticle(dto.contentHtml);
+    const post = await this.prisma.newsPost.create({
       data: {
         salonId,
         category: dto.category,
@@ -44,16 +74,25 @@ export class NewsService {
         body: dto.body,
         status,
         publishedAt: status === NewsStatus.PUBLISHED ? new Date() : null,
+        ...(contentHtml !== undefined && { contentHtml }),
       },
     });
+    return toAdminView(post);
   }
 
-  async update(id: string, dto: UpdateNewsDto, salonId: string) {
+  async update(
+    id: string,
+    dto: UpdateNewsDto,
+    salonId: string,
+  ): Promise<AdminNewsPost> {
     const post = await this.findInSalon(id, salonId);
+    // После findInSalon: чужая/несуществующая новость — 404, а не 422 за чужой файл
+    const contentHtml = await this.processArticle(dto.contentHtml);
 
-    return this.prisma.newsPost.update({
+    const updated = await this.prisma.newsPost.update({
       where: { id },
       data: {
+        ...(contentHtml !== undefined && { contentHtml }),
         ...(dto.category !== undefined && { category: dto.category }),
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.body !== undefined && { body: dto.body }),
@@ -64,6 +103,7 @@ export class NewsService {
           post.publishedAt === null && { publishedAt: new Date() }),
       },
     });
+    return toAdminView(updated);
   }
 
   async remove(id: string, salonId: string): Promise<void> {
@@ -75,10 +115,11 @@ export class NewsService {
     await this.findInSalon(id, salonId);
     this.assertImageSize(dto.image);
 
-    return this.prisma.newsPost.update({
+    const post = await this.prisma.newsPost.update({
       where: { id },
       data: { imageUrl: dto.image },
     });
+    return toAdminView(post);
   }
 
   async removeImage(id: string, salonId: string): Promise<void> {
@@ -89,13 +130,62 @@ export class NewsService {
     });
   }
 
-  // Лента клиента: только опубликованные новости его салона, новые сверху
-  findPublished(salonId: string) {
-    return this.prisma.newsPost.findMany({
+  // Лента клиента: только опубликованные новости его салона, новые сверху. HTML статьи не отдаём —
+  // только hasArticle; сам текст — GET /client/news/:id.
+  async findPublished(salonId: string) {
+    const posts = await this.prisma.newsPost.findMany({
       where: { salonId, status: NewsStatus.PUBLISHED },
       orderBy: { publishedAt: 'desc' },
       select: clientNewsSelect,
     });
+    const withArticle = await this.idsWithArticle(salonId);
+    return posts.map((post) => ({
+      ...post,
+      hasArticle: withArticle.has(post.id),
+    }));
+  }
+
+  // Статья опубликованной новости своего салона; черновик и чужой салон — 404 (как несуществующая)
+  async findPublishedArticle(id: string, salonId: string) {
+    const post = await this.prisma.newsPost.findFirst({
+      where: { id, salonId, status: NewsStatus.PUBLISHED },
+      select: { id: true, title: true, contentHtml: true },
+    });
+    if (!post) {
+      throw new NotFoundException('News post not found');
+    }
+    return post;
+  }
+
+  // Какие новости салона имеют статью — без передачи самого HTML из БД
+  private async idsWithArticle(salonId: string): Promise<Set<string>> {
+    const rows = await this.prisma.newsPost.findMany({
+      where: { salonId, contentHtml: { not: null } },
+      select: { id: true },
+    });
+    return new Set(rows.map((row) => row.id));
+  }
+
+  // undefined — поле не прислали (не менять); null — удалить статью; строка — санитизированный HTML
+  private async processArticle(
+    raw: string | null | undefined,
+  ): Promise<string | null | undefined> {
+    if (raw === undefined) return undefined;
+    if (raw === null || raw.trim() === '') return null;
+    if (Buffer.byteLength(raw, 'utf8') > ARTICLE_SOURCE_MAX_BYTES) {
+      throw new ArticleException(
+        'ARTICLE_TOO_LARGE',
+        'Article file must not exceed 12MB',
+      );
+    }
+    const html = await sanitizeArticleHtml(raw);
+    if (Buffer.byteLength(html, 'utf8') > ARTICLE_RESULT_MAX_BYTES) {
+      throw new ArticleException(
+        'ARTICLE_RESULT_TOO_LARGE',
+        'Article is larger than 4MB after processing; reduce the number or size of images',
+      );
+    }
+    return html;
   }
 
   private async findInSalon(id: string, salonId: string): Promise<NewsPost> {

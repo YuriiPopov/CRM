@@ -10,6 +10,7 @@ import com.beauty4you.client.R
 import com.beauty4you.client.data.AuthRepository
 import com.beauty4you.client.data.LoyaltyStore
 import com.beauty4you.client.data.MockData
+import com.beauty4you.client.data.NewsItem
 import com.beauty4you.client.data.NewsState
 import com.beauty4you.client.data.DaySlots
 import com.beauty4you.client.data.SalonRepository
@@ -17,6 +18,8 @@ import com.beauty4you.client.data.ServicePhotos
 import androidx.compose.ui.graphics.ImageBitmap
 import com.beauty4you.client.data.Slot
 import com.beauty4you.client.data.remote.ApiException
+import com.beauty4you.client.ui.article.ArticleState
+import com.beauty4you.client.ui.article.loadArticleState
 import com.beauty4you.client.ui.booking.canConfirm
 import com.beauty4you.client.ui.booking.canGoToPreviousWeek
 import com.beauty4you.client.ui.booking.newBookingDraft
@@ -45,6 +48,8 @@ sealed interface Pushed {
     data class MasterDetail(val masterId: String) : Pushed
     data class ServiceDetail(val serviceId: String) : Pushed
     data object Loyalty : Pushed
+    /** Страница статьи новости (item89); [title] — для верхней панели, пока статья грузится. */
+    data class NewsArticle(val newsId: String, val title: String) : Pushed
 }
 
 data class BookingDraft(
@@ -115,6 +120,9 @@ class ClientViewModel(
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
 
+    private val _article = MutableStateFlow<ArticleState>(ArticleState.Loading)
+    val article: StateFlow<ArticleState> = _article.asStateFlow()
+
     private val _newsRefreshing = MutableStateFlow(false)
     val newsRefreshing: StateFlow<Boolean> = _newsRefreshing.asStateFlow()
 
@@ -126,12 +134,14 @@ class ClientViewModel(
     val contacts = MockData.contacts
 
     private var slotsJob: Job? = null
+    private var articleJob: Job? = null
 
     /** Вызывается при входе в основную часть; после выхода и повторного входа грузит данные заново. */
     fun start() {
         if (repo.client.value == null) {
             // Новая сессия (в т.ч. другой клиент после 401) — навигация с чистого листа
             _nav.value = NavState()
+            articleJob?.cancel()
             _draft.value = null
             _viewer.value = null
             reload()
@@ -193,6 +203,7 @@ class ClientViewModel(
 
     fun selectTab(tab: Tab) {
         _viewer.value = null
+        articleJob?.cancel()
         _nav.update { it.copy(tab = tab, pushed = null) }
         // Записи могли измениться в салоне (подтверждение, отмена администратором),
         // новости — опубликованы или удалены в admin-app
@@ -212,8 +223,28 @@ class ClientViewModel(
     fun closeViewer() { _viewer.value = null }
     fun openService(id: String) = _nav.update { it.copy(pushed = Pushed.ServiceDetail(id)) }
     fun openLoyalty() = _nav.update { it.copy(pushed = Pushed.Loyalty) }
+
+    /** Нажатие на карточку новости со статьёй (item89). «Назад» возвращает в ленту на то же место. */
+    fun openArticle(item: NewsItem) {
+        if (!item.hasArticle) return
+        _nav.update { it.copy(pushed = Pushed.NewsArticle(item.id, item.title)) }
+        loadArticle(item.id)
+    }
+
+    fun retryArticle() {
+        (_nav.value.pushed as? Pushed.NewsArticle)?.let { loadArticle(it.newsId) }
+    }
+
+    private fun loadArticle(id: String) {
+        articleJob?.cancel()
+        _article.value = ArticleState.Loading
+        articleJob = viewModelScope.launch {
+            _article.value = loadArticleState { repo.newsArticle(id) }
+        }
+    }
     fun back() {
         _viewer.value = null
+        articleJob?.cancel()
         _nav.update { it.copy(pushed = null) }
     }
     fun setBookingsUpcoming(upcoming: Boolean) = _nav.update { it.copy(bookingsShowUpcoming = upcoming) }
@@ -399,3 +430,8 @@ fun errorMessage(e: ApiException): Int = when (e.kind) {
     ApiException.Kind.TOO_MANY_REQUESTS -> R.string.error_too_many
     else -> R.string.error_generic
 }
+
+/** Ошибка загрузки статьи: 404 — новость уже снята с публикации. */
+@StringRes
+fun articleErrorMessage(e: ApiException): Int =
+    if (e.kind == ApiException.Kind.NOT_FOUND) R.string.news_article_gone else errorMessage(e)

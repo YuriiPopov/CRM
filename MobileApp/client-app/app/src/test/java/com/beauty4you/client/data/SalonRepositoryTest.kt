@@ -5,6 +5,7 @@ import com.beauty4you.client.data.remote.CatalogDto
 import com.beauty4you.client.data.remote.ClientApi
 import com.beauty4you.client.data.remote.ClientDto
 import com.beauty4you.client.data.remote.CreateBookingBody
+import com.beauty4you.client.data.remote.NewsArticleDto
 import com.beauty4you.client.data.remote.NewsDto
 import com.beauty4you.client.data.remote.RequestCodeBody
 import com.beauty4you.client.data.remote.RequestCodeResponse
@@ -49,6 +50,9 @@ class SalonRepositoryTest {
         override suspend fun cancelBooking(id: String): BookingDto = error("unused")
         override suspend fun servicePhotos(serviceId: String): List<ServicePhotoDto> = error("unused")
         override suspend fun servicePhoto(photoId: String): ResponseBody = error("unused")
+        var articleResult: (String) -> NewsArticleDto = { error("unused") }
+        override suspend fun newsArticle(id: String): NewsArticleDto = articleResult(id)
+
         override suspend fun news(): List<NewsDto> {
             newsCalls++
             newsGate?.await()
@@ -206,4 +210,44 @@ class SalonRepositoryTest {
 
         assertEquals(NewsState.Loading, repo.news.value)
     }
+
+    // item89: страница статьи грузится отдельным запросом по id и не трогает ленту
+    @Test
+    fun `article is loaded by id without touching the feed`() = runTest {
+        val api = FakeApi().apply {
+            articleResult = { id -> NewsArticleDto(id, "Tytuł", "<p>Treść</p>") }
+        }
+        val repo = repo(api, StandardTestDispatcher(testScheduler))
+
+        val article = repo.newsArticle("n1")
+
+        assertEquals(NewsArticle("n1", "Tytuł", "<p>Treść</p>"), article)
+        assertEquals(0, api.newsCalls)
+    }
+
+    @Test
+    fun `article without content has null html`() = runTest {
+        val api = FakeApi().apply { articleResult = { id -> NewsArticleDto(id, "Tytuł", null) } }
+
+        assertEquals(null, repo(api, StandardTestDispatcher(testScheduler)).newsArticle("n1").html)
+    }
+
+    @Test
+    fun `article 404 and network errors become ApiException`() = runTest {
+        val api = FakeApi()
+        val repo = repo(api, StandardTestDispatcher(testScheduler))
+
+        api.articleResult = { throw http(404) }
+        assertEquals(ApiException.Kind.NOT_FOUND, kindOf { repo.newsArticle("n1") })
+        api.articleResult = { throw IOException("offline") }
+        assertEquals(ApiException.Kind.NETWORK, kindOf { repo.newsArticle("n1") })
+    }
+
+    private suspend fun kindOf(block: suspend () -> Unit): ApiException.Kind? =
+        try {
+            block()
+            null
+        } catch (e: ApiException) {
+            e.kind
+        }
 }

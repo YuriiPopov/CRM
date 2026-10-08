@@ -156,6 +156,44 @@ CRUD справочника услуг, скоуплен по `salonId`; в от
 
 В `Notification` — `type: NotificationType` (`BOOKING_CONFIRMATION`/`BOOKING_RESCHEDULED`/`BOOKING_CANCELLATION`) и `createdAt`; миграция `add_notification_type_and_created_at` — первая для этого проекта (БД поднималась впервые, `prisma/migrations/` до этого не было).
 
+## Новости: страница статьи (item89)
+
+`NewsPost.contentHtml` — HTML-статья, которая открывается по нажатию на карточку новости в client-app
+(`body` остаётся коротким анонсом ≤ 2000 знаков).
+
+- `POST /news`, `PATCH /news/:id` принимают `contentHtml` (строка — установить, `null`/`""` — удалить,
+  поле не прислано — не менять). Только для этих двух маршрутов лимит JSON-тела поднят до 16 МБ
+  (`common/body-parsers.ts`), остальные остаются на 8 МБ.
+- Лимиты: исходный HTML ≤ 12 МБ, после обработки ≤ 4 МБ; иначе **422** с кодом `ARTICLE_TOO_LARGE` /
+  `ARTICLE_RESULT_TOO_LARGE`. Другие коды 422: `ARTICLE_INVALID_HTML` (после очистки ничего не осталось),
+  `ARTICLE_IMAGE_INVALID` (картинка битая/не растровая/слишком большая по пикселям).
+- Санитизация по белому списку (`news/article/article-sanitizer.ts`): убираются `script`, `iframe`,
+  `object`, `embed`, `form`, `link`, `meta`, `base`, `svg`/`math` целиком, все `on*`, `javascript:`;
+  остаются `style`, `class`, `id`; `href` — только `#якорь`, `https:`, `tel:`, `mailto:`; `img` — только
+  `data:image/*` (внешние убираются). В CSS вырезаются `@import` и любые `url()`, кроме `data:image/*`.
+- Все `data:image/*` (в `<img>` и CSS `url()`) пережимаются: длинная сторона ≤ 1200 px, JPEG q80
+  (PNG/WebP/GIF/TIFF конвертируются, прозрачность заливается белым).
+- `GET /news` (список) отдаёт `hasArticle`, но не HTML; `GET /news/:id` — с `contentHtml`.
+  `GET /client/news` отдаёт `hasArticle`; `GET /client/news/:id` — `{ id, title, contentHtml }`
+  опубликованной новости своего салона (черновик и чужой салон — 404).
+
+### Упаковка статьи: `scripts/pack-news-html.mjs`
+
+В HTML-образце картинки лежат рядом файлами. В админку нужен один самодостаточный файл —
+скрипт встраивает их как data-URI (с пережатием до 1200 px, JPEG q80; `.jpg/.png/.webp/.tiff/.gif`),
+папку `_excluded_brand` игнорирует, внешние ссылки не трогает:
+
+```bash
+cd backend
+node scripts/pack-news-html.mjs ../../Content/2026-10-08_fall_2026_nail_colors.html
+# → ../../Content/2026-10-08_fall_2026_nail_colors.packed.html
+node scripts/pack-news-html.mjs article.html --out build/article.packed.html   # свой путь результата
+```
+
+Относительные пути считаются от папки HTML-файла. Нет файла картинки — скрипт падает с кодом 1 и
+ничего не пишет. Готовый `.packed.html` загружается в admin-app: «Aktualności» → форма новости →
+«Artykuł (plik HTML)». Если упакованный файл больше 4 МБ, скрипт предупредит — меньше/легче картинки.
+
 ## Public booking (без авторизации)
 
 Минимальная публичная онлайн-запись — единственные анонимные маршруты в API (см. ТЗ, раздел 8 "MVP и roadmap"). Отдают/принимают только то, что нужно самому клиенту: никогда не возвращают чужие записи, список клиентов или расписание мастера целиком — только доступные слоты и подтверждение собственной записи.

@@ -134,6 +134,9 @@ data class NewsPostDto(
     val status: String,
     val publishedAt: String? = null,
     val createdAt: String,
+    // Страница статьи (item89): в списке и ответах POST/PATCH — только признак; HTML отдаёт GET /news/:id
+    val hasArticle: Boolean = false,
+    val contentHtml: String? = null,
 )
 
 // POST /news и PATCH /news/:id; в PATCH null-поля не отправляются (explicitNulls = false)
@@ -143,6 +146,8 @@ data class NewsBody(
     val title: String? = null,
     val body: String? = null,
     val status: String? = null,
+    // HTML статьи целиком; "" — удалить статью, null — не менять (не отправляется)
+    val contentHtml: String? = null,
 )
 
 @Serializable

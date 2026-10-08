@@ -19,4 +19,6 @@ data class NewsPost(
     val status: NewsStatus,
     val publishedAt: Instant?,
     val createdAt: Instant,
+    // Есть страница статьи (item89); сам HTML грузится только для предпросмотра
+    val hasArticle: Boolean = false,
 )

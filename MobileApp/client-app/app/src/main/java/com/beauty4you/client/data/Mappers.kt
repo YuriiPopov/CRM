@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.beauty4you.client.data.remote.BookingDto
 import com.beauty4you.client.data.remote.CatalogDto
 import com.beauty4you.client.data.remote.ClientDto
+import com.beauty4you.client.data.remote.NewsArticleDto
 import com.beauty4you.client.data.remote.NewsDto
 import com.beauty4you.client.data.remote.SlotDto
 import java.time.Instant
@@ -99,6 +100,7 @@ private fun NewsDto.toNewsItem(tag: NewsTag, decodeImage: (String, String) -> Im
     text = body,
     date = Instant.parse(publishedAt).atZone(zone).toLocalDate(),
     image = imageUrl?.let { decodeImage(id, it) },
+    hasArticle = hasArticle,
 )
 
 private val EMOJI_BY_KEYWORD = listOf(
@@ -128,3 +130,5 @@ fun masterColor(masterId: String): Color {
     for (ch in masterId) hash = (hash * 31 + ch.code) and 0xFFFFFFFFL
     return MASTER_COLOR_PALETTE[(hash % MASTER_COLOR_PALETTE.size).toInt()]
 }
+
+fun NewsArticleDto.toDomain() = NewsArticle(id = id, title = title, html = contentHtml)

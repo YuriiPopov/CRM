@@ -106,6 +106,7 @@ fun NewsPostDto.toDomain(): NewsPost? {
         status = status,
         publishedAt = publishedAt?.let(Instant::parse),
         createdAt = Instant.parse(createdAt),
+        hasArticle = hasArticle,
     )
 }
 
@@ -114,6 +115,7 @@ fun NewsFields.toBody() = NewsBody(
     title = title,
     body = body,
     status = status?.name,
+    contentHtml = contentHtml,
 )
 
 fun MasterFields.toBody() = MasterBody(

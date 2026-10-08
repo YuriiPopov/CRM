@@ -93,6 +93,9 @@ class SalonRepository(
         }
     }
 
+    /** Страница статьи опубликованной новости (item89); 404 — новость снята с публикации или удалена. */
+    suspend fun newsArticle(id: String): NewsArticle = apiCall { api.newsArticle(id) }.toDomain()
+
     private fun decodeFeed(newsImages: HashMap<String, ImageBitmap?>, dtos: List<NewsDto>): List<NewsItem> {
         val wanted = dtos.mapNotNull { dto -> dto.imageUrl?.let { imageKey(dto.id, it) } }.toSet()
         newsImages.keys.retainAll(wanted)

@@ -129,4 +129,14 @@ data class NewsDto(
     // base64 data URL, как фото мастера, или null
     val imageUrl: String? = null,
     val publishedAt: String,
+    // У новости есть страница статьи (item89); сам HTML лента не отдаёт — GET /client/news/:id
+    val hasArticle: Boolean = false,
+)
+
+// GET /client/news/:id — статья опубликованной новости (item89); contentHtml == null у новости без статьи
+@Serializable
+data class NewsArticleDto(
+    val id: String,
+    val title: String,
+    val contentHtml: String? = null,
 )

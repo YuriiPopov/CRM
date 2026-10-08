@@ -23,4 +23,10 @@ export class UpdateNewsDto {
   @IsOptional()
   @IsEnum(NewsStatus)
   status?: NewsStatus;
+
+  // Страница статьи (item89): HTML-файл целиком. Санитизируется и пережимается в NewsService.
+  // Отсутствует — не менять; null или пустая строка — удалить статью.
+  @IsOptional()
+  @IsString()
+  contentHtml?: string | null;
 }

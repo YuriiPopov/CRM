@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import java.util.concurrent.TimeUnit
 
 // OkHttp-интерцепторы синхронные — токен читаем блокирующе (как в master-app).
 // 401 на любом запросе, кроме самого логина, означает истёкший/отозванный токен: сессия
@@ -47,6 +48,9 @@ object NetworkModule {
             .addInterceptor(ClientApiInterceptor())
             .addInterceptor(AuthInterceptor(session))
             .addInterceptor(logging)
+            // HTML статьи до 12 МБ: загрузка и обработка картинок на сервере (item89) дольше 10 с по умолчанию
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
             .build()
 
         return Retrofit.Builder()

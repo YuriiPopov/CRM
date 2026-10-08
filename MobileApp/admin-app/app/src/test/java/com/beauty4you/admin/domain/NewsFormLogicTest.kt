@@ -18,6 +18,7 @@ class NewsFormLogicTest {
         imageUrl: String? = null,
         publishedAt: Instant? = null,
         createdAt: Instant = Instant.parse("2026-10-01T10:00:00Z"),
+        hasArticle: Boolean = false,
     ) = NewsPost(
         id = "n1",
         category = NewsCategory.NOWOSC,
@@ -27,6 +28,7 @@ class NewsFormLogicTest {
         status = status,
         publishedAt = publishedAt,
         createdAt = createdAt,
+        hasArticle = hasArticle,
     )
 
     private fun form(
@@ -34,7 +36,8 @@ class NewsFormLogicTest {
         body: String = "Treść",
         status: NewsStatus = NewsStatus.DRAFT,
         image: NewsImage = NewsImage.Saved(null),
-    ) = NewsForm(NewsCategory.NOWOSC, title, body, status, image)
+        article: NewsArticle = NewsArticle.Saved(false),
+    ) = NewsForm(NewsCategory.NOWOSC, title, body, status, image, article)
 
     // --- Проверки полей: те же границы, что у бэкенда ---
 
@@ -215,5 +218,109 @@ class NewsFormLogicTest {
         val list = NewsFormLogic.replace(listOf(newer, older), edited)
         assertEquals(listOf("b", "a"), list.map { it.id })
         assertEquals("Zmieniony", list[1].title)
+    }
+
+    // --- Статья (item89) ---
+
+    private val picked = NewsArticle.Picked("artykul.html", 2_300_000L, "<article>Treść</article>")
+
+    @Test
+    fun `edit form carries whether the post has an article`() {
+        assertEquals(NewsArticle.Saved(true), NewsFormLogic.fromPost(post(hasArticle = true)).article)
+        assertEquals(NewsArticle.Saved(false), NewsFormLogic.fromPost(post()).article)
+    }
+
+    @Test
+    fun `picked file travels in the create request`() {
+        val plan = NewsFormLogic.planSave(null, form(article = picked))
+        assertEquals("<article>Treść</article>", plan.create?.contentHtml)
+    }
+
+    @Test
+    fun `published post with article and image is still published only after the image upload`() {
+        val plan = NewsFormLogic.planSave(null, form(status = NewsStatus.PUBLISHED, image = NewsImage.Picked(image), article = picked))
+        assertEquals(NewsStatus.DRAFT, plan.create?.status)
+        assertEquals("<article>Treść</article>", plan.create?.contentHtml)
+        assertNull(plan.patch?.contentHtml)
+    }
+
+    @Test
+    fun `new post without a file sends no contentHtml`() {
+        assertNull(NewsFormLogic.planSave(null, form()).create?.contentHtml)
+    }
+
+    @Test
+    fun `replacing the article patches only contentHtml`() {
+        val original = post(hasArticle = true)
+        val plan = NewsFormLogic.planSave(original, NewsFormLogic.fromPost(original).copy(article = picked))
+        assertEquals(NewsSavePlan(patch = NewsFields(contentHtml = "<article>Treść</article>")), plan)
+    }
+
+    @Test
+    fun `removing a saved article sends an empty contentHtml`() {
+        val original = post(hasArticle = true)
+        val plan = NewsFormLogic.planSave(original, NewsFormLogic.fromPost(original).copy(article = NewsArticle.Removed))
+        assertEquals(NewsSavePlan(patch = NewsFields(contentHtml = "")), plan)
+    }
+
+    @Test
+    fun `leaving the article alone does not resend it`() {
+        val original = post(hasArticle = true)
+        val plan = NewsFormLogic.planSave(original, NewsFormLogic.fromPost(original).copy(title = "Inny"))
+        assertNull(plan.patch?.contentHtml)
+    }
+
+    @Test
+    fun `picking or removing a file makes the form dirty`() {
+        val original = post(hasArticle = true)
+        assertFalse(NewsFormLogic.isDirty(original, NewsFormLogic.fromPost(original)))
+        assertTrue(NewsFormLogic.isDirty(original, NewsFormLogic.fromPost(original).copy(article = picked)))
+        assertTrue(NewsFormLogic.isDirty(original, NewsFormLogic.fromPost(original).copy(article = NewsArticle.Removed)))
+        assertTrue(NewsFormLogic.isDirty(null, form(article = picked)))
+    }
+
+    @Test
+    fun `article attached flag`() {
+        assertTrue(picked.attached)
+        assertTrue(NewsArticle.Saved(true).attached)
+        assertFalse(NewsArticle.Saved(false).attached)
+        assertFalse(NewsArticle.Removed.attached)
+    }
+
+    // --- Выбор файла ---
+
+    @Test
+    fun `only html files up to 12 MB are accepted`() {
+        val limit = 12L * 1024 * 1024
+        assertNull(NewsFormLogic.validateArticleFile("artykul.html", 1_000L))
+        assertNull(NewsFormLogic.validateArticleFile("ARTYKUL.HTM", null))
+        assertNull(NewsFormLogic.validateArticleFile("a.html", limit))
+        assertEquals(NewsError.ARTICLE_TOO_LARGE, NewsFormLogic.validateArticleFile("a.html", limit + 1))
+        assertEquals(NewsError.ARTICLE_EMPTY, NewsFormLogic.validateArticleFile("a.html", 0))
+        assertEquals(NewsError.ARTICLE_NOT_HTML, NewsFormLogic.validateArticleFile("a.pdf", 10))
+        assertEquals(NewsError.ARTICLE_NOT_HTML, NewsFormLogic.validateArticleFile(null, 10))
+    }
+
+    @Test
+    fun `file size label`() {
+        assertEquals("2,2 MB", NewsFormLogic.fileSizeLabel(2_300_000L))
+        assertEquals("340 KB", NewsFormLogic.fileSizeLabel(348_160L))
+        assertEquals("12,0 MB", NewsFormLogic.fileSizeLabel(12L * 1024 * 1024))
+        assertEquals("900 B", NewsFormLogic.fileSizeLabel(900))
+    }
+
+    // --- Ошибки backend по статье ---
+
+    @Test
+    fun `article errors map to their own messages`() {
+        assertEquals(NewsError.ARTICLE_TOO_LARGE, NewsFormLogic.mapError(413, "request entity too large"))
+        assertEquals(NewsError.ARTICLE_TOO_LARGE, NewsFormLogic.mapError(422, "Article file must not exceed 12MB", "ARTICLE_TOO_LARGE"))
+        assertEquals(NewsError.ARTICLE_RESULT_TOO_LARGE, NewsFormLogic.mapError(422, "…", "ARTICLE_RESULT_TOO_LARGE"))
+        assertEquals(NewsError.ARTICLE_INVALID_HTML, NewsFormLogic.mapError(422, "…", "ARTICLE_INVALID_HTML"))
+        assertEquals(NewsError.ARTICLE_IMAGE_INVALID, NewsFormLogic.mapError(422, "…", "ARTICLE_IMAGE_INVALID"))
+        // 422 без известного кода — всё равно про статью (других 422 у /news нет)
+        assertEquals(NewsError.ARTICLE_INVALID_HTML, NewsFormLogic.mapError(422, null, null))
+        // 422 «картинки статьи» не путается с 400 «картинки новости»
+        assertEquals(NewsError.IMAGE_INVALID, NewsFormLogic.mapError(400, "Image must not exceed 5MB"))
     }
 }

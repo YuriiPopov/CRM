@@ -12,7 +12,26 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import android.content.Intent
+import com.beauty4you.admin.domain.NewsArticle
+import com.beauty4you.admin.ui.article.ArticleLink
+import com.beauty4you.admin.ui.article.ArticleWebView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -88,6 +107,10 @@ fun NewsFormSheet(editor: NewsEditorState, viewModel: NewsViewModel) {
         if (uri != null) viewModel.onImagePicked(uri)
     }
 
+    val pickArticle = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.onArticlePicked(uri)
+    }
+
     FormSheet(
         title = stringResource(if (editor.isEdit) R.string.news_form_title_edit else R.string.news_form_title_new),
         busy = editor.saving,
@@ -161,6 +184,10 @@ fun NewsFormSheet(editor: NewsEditorState, viewModel: NewsViewModel) {
             enabled = !editor.saving,
         )
 
+        ArticleSection(editor, viewModel, onPick = {
+            pickArticle.launch(arrayOf("text/html", "application/xhtml+xml", "text/plain", "application/octet-stream"))
+        })
+
         FieldLabel(R.string.news_form_status)
         val statusColors = form.status.colors()
         FieldBox(onClick = viewModel::toggleStatus, enabled = !editor.saving, background = statusColors.bg) {
@@ -181,6 +208,8 @@ fun NewsFormSheet(editor: NewsEditorState, viewModel: NewsViewModel) {
             onSave = viewModel::save,
         )
     }
+
+    editor.preview?.let { ArticlePreviewDialog(it, onClose = viewModel::closePreview, onRetry = viewModel::retryPreview) }
 
     if (editor.confirmDelete) {
         ConfirmDeleteDialog(
@@ -280,7 +309,107 @@ private fun Set<NewsFieldError>.firstBodyError(): Int? = when {
     else -> null
 }
 
+// Поле «Artykuł (plik HTML)»: выбор файла, имя и размер, «Podgląd» и «Usuń» (item89)
+@Composable
+private fun ArticleSection(editor: NewsEditorState, viewModel: NewsViewModel, onPick: () -> Unit) {
+    val article = editor.form.article
+    FieldLabel(R.string.news_form_article)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(FieldShape)
+            .background(CardBg)
+            .border(BorderStroke(1.dp, Border), FieldShape)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Description, contentDescription = null, tint = if (article.attached) Rose else Muted, modifier = Modifier.size(22.dp))
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                when (article) {
+                    is NewsArticle.Picked -> {
+                        Text(article.fileName, style = B4UType.ItemTitle, color = InkStrong, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(NewsFormLogic.fileSizeLabel(article.sizeBytes), style = B4UType.CaptionSmall, color = Muted)
+                    }
+                    is NewsArticle.Saved -> Text(
+                        stringResource(if (article.exists) R.string.news_article_saved else R.string.news_article_none),
+                        style = B4UType.Body,
+                        color = if (article.exists) InkStrong else Muted,
+                    )
+                    NewsArticle.Removed -> Text(stringResource(R.string.news_article_removed), style = B4UType.Body, color = StatusCancelled.fg)
+                }
+            }
+            if (editor.readingArticle) {
+                CircularProgressIndicator(color = Rose, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp)) {
+            PillAction(
+                Icons.Filled.UploadFile,
+                stringResource(if (article.attached) R.string.news_article_change else R.string.news_article_pick),
+                enabled = !editor.busy,
+                onClick = onPick,
+            )
+            if (article.attached) {
+                PillAction(Icons.Filled.Visibility, stringResource(R.string.news_article_preview), enabled = !editor.busy, onClick = viewModel::openPreview)
+                PillAction(null, stringResource(R.string.news_article_remove), enabled = !editor.busy, color = StatusCancelled.fg, onClick = viewModel::removeArticle)
+            }
+        }
+        Text(stringResource(R.string.news_article_hint), style = B4UType.CaptionSmall, color = Muted, modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
+// Предпросмотр: на весь экран, тот же WebView, что у клиента (item89)
+@Composable
+private fun ArticlePreviewDialog(preview: ArticlePreview, onClose: () -> Unit, onRetry: () -> Unit) {
+    val context = LocalContext.current
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(CardBg).systemBarsPadding()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                val backLabel = stringResource(R.string.back)
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onClose).semantics { contentDescription = backLabel },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = InkStrong) }
+                Text(stringResource(R.string.news_article_preview_title), style = B4UType.ItemTitle, color = InkStrong)
+            }
+            HorizontalDivider(color = Border)
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                when (preview) {
+                    ArticlePreview.Loading -> CircularProgressIndicator(color = Rose)
+                    ArticlePreview.Failed -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(stringResource(R.string.news_article_preview_error), style = B4UType.Body, color = Muted)
+                        Box(Modifier.padding(top = 12.dp)) { PillAction(null, stringResource(R.string.action_retry), enabled = true, onClick = onRetry) }
+                    }
+                    is ArticlePreview.Ready -> ArticleWebView(
+                        html = preview.html,
+                        darkTheme = isSystemInDarkTheme(),
+                        onLink = { link ->
+                            when (link) {
+                                // В предпросмотре записи нет — подсказываем, что произойдёт у клиента
+                                ArticleLink.Book -> Toast.makeText(context, R.string.news_article_preview_book, Toast.LENGTH_SHORT).show()
+                                is ArticleLink.External -> runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)).addCategory(Intent.CATEGORY_BROWSABLE))
+                                }
+                                ArticleLink.InPage, ArticleLink.Blocked -> Unit
+                            }
+                        },
+                        onFailure = onRetry,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+    }
+}
+
 private fun NewsError.messageRes(): Int = when (this) {
+    NewsError.ARTICLE_TOO_LARGE -> R.string.news_error_article_too_large
+    NewsError.ARTICLE_RESULT_TOO_LARGE -> R.string.news_error_article_result_too_large
+    NewsError.ARTICLE_INVALID_HTML -> R.string.news_error_article_invalid_html
+    NewsError.ARTICLE_IMAGE_INVALID -> R.string.news_error_article_image
+    NewsError.ARTICLE_NOT_HTML -> R.string.news_error_article_not_html
+    NewsError.ARTICLE_EMPTY -> R.string.news_error_article_empty
+    NewsError.ARTICLE_UNREADABLE -> R.string.news_error_article_unreadable
     NewsError.IMAGE_INVALID -> R.string.news_error_image
     NewsError.VALIDATION -> R.string.news_error_validation
     NewsError.NOT_FOUND -> R.string.news_error_not_found

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,12 +53,13 @@ import com.beauty4you.client.ui.theme.MutedLight
 // Aktualności: опубликованные новости салона из GET /client/news (item75), новые сверху
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewsScreen(vm: ClientViewModel) {
+fun NewsScreen(vm: ClientViewModel, listState: LazyListState = rememberLazyListState()) {
     val news by vm.news.collectAsStateWithLifecycle()
     val refreshing by vm.newsRefreshing.collectAsStateWithLifecycle()
 
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = vm::refreshNews, modifier = Modifier.fillMaxSize()) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = PagePadding, end = PagePadding, top = 8.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -84,16 +88,20 @@ fun NewsScreen(vm: ClientViewModel) {
                 is NewsState.Ready -> if (state.items.isEmpty()) {
                     item { EmptyState(stringResource(R.string.news_empty_title), stringResource(R.string.news_empty_text), Modifier.padding(top = 12.dp)) }
                 } else {
-                    newsItems(state.items)
+                    newsItems(state.items, onOpen = vm::openArticle)
                 }
             }
         }
     }
 }
 
-private fun LazyListScope.newsItems(news: List<NewsItem>) {
+private fun LazyListScope.newsItems(news: List<NewsItem>, onOpen: (NewsItem) -> Unit) {
     items(news, key = { it.id }) { n ->
-        B4UCard(shape = RoundedCornerShape(16.dp), contentPadding = PaddingValues(0.dp)) {
+        B4UCard(
+            shape = RoundedCornerShape(16.dp),
+            contentPadding = PaddingValues(0.dp),
+            onClick = if (n.hasArticle) ({ onOpen(n) }) else null,
+        ) {
             val image = n.image
             if (image != null) {
                 Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(130.dp))
@@ -111,7 +119,17 @@ private fun LazyListScope.newsItems(news: List<NewsItem>) {
                 VSpace(3.dp)
                 Text(n.text, style = B4UType.Caption.copy(lineHeight = 17.sp), color = Muted)
                 VSpace(7.dp)
-                Text(formatDate(n.date), style = B4UType.SmallLabel.copy(fontWeight = FontWeight.Normal), color = MutedLight)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        formatDate(n.date),
+                        style = B4UType.SmallLabel.copy(fontWeight = FontWeight.Normal),
+                        color = MutedLight,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (n.hasArticle) {
+                        Text(stringResource(R.string.news_read_more), style = B4UType.SmallLabel.copy(fontWeight = FontWeight.SemiBold), color = Accent)
+                    }
+                }
             }
         }
     }

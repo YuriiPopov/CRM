@@ -8,6 +8,7 @@ import com.beauty4you.admin.data.remote.ApiService
 import com.beauty4you.admin.data.remote.NetworkModule
 import com.beauty4you.admin.data.repo.BookingsRepository
 import com.beauty4you.admin.data.repo.CatalogRepository
+import com.beauty4you.admin.data.ArticleFileReader
 import com.beauty4you.admin.data.repo.NewsRepository
 import com.beauty4you.admin.data.repo.ScheduleRepository
 import com.beauty4you.admin.data.repo.SessionRepository
@@ -61,6 +62,7 @@ class AppContainer(app: Application) {
     val scheduleRepository = ScheduleRepository(api)
     val newsRepository = NewsRepository(api)
     val imageEncoder = ImageEncoder(app)
+    val articleFileReader = ArticleFileReader(app)
     val events = AppEvents()
 }
 

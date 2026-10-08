@@ -35,6 +35,15 @@ export class NewsController {
     return this.newsService.findAll(user.salonId);
   }
 
+  // Единственный админский ответ с contentHtml (список его не содержит)
+  @Get(':id')
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.newsService.findOne(id, user.salonId);
+  }
+
   @Post()
   create(@Body() dto: CreateNewsDto, @CurrentUser() user: AuthenticatedUser) {
     return this.newsService.create(dto, user.salonId);
