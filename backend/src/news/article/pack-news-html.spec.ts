@@ -76,7 +76,7 @@ describe('scripts/pack-news-html.mjs', () => {
             .width,
       ),
     );
-    expect(Math.max(...(widths as number[]))).toBe(1200);
+    expect(Math.max(...widths)).toBe(1200);
 
     // результат проходит санитайзер backend без ошибок; внешний img он убирает
     const sanitized = await sanitizeArticleHtml(packed);
